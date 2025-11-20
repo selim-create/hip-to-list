@@ -1,0 +1,23 @@
+{
+  "name": "hip-medya/hip-to-list",
+  "description": "WordPress için Todoist benzeri görev yönetim eklentisi.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "Hip Medya",
+      "email": "info@hipmedya.com"
+    }
+  ],
+  "require": {
+    "php": ">=7.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "HipMedya\\HipToList\\": "includes/"
+    }
+  },
+  "config": {
+    "optimize-autoloader": true
+  }
+}

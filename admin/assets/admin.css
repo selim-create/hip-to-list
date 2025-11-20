@@ -1,0 +1,31 @@
+/* Klasik WP Admin stiliyle uyumlu küçük düzeltmeler */
+
+/* Klasörler sayfası gibi "col-container" yapısını kullanan sayfalar için */
+#col-container {
+    overflow: hidden;
+}
+
+#col-left {
+    width: 35%;
+    float: left;
+    margin-right: 5%;
+}
+
+#col-right {
+    width: 60%;
+    float: left;
+}
+
+@media only screen and (max-width: 768px) {
+    #col-left, #col-right {
+        width: 100%;
+        float: none;
+        margin-right: 0;
+    }
+}
+
+/* Renk paleti vs. */
+.h2l-priority-p1 { color: #d1453b; font-weight: bold; }
+.h2l-priority-p2 { color: #eb8909; }
+.h2l-priority-p3 { color: #246fe0; }
+.h2l-priority-p4 { color: #808080; }
