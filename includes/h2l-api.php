@@ -20,6 +20,13 @@ add_action( 'rest_api_init', function () {
         'permission_callback' => function () { return is_user_logged_in(); }
     ) );
 
+    // Yorumlar (YENİ)
+    register_rest_route( 'h2l/v1', '/comments(?:/(?P<id>\d+))?', array(
+        'methods' => ['GET', 'POST', 'DELETE'],
+        'callback' => 'h2l_api_manage_comments',
+        'permission_callback' => function () { return is_user_logged_in(); }
+    ) );
+
     // Projeler
     register_rest_route( 'h2l/v1', '/projects(?:/(?P<id>\d+))?', array(
         'methods' => ['POST', 'DELETE'],
@@ -44,19 +51,12 @@ add_action( 'rest_api_init', function () {
 
 /**
  * Kullanıcı profil fotoğrafını HTML çıktısından yakalar.
- * Bu yöntem, avatar eklentilerinin filtrelediği nihai URL'yi bulmayı garanti eder.
  */
 function h2l_get_user_profile_picture_url( $user_id ) {
-    // 1. WordPress'ten avatar HTML'ini iste (96px boyutunda)
     $avatar_html = get_avatar( $user_id, 96 );
-    
-    // 2. HTML içindeki src="..." kısmını regex ile bul
     if ( preg_match( '/src=["\']([^"\']+)["\']/', $avatar_html, $matches ) ) {
-        $url = html_entity_decode( $matches[1] );
-        return $url;
+        return html_entity_decode( $matches[1] );
     }
-
-    // 3. Bulunamazsa varsayılan URL
     return get_avatar_url( $user_id );
 }
 
@@ -75,9 +75,10 @@ function h2l_api_get_init_data( $request ) {
     ");
     
     $sections = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_sections ORDER BY sort_order ASC");
-    $tasks = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_tasks WHERE status != 'trash' ORDER BY created_at DESC");
+    // SIRALAMA GÜNCELLENDİ: created_at ASC (Eskiden yeniye)
+    $tasks = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_tasks WHERE status != 'trash' ORDER BY created_at ASC");
     
-    // KULLANICI AVATARLARI: Yeni fonksiyon kullanılıyor
+    // KULLANICI AVATARLARI
     $users = array_map(function($u) {
         return [
             'id' => $u->ID, 
@@ -108,11 +109,44 @@ function h2l_api_manage_task($request) {
     return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id=%d", $new_id));
 }
 
+// YENİ: Yorum Yönetimi
+function h2l_api_manage_comments($request) {
+    $method = $request->get_method();
+    $comment_cls = new H2L_Comment();
+
+    // Yorumları Getir: GET /comments?task_id=123
+    if ($method === 'GET') {
+        $task_id = $request->get_param('task_id');
+        if (!$task_id) return new WP_Error('no_task', 'Task ID required', ['status'=>400]);
+        return rest_ensure_response( $comment_cls->get_by_task($task_id) );
+    }
+
+    // Yorum Ekle: POST /comments
+    if ($method === 'POST') {
+        $params = $request->get_json_params();
+        if(empty($params['task_id']) || empty($params['content'])) return new WP_Error('invalid_data', 'Missing data', ['status'=>400]);
+        
+        $comment = $comment_cls->add($params['task_id'], $params['content']);
+        return rest_ensure_response($comment);
+    }
+
+    // Yorum Sil: DELETE /comments/123
+    if ($method === 'DELETE') {
+        $id = $request->get_param('id');
+        $comment = $comment_cls->get($id);
+        if(!$comment || $comment->user_id != get_current_user_id()) {
+            return new WP_Error('forbidden', 'Yetkisiz işlem', ['status'=>403]);
+        }
+        $comment_cls->delete($id);
+        return ['success' => true];
+    }
+}
+
 function h2l_api_manage_project($request) {
     global $wpdb; $table = $wpdb->prefix . 'h2l_projects';
     $method = $request->get_method(); $id = $request->get_param('id'); $params = $request->get_json_params();
     if ($method === 'DELETE') { $wpdb->update($table, ['status' => 'trash'], ['id' => $id]); return ['success' => true]; }
-    $data = ['title'=>sanitize_text_field($params['title']??''),'folder_id'=>intval($params['folderId']??0),'color'=>sanitize_hex_color($params['color']??'#808080'),'view_type'=>sanitize_text_field($params['viewType']??'list'),'managers'=>json_encode($params['managers']??[]),'owner_id'=>get_current_user_id()];
+    $data = ['title'=>sanitize_text_field($params['title']??''),'folder_id'=>intval($params['folderId']??0),'color'=>sanitize_hex_color($params['color']??'#808080'),'view_type'=>sanitize_text_field($params['viewType']??'list'),'managers'=>json_encode($params['managers']??[]),'owner_id'=>get_current_user_id(),'is_favorite'=>!empty($params['is_favorite'])?1:0];
     if ($id) { $wpdb->update($table, $data, ['id'=>$id]); $new_id=$id; } else { $data['created_at']=current_time('mysql'); $data['status']='active'; $wpdb->insert($table, $data); $new_id=$wpdb->insert_id; }
     return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id=%d", $new_id));
 }

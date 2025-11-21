@@ -17,6 +17,7 @@ $core_files = [
     'includes/core/folder.php',
     'includes/core/project.php',
     'includes/core/task.php',
+    'includes/core/comment.php', // YENİ EKLENDİ
     'includes/core/reminder.php'
 ];
 

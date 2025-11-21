@@ -1,13 +1,41 @@
 /* --- Hip to List: Project Detail Styles (v4.0 Unique Namespaced) --- */
+/* AÇIKLAMA INPUT (Benzersiz Sınıf) - GÜNCELLENDİ */
+textarea.h2l-todoist-input-desc {
+    width: 100% !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    font-size: 13px !important;
+    color: #555 !important;
+    min-height: 20px !important;
+    resize: none !important; /* Kullanıcı elle boyutlandıramasın */
+    overflow-y: hidden; /* Scroll bar gizlensin */
+    margin-bottom: 10px !important;
+    font-family: inherit !important;
+    background: transparent !important;
+    padding: 0 !important;
+    transition: height 0.2s ease; /* Yumuşak geçiş */
+}
+textarea.h2l-todoist-input-desc::placeholder { color: #aaa !important; }
 
-/* =========================================
-   1. GENEL DÜZEN (LAYOUT)
-   ========================================= */
-.h2l-project-page {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    background-color: #fff;
+/* BAŞLIK INPUT - AYNI ÖZELLİKLER EKLENDİ */
+textarea.h2l-todoist-input-title {
+    width: 100% !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #202020 !important;
+    min-height: 24px !important;
+    resize: none !important;
+    overflow-y: hidden;
+    margin-bottom: 4px !important;
+    font-family: inherit !important;
+    line-height: 1.4 !important;
+    background: transparent !important;
+    padding: 0 !important;
+    transition: height 0.2s ease;
 }
 
 .h2l-project-header-wrapper {
@@ -363,3 +391,180 @@ button.h2l-todoist-btn-cancel:hover { background-color: #e5e5e5 !important; colo
 .h2l-btn.text-cancel { background: transparent; color: #555; border: none; }
 .h2l-btn.text-cancel:hover { background: #f5f5f5; color: #202020; }
 .h2l-avatar { border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid #eee; }
+
+/* =========================================
+   9. YORUMLAR (YENİ)
+   ========================================= */
+.h2l-comments-section { margin-top: 30px; padding-top: 20px; border-top: 1px solid #f0f0f0; }
+.h2l-comment-list { margin-bottom: 20px; display: flex; flex-direction: column; gap: 15px; }
+.h2l-comment-item { display: flex; gap: 12px; }
+.h2l-comment-content-box { flex: 1; }
+.h2l-comment-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.h2l-comment-author { font-size: 13px; font-weight: 600; color: #202020; }
+.h2l-comment-date { font-size: 11px; color: #999; }
+.h2l-comment-text { font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; }
+.h2l-comment-actions { margin-top: 4px; font-size: 11px; display: flex; gap: 10px; opacity: 0; transition: opacity 0.2s; }
+.h2l-comment-item:hover .h2l-comment-actions { opacity: 1; }
+.h2l-action-link { color: #888; cursor: pointer; }
+.h2l-action-link:hover { color: #333; }
+.h2l-action-link.delete:hover { color: #d1453b; }
+
+.h2l-comment-form { display: flex; gap: 12px; margin-top: 20px; }
+.h2l-comment-input-box { flex: 1; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; transition: border 0.2s; background: #fff; }
+.h2l-comment-input-box:focus-within { border-color: #888; }
+.h2l-comment-textarea { width: 100%; border: none; outline: none; padding: 10px; font-size: 14px; min-height: 40px; resize: vertical; max-height: 200px; background: transparent; display: block; }
+.h2l-comment-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 5px 10px; background: #f9f9f9; border-top: 1px solid #f0f0f0; }
+.h2l-comment-tools { display: flex; gap: 10px; color: #666; }
+.h2l-tool-btn { cursor: pointer; font-size: 14px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
+.h2l-tool-btn:hover { background: #eee; color: #333; }
+/* --- Hip to List: Project Detail Styles (v4.0 Unique Namespaced) --- */
+
+/* ... (Önceki stiller aynı kalıyor) ... */
+
+/* =========================================
+   10. ZENGİN METİN & HIGHLIGHTS (GÜNCELLENDİ)
+   ========================================= */
+
+/* Input Container */
+.h2l-input-container {
+    position: relative;
+    width: 100%;
+    margin-bottom: 8px;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+}
+/* Açıklama alanı için border ayarı */
+.h2l-input-container.description-mode {
+    margin-bottom: 10px;
+}
+
+/* Highlight Layer (Arka Plan Katmanı) */
+.h2l-highlight-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    font-family: inherit;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: #202020; 
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden; /* Scroll JS ile senkronize */
+    box-sizing: border-box;
+}
+
+/* Stil Farklılıkları: Başlık vs Açıklama */
+.h2l-highlight-layer.title-mode,
+textarea.h2l-rich-textarea.title-mode {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.h2l-highlight-layer.desc-mode,
+textarea.h2l-rich-textarea.desc-mode {
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #555;
+}
+
+/* Textarea (Ortak) */
+textarea.h2l-rich-textarea {
+    position: relative;
+    z-index: 1;
+    background: transparent !important;
+    color: transparent !important;
+    caret-color: #202020;
+    margin-bottom: 0 !important;
+    width: 100% !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    resize: none !important;
+    display: block;
+    overflow-y: auto !important;
+    padding: 0 !important;
+}
+
+/* Max Yükseklikler */
+textarea.h2l-rich-textarea.title-mode,
+.h2l-highlight-layer.title-mode {
+    min-height: 24px;
+    max-height: 160px; /* ~6-7 satır */
+}
+
+textarea.h2l-rich-textarea.desc-mode,
+.h2l-highlight-layer.desc-mode {
+    min-height: 20px;
+    max-height: 140px; /* ~6-7 satır (font küçük olduğu için px daha az) */
+}
+
+/* Placeholder Rengi */
+textarea.h2l-rich-textarea::placeholder {
+    color: #aaa !important; 
+    opacity: 1;
+    -webkit-text-fill-color: #aaa;
+}
+
+/* --- STİL SINIFLARI --- */
+.h2l-highlight-tag {
+    background-color: rgba(219, 76, 63, 0.1);
+    color: #d1453b;
+    border-radius: 3px;
+    font-weight: 700;
+}
+.h2l-md-bold { font-weight: 800; color: #000; }
+.h2l-md-italic { font-style: italic; color: #444; }
+.h2l-md-strike { text-decoration: line-through; color: #888; }
+.h2l-md-code { font-family: monospace; background: #f5f5f5; color: #e84393; border-radius: 3px; padding: 0 2px; font-weight: 500; font-size: 0.9em; }
+.h2l-md-link {
+    color: #202020;
+    text-decoration: underline !important;
+    text-decoration-style: solid !important;
+    text-decoration-color: #db4c3f !important;
+    text-decoration-thickness: 2px !important;
+    cursor: pointer !important;
+}
+
+/* Tooltip Stilleri (Aynı) */
+.h2l-tooltip-popover {
+    position: absolute;
+    background: #202020;
+    border-radius: 6px;
+    padding: 4px;
+    display: flex;
+    gap: 2px;
+    z-index: 100;
+    transform: translateX(-50%);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    animation: h2l-fade-in 0.15s ease-out;
+    align-items: center;
+}
+.h2l-tooltip-popover::after {
+    content: ''; position: absolute; top: 100%; left: 50%; margin-left: -5px;
+    border-width: 5px; border-style: solid; border-color: #202020 transparent transparent transparent;
+}
+.h2l-tooltip-btn { color: #fff; background: transparent; border: none; cursor: pointer; font-weight: 600; font-size: 13px; width: 28px; height: 28px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+.h2l-tooltip-btn:hover { background: rgba(255,255,255,0.15); }
+.h2l-tooltip-btn i { font-size: 12px; color: #eee; }
+.h2l-tooltip-link-area { display: flex; align-items: center; gap: 5px; padding: 0 4px; }
+.h2l-tooltip-input { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; font-size: 12px; padding: 4px 8px; border-radius: 3px; outline: none; width: 180px; }
+.h2l-tooltip-input::placeholder { color: rgba(255,255,255,0.5); }
+.h2l-tooltip-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.2); margin: 0 4px; }
+
+/* Karakter Sayacı (İSTEK ÜZERİNE KORUNAN CSS) */
+.h2l-todoist-editor-wrapper .h2l-char-counter {
+    position: initial;
+    display: none; /* Varsayılan olarak gizli */
+}
+.h2l-todoist-editor-wrapper .h2l-char-counter.limit-exceeded {
+    display: block;
+    color: #d1453b;
+    font-size: 12px;
+    margin-top: 2px;
+    margin-bottom: 8px;
+}

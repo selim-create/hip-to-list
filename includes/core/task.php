@@ -56,7 +56,8 @@ class H2L_Task {
              $sql .= $wpdb->prepare( " AND status = %s", $filters['status'] );
         }
 
-        $sql .= " ORDER BY created_at DESC";
+        // GÜNCELLEME: Varsayılan sıralama Eskiden Yeniye (ASC)
+        $sql .= " ORDER BY created_at ASC";
 
         return $wpdb->get_results( $sql );
     }

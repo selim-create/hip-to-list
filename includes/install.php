@@ -36,6 +36,7 @@ function h2l_install_db() {
   description text,
   owner_id bigint(20) NOT NULL,
   managers text,
+  is_favorite tinyint(1) DEFAULT 0,
   color varchar(20) DEFAULT '#808080',
   view_type varchar(20) DEFAULT 'list',
   status varchar(20) DEFAULT 'active',
@@ -94,6 +95,31 @@ function h2l_install_db() {
   PRIMARY KEY  (id)
 ) $charset_collate;";
 
+    // 7. Comments (YENİ)
+    $sql_comments = "CREATE TABLE {$wpdb->prefix}h2l_comments (
+  id bigint(20) NOT NULL AUTO_INCREMENT,
+  task_id bigint(20) NOT NULL,
+  user_id bigint(20) NOT NULL,
+  content longtext NOT NULL,
+  files_json text,
+  created_at datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+  PRIMARY KEY  (id),
+  KEY task_id (task_id)
+) $charset_collate;";
+
+    // 8. Activity Log (YENİ)
+    $sql_activity = "CREATE TABLE {$wpdb->prefix}h2l_activity_log (
+  id bigint(20) NOT NULL AUTO_INCREMENT,
+  object_type varchar(50) NOT NULL,
+  object_id bigint(20) NOT NULL,
+  actor_id bigint(20) NOT NULL,
+  action varchar(50) NOT NULL,
+  meta_json text,
+  created_at datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+  PRIMARY KEY  (id),
+  KEY object_index (object_type, object_id)
+) $charset_collate;";
+
     // dbDelta çağrıları
     dbDelta( $sql_folders );
     dbDelta( $sql_projects );
@@ -101,8 +127,10 @@ function h2l_install_db() {
     dbDelta( $sql_tasks );
     dbDelta( $sql_task_labels );
     dbDelta( $sql_labels );
+    dbDelta( $sql_comments );
+    dbDelta( $sql_activity );
 
-    add_option( 'h2l_db_version', '1.6.0' );
+    add_option( 'h2l_db_version', '1.7.0' );
     
     // Sayfayı oluştur
     h2l_create_app_page();
@@ -132,7 +160,4 @@ function h2l_create_app_page() {
     }
     wp_reset_postdata();
 }
-
-// Rewrite rules hook dosyasında tanımlı, burada manuel flush yapıyoruz.
-// Not: hooks.php dosyasındaki h2l_add_rewrite_rules fonksiyonu çalıştığından emin olun.
 ?>

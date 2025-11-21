@@ -30,11 +30,12 @@ function h2l_enqueue_frontend_assets() {
         wp_enqueue_style( 'h2l-detail-css', H2L_URL . 'frontend/assets/project-detail.css', array('h2l-main-css'), time() );
 
         // JS Dosyaları
-        // Önce Detay Modülünü yükle (Bağımlılık olarak wp-element)
+        // Önce Detay Modülünü yükle 
+        // DÜZELTME: 'wp-api-fetch' bağımlılığı eklendi.
         wp_enqueue_script( 
             'h2l-detail-js', 
             H2L_URL . 'frontend/assets/project-detail.js', 
-            array( 'wp-element' ), 
+            array( 'wp-element', 'wp-api-fetch' ), 
             time(), 
             true 
         );
