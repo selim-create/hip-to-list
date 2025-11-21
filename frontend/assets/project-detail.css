@@ -1,0 +1,151 @@
+/* --- Hip to List: Project Detail Styles (Todoist Clone) --- */
+
+/* MAIN WRAPPER (PADDING FIX) */
+.h2l-project-detail-wrapper {
+    padding: 40px 10%; /* Geniş ve ortalı içerik */
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+/* --- HEADER AREA --- */
+.h2l-detail-header {
+    display: flex; justify-content: space-between; align-items: flex-start; 
+    padding-bottom: 15px; margin-bottom: 30px; border-bottom: 1px solid #f0f0f0;
+}
+
+.h2l-head-left { display: flex; flex-direction: column; gap: 8px; }
+
+.h2l-breadcrumb {
+    font-size: 13px; color: #808080; display: flex; align-items: center; gap: 6px;
+    cursor: pointer; transition: color 0.2s;
+}
+.h2l-breadcrumb:hover { color: #202020; text-decoration: underline; }
+.h2l-breadcrumb i { font-size: 10px; }
+
+.h2l-project-title-row { display: flex; align-items: center; gap: 12px; }
+.h2l-project-title-row h1 { font-size: 26px; font-weight: 700; color: #202020; margin: 0; line-height: 1.2; }
+.h2l-project-count { font-size: 13px; color: #888; font-weight: 400; margin-top: 4px; }
+
+.h2l-head-actions { display: flex; align-items: center; gap: 8px; }
+.h2l-avatars-stack { display: flex; margin-right: 15px; }
+.h2l-avatars-stack img { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; margin-right: -8px; object-fit: cover; background: #eee; }
+
+.h2l-action-btn {
+    width: 32px; height: 32px; display: flex; justify-content: center; align-items: center;
+    border-radius: 5px; color: #555; transition: background 0.1s; border: none; background: transparent; cursor: pointer;
+}
+.h2l-action-btn:hover { background: #eee; color: #202020; }
+
+.h2l-view-toggle { margin-left: 15px; display: flex; background: #f5f5f5; padding: 3px; border-radius: 6px; gap: 2px; }
+.h2l-view-toggle button { 
+    padding: 4px 10px; border-radius: 4px; font-size: 13px; color: #666; 
+    border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; 
+}
+.h2l-view-toggle button.active { background: #fff; color: #202020; box-shadow: 0 1px 2px rgba(0,0,0,0.08); font-weight: 500; }
+
+/* --- LIST VIEW & SECTIONS --- */
+.h2l-list-view { padding-bottom: 80px; display: flex; flex-direction: column; gap: 20px; }
+
+.h2l-section-container { margin-bottom: 10px; }
+.h2l-section-header { 
+    display: flex; align-items: center; gap: 6px; padding: 8px 0; 
+    cursor: pointer; group: section; width: 100%; border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+}
+.h2l-section-header:hover { border-bottom-color: #eee; }
+.h2l-section-toggle { font-size: 12px; color: #999; transition: transform 0.2s; width: 20px; text-align: center; }
+.h2l-section-toggle.closed { transform: rotate(-90deg); }
+.h2l-section-title { font-size: 15px; font-weight: 700; color: #202020; }
+.h2l-section-count { font-size: 12px; color: #aaa; margin-left: 8px; font-weight: 400; }
+
+/* --- TASK ROW --- */
+.h2l-task-row {
+    display: flex; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #fcfcfc;
+    position: relative; cursor: pointer; transition: background 0.1s; border-radius: 5px;
+}
+.h2l-task-row:hover { background: #fafafa; }
+.h2l-task-row:hover .h2l-task-actions { opacity: 1; }
+
+/* Check Circle */
+.h2l-task-check {
+    width: 20px; height: 20px; border: 2px solid #ccc; border-radius: 50%;
+    margin: 2px 12px 0 2px; flex-shrink: 0; cursor: pointer; position: relative;
+    display: flex; justify-content: center; align-items: center; transition: all 0.2s;
+}
+.h2l-task-check:hover { border-color: var(--h2l-primary); background: rgba(219, 76, 63, 0.1); }
+.h2l-task-check i { font-size: 10px; color: transparent; }
+.h2l-task-check:hover i { color: var(--h2l-primary); opacity: 0.5; }
+.h2l-task-check.completed { background: #ccc; border-color: #ccc; } 
+.h2l-task-check.completed i { color: #fff; opacity: 1; }
+
+.h2l-task-check.p1 { border-color: #db4c3f; background: rgba(219,76,63,0.05); }
+.h2l-task-check.p2 { border-color: #eb8909; }
+.h2l-task-check.p3 { border-color: #246fe0; }
+
+/* Task Content */
+.h2l-task-content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.h2l-task-title { font-size: 14px; color: #202020; margin-bottom: 2px; line-height: 1.4; word-break: break-word; }
+.h2l-task-title.completed { text-decoration: line-through; color: #999; }
+.h2l-task-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12px; color: #808080; }
+.h2l-task-date { display: flex; align-items: center; gap: 4px; color: #db4c3f; }
+.h2l-task-actions { opacity: 0; position: absolute; right: 5px; top: 8px; display: flex; gap: 5px; transition: opacity 0.2s; background: #fff; }
+
+.h2l-icon-btn { 
+    width: 28px; height: 28px; display: flex; justify-content: center; align-items: center; 
+    border-radius: 4px; color: #666; cursor: pointer; border: none; background: transparent;
+}
+.h2l-icon-btn:hover { background: #eee; color: #333; }
+.h2l-icon-btn.danger:hover { color: #cc0000; background: #fff0f0; }
+
+/* --- QUICK ADD (INLINE) --- */
+.h2l-quick-add-row { margin-top: 5px; padding-left: 32px; /* Checkbox hizası */ }
+.h2l-quick-btn {
+    display: flex; align-items: center; gap: 8px; padding: 6px 0;
+    color: #808080; cursor: pointer; font-size: 14px; transition: color 0.2s;
+}
+.h2l-quick-btn:hover { color: #db4c3f; }
+.h2l-quick-btn .plus-icon { 
+    width: 20px; height: 20px; border-radius: 50%; color: #db4c3f; 
+    display: flex; justify-content: center; align-items: center; font-size: 14px; 
+}
+.h2l-quick-btn:hover .plus-icon { background: #db4c3f; color: #fff; }
+
+.h2l-quick-form { 
+    border: 1px solid #ddd; border-radius: 8px; padding: 10px; margin-top: 5px; background: #fff; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.h2l-quick-input { width: 100%; border: none; outline: none; font-size: 14px; margin-bottom: 10px; font-family: inherit; font-weight: 500; }
+.h2l-quick-actions { display: flex; justify-content: space-between; align-items: center; }
+.h2l-quick-props { display: flex; gap: 8px; }
+.h2l-prop-tag { padding: 4px 8px; border: 1px solid #eee; border-radius: 4px; font-size: 12px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+.h2l-prop-tag:hover { background: #f5f5f5; }
+
+/* --- SECTION ADD (BOTTOM) --- */
+.h2l-add-section-area { 
+    margin-top: 40px; padding-top: 15px; cursor: pointer; color: #db4c3f; font-weight: 700; font-size: 14px;
+    display: flex; align-items: center; gap: 10px; opacity: 0; transition: opacity 0.2s;
+    border-top: 1px solid transparent; justify-content: center; position: relative;
+}
+.h2l-list-view:hover .h2l-add-section-area { opacity: 1; }
+.h2l-add-section-area::before, .h2l-add-section-area::after { content:''; flex:1; height:1px; background:#f0f0f0; transition: background 0.2s; }
+.h2l-add-section-area:hover { color: #c53727; }
+.h2l-add-section-area:hover::before, .h2l-add-section-area:hover::after { background: #db4c3f; }
+
+/* --- TASK DETAIL MODAL --- */
+.h2l-detail-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 20000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(1px); }
+.h2l-detail-modal { width: 900px; max-width: 95vw; height: 85vh; background: #fff; border-radius: 10px; display: flex; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+
+.h2l-dm-main { flex: 2; padding: 30px; border-right: 1px solid #f0f0f0; display: flex; flex-direction: column; overflow-y: auto; }
+.h2l-dm-sidebar { flex: 1; padding: 25px; background: #fafafa; overflow-y: auto; max-width: 300px; }
+
+.h2l-dm-header { display: flex; align-items: flex-start; gap: 15px; margin-bottom: 10px; }
+.h2l-dm-title { 
+    flex: 1; border: none; font-size: 20px; font-weight: 700; color: #202020; 
+    resize: none; outline: none; height: auto; overflow: hidden; line-height: 1.4; background: transparent;
+}
+.h2l-dm-desc {
+    width: 100%; border: none; font-size: 14px; color: #555; outline: none; 
+    resize: vertical; min-height: 80px; margin-bottom: 20px; background: transparent;
+}
