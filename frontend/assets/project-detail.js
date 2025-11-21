@@ -1,22 +1,23 @@
 (function(wp) {
-    const { createElement: el, useState, useEffect } = wp.element;
+    const { createElement: el, useState, useEffect, useRef } = wp.element;
     window.H2L = window.H2L || {};
 
-    const Icon = ({ name, className = "", onClick, style }) => 
-        el('i', { className: `fa-solid fa-${name} ${className}`, onClick, style });
+    // --- HELPER COMPONENTS ---
+    const Icon = ({ name, className = "", onClick, style, title }) => 
+        el('i', { className: `fa-solid fa-${name} ${className}`, onClick, style, title });
 
-    const Avatar = ({ userId, users, size = 24 }) => {
+    const Avatar = ({ userId, users, size = 24, style={} }) => {
         if(!users) return null;
         const user = users.find(u => parseInt(u.id) === parseInt(userId));
-        if(!user) return el('div', {className:'h2l-avatar-ph', style:{width:size, height:size, background:'#ccc', borderRadius:'50%'}});
-        return el('img', { src: user.avatar, style: { width: size, height: size, borderRadius: '50%', objectFit:'cover' }, title: user.name });
+        const finalStyle = { width:size, height:size, borderRadius:'50%', objectFit:'cover', flexShrink:0, display:'block', ...style };
+        if(!user) return el('div', {className:'h2l-avatar-ph', style:{...finalStyle, background:'#ccc'}});
+        return el('img', { src: user.avatar, style: finalStyle, title: user.name });
     };
 
     // --- GÖREV DETAY MODALI ---
     const TaskDetailModal = ({ task, onClose, onUpdate, users, projects, sections }) => {
         const [title, setTitle] = useState(task.title);
         const [desc, setDesc] = useState(task.content || '');
-        const [comment, setComment] = useState('');
         
         const handleSave = () => {
             if (title !== task.title || desc !== task.content) {
@@ -24,13 +25,18 @@
             }
         };
 
-        const project = projects.find(p => p.id === parseInt(task.projectId || task.project_id));
-        const section = sections.find(s => s.id === parseInt(task.sectionId || task.section_id));
-        const assignee = task.assignees && task.assignees.length > 0 ? users.find(u => u.id === task.assignees[0]) : null;
+        const pId = parseInt(task.project_id || task.projectId);
+        const sId = parseInt(task.section_id || task.sectionId);
+        const project = projects.find(p => parseInt(p.id) === pId);
+        const section = sections.find(s => parseInt(s.id) === sId);
+        
+        let assignee = null;
+        if (task.assignees && task.assignees.length > 0) {
+            assignee = users.find(u => parseInt(u.id) === parseInt(task.assignees[0]));
+        }
 
         return el('div', { className: 'h2l-detail-overlay', onClick: onClose },
             el('div', { className: 'h2l-detail-modal', onClick: e => e.stopPropagation() },
-                // SOL
                 el('div', { className: 'h2l-dm-main' },
                     el('div', { className: 'h2l-dm-header' },
                         el('div', { className: `h2l-task-check p${task.priority} ${task.status==='completed'?'completed':''}`, onClick: () => onUpdate(task.id, { status: task.status==='completed'?'open':'completed' }) }, task.status==='completed' && el(Icon,{name:'check'})),
@@ -39,7 +45,6 @@
                     el('textarea', { className: 'h2l-dm-desc', placeholder: 'Açıklama ekle...', value: desc, onChange: e => setDesc(e.target.value), onBlur: handleSave }),
                     el('div', { className: 'h2l-dm-section' }, el('h4', null, el(Icon, {name:'list-check', style:{marginRight:8}}), 'Alt görevler'), el('button', { className: 'h2l-btn-text' }, '+ Alt görev ekle')),
                 ),
-                // SAĞ
                 el('div', { className: 'h2l-dm-sidebar' },
                     el('div', { style:{textAlign:'right',marginBottom:20} }, el(Icon, { name: 'xmark', className: 'h2l-close-icon', onClick: onClose })),
                     el('div', { className: 'h2l-prop-group' }, el('span', { className: 'h2l-dm-label' }, 'Proje'), el('div', { className: 'h2l-dm-value' }, el('span', { style: { color: project?.color||'#888', marginRight:6 } }, '#'), project?.title, section ? ` / ${section.name}` : '')),
@@ -51,7 +56,7 @@
         );
     };
 
-    // --- HIZLI EKLE ---
+    // --- HIZLI EKLE (INLINE) ---
     const QuickAdd = ({ sectionId, onAdd }) => {
         const [isEditing, setIsEditing] = useState(false);
         const [title, setTitle] = useState('');
@@ -60,7 +65,7 @@
         if (!isEditing) return el('div', { className: 'h2l-quick-add-row' }, el('div', { className: 'h2l-quick-btn', onClick: () => setIsEditing(true) }, el('span', { className: 'plus-icon' }, el(Icon, { name: 'plus' })), 'Görev ekle'));
         return el('div', { className: 'h2l-quick-form-wrapper' },
             el('form', { className: 'h2l-quick-form', onSubmit: handleSubmit },
-                el('input', { className: 'h2l-quick-input', autoFocus: true, placeholder: 'Görevin adı ne?', value: title, onChange: e => setTitle(e.target.value) }),
+                el('input', { className: 'h2l-quick-input', autoFocus: true, placeholder: 'Görevin adı ne?', value: title, onChange: e => setTitle(e.target.value), onKeyDown: e => { if(e.key==='Escape') setIsEditing(false); } }),
                 el('div', { className: 'h2l-quick-actions' },
                     el('div', { className: 'h2l-quick-props' }, el('span', { className: 'h2l-prop-tag' }, el(Icon,{name:'calendar'}), 'Bugün'), el('span', { className: 'h2l-prop-tag' }, el(Icon,{name:'user'}), 'Ata')),
                     el('div', { style:{display:'flex', gap:10} }, el('button', { type:'button', className: 'h2l-btn', onClick: () => setIsEditing(false) }, 'İptal'), el('button', { type:'submit', className: 'h2l-btn primary', disabled: !title.trim() }, 'Ekle'))
@@ -69,68 +74,102 @@
         );
     };
 
-    // --- BÖLÜM EKLE ---
+    // --- BÖLÜM EKLE (SEPARATOR STYLE) ---
     const SectionAdd = ({ onAdd }) => {
         const [isEditing, setIsEditing] = useState(false);
         const [name, setName] = useState('');
-        const handleSubmit = (e) => { 
-            e.preventDefault(); 
-            if(name.trim()) { 
-                onAdd({ name }); // Obje olarak gönderiyoruz: { name: "Bölüm Adı" }
-                setName(''); 
-                setIsEditing(false); 
-            } 
-        };
+        const handleSubmit = (e) => { e.preventDefault(); if(name.trim()) { onAdd({ name }); setName(''); setIsEditing(false); } };
 
-        if (!isEditing) return el('div', { className: 'h2l-add-section-area', onClick: () => setIsEditing(true) }, 'Bölüm ekle');
+        if (!isEditing) {
+            return el('div', { className: 'h2l-section-separator', onClick: () => setIsEditing(true) },
+                el('span', { className: 'h2l-separator-line' }),
+                el('span', { className: 'h2l-separator-text' }, 'Bölüm ekle'),
+                el('span', { className: 'h2l-separator-line' })
+            );
+        }
 
-        return el('form', { className: 'h2l-quick-form', onSubmit: handleSubmit, style:{marginTop:30, borderTop:'1px solid #db4c3f', paddingTop:10} },
-            el('input', { className: 'h2l-quick-input', autoFocus: true, placeholder: 'Bölüm adı', value: name, onChange: e => setName(e.target.value) }),
-            el('div', { className: 'h2l-quick-actions' },
-                el('div', null),
-                el('div', { style:{display:'flex', gap:10} },
-                    el('button', { type:'button', className: 'h2l-btn', onClick: () => setIsEditing(false) }, 'İptal'),
-                    el('button', { type:'submit', className: 'h2l-btn primary', disabled:!name.trim() }, 'Bölüm ekle')
+        return el('div', { className: 'h2l-section-add-form' },
+            el('form', { onSubmit: handleSubmit },
+                el('input', { 
+                    className: 'h2l-section-input', 
+                    autoFocus: true, 
+                    placeholder: 'Bölüm adı', 
+                    value: name, 
+                    onChange: e => setName(e.target.value),
+                    onBlur: () => !name.trim() && setIsEditing(false)
+                }),
+                el('div', { className: 'h2l-form-actions' },
+                    el('button', { type:'submit', className: 'h2l-btn primary', disabled:!name.trim() }, 'Bölüm ekle'),
+                    el('button', { type:'button', className: 'h2l-btn', onClick: () => setIsEditing(false) }, 'İptal')
                 )
             )
         );
     };
 
     // --- LİSTE GÖRÜNÜMÜ ---
-    const ListView = ({ tasks, sections, users, onUpdateTask, onDeleteTask, onAddTask, onAddSection, onTaskClick }) => {
-        const rootTasks = tasks.filter(t => !t.sectionId || t.sectionId == 0);
+    const ListView = ({ project, tasks, sections, users, onUpdateTask, onDeleteTask, onAddTask, onAddSection, onTaskClick, showCompleted, highlightToday }) => {
+        // Tamamlananları filtrele
+        let visibleTasks = tasks;
+        if (!showCompleted) {
+            visibleTasks = tasks.filter(t => t.status !== 'completed');
+        }
 
+        const rootTasks = visibleTasks.filter(t => { const sId = t.section_id || t.sectionId; return !sId || sId == 0; });
+
+        // GÖREV SATIRI (YENİ TASARIM)
         const TaskRow = ({ task }) => {
-            const assignee = (task.assignees && task.assignees.length) ? users.find(u=>u.id===task.assignees[0]) : null;
-            return el('div', { key: task.id, className: 'h2l-task-row', onClick: () => onTaskClick(task) },
-                el('div', { className: `h2l-task-check p${task.priority} ${task.status==='completed'?'completed':''}`, onClick: (e) => { e.stopPropagation(); onUpdateTask(task.id, { status: task.status==='completed'?'open':'completed' }); } }, el(Icon, { name: 'check' })),
+            let assignee = null;
+            if (task.assignees && task.assignees.length > 0) { assignee = users.find(u => parseInt(u.id) === parseInt(task.assignees[0])); }
+            
+            const isToday = task.date_display === 'Bugün';
+            const highlightClass = (highlightToday && isToday) ? 'h2l-highlight-today' : '';
+
+            return el('div', { key: task.id, className: `h2l-task-row ${highlightClass}`, onClick: () => onTaskClick(task) },
+                // Sol: Checkbox
+                el('div', { className: 'h2l-task-left' },
+                    el('div', { className: `h2l-task-check p${task.priority} ${task.status==='completed'?'completed':''}`, onClick: (e) => { e.stopPropagation(); onUpdateTask(task.id, { status: task.status==='completed'?'open':'completed' }); } }, el(Icon, { name: 'check' }))
+                ),
+                // Orta: İçerik
                 el('div', { className: 'h2l-task-content' },
                     el('span', { className: `h2l-task-title ${task.status==='completed'?'completed':''}` }, task.title),
-                    el('div', { className: 'h2l-task-meta' },
-                        task.date_display && el('span', { className: 'h2l-meta-item date' }, el(Icon, {name:'calendar'}), task.date_display),
-                        assignee && el('span', { className: 'h2l-meta-item' }, el(Avatar, { userId: assignee.id, users, size: 16 }), assignee.name)
+                    el('div', { className: 'h2l-task-details' },
+                        task.date_display && el('span', { className: `h2l-detail-item date ${isToday ? 'today' : ''}` }, el(Icon, {name:'calendar'}), task.date_display),
+                        // Label (Örnek)
+                        // el('span', { className: 'h2l-detail-item label' }, el(Icon, {name:'tag'}), 'Sıfıra'),
+                        // Alt görev (Örnek)
+                        // el('span', { className: 'h2l-detail-item subtask' }, el(Icon, {name:'code-branch'}), '0/3'),
                     )
                 ),
-                el('div', { className: 'h2l-task-actions' },
-                    el('button', { className: 'h2l-icon-btn' }, el(Icon, { name: 'pen' })),
-                    el('button', { className: 'h2l-icon-btn danger', onClick: (e) => { e.stopPropagation(); if(confirm('Sil?')) onDeleteTask(task.id); } }, el(Icon, { name: 'trash' }))
+                // Sağ: Atanan & Menü
+                el('div', { className: 'h2l-task-right' },
+                    assignee && el('div', { className: 'h2l-assignee-wrapper' }, el(Avatar, { userId: assignee.id, users, size: 24 })),
+                    el('div', { className: 'h2l-task-menu' },
+                        el('button', { className: 'h2l-icon-btn', onClick: (e) => { e.stopPropagation(); /* Menü aç */ } }, el(Icon, { name: 'ellipsis' }))
+                    )
                 )
             );
         };
 
         return el('div', { className: 'h2l-list-view' },
-            // Bölümsüz
-            el('div', { className: 'h2l-section-container' },
-                rootTasks.map(t => TaskRow({ task: t })),
-                el(QuickAdd, { sectionId: 0, onAdd: onAddTask })
+            // PROJE BAŞLIĞI (İÇERİK ALANINDA)
+            el('div', { className: 'h2l-project-content-header' },
+                el('h1', null, 
+                    el('span', { className:'h2l-hash', style: { color: project.color } }, '#'), 
+                    project.title
+                ),
+                el('span', { className: 'h2l-project-badge' }, tasks.length)
             ),
-            // Bölümler
+
+            // BÖLÜMSÜZ GÖREVLER
+            el('div', { className: 'h2l-section-container' }, rootTasks.map(t => TaskRow({ task: t })), el(QuickAdd, { sectionId: 0, onAdd: onAddTask })),
+            
+            // BÖLÜMLER
             sections.map(s => {
-                const sTasks = tasks.filter(t => parseInt(t.sectionId) === parseInt(s.id));
+                const sTasks = visibleTasks.filter(t => parseInt(t.section_id || t.sectionId) === parseInt(s.id));
                 const [isOpen, setIsOpen] = useState(true);
                 return el('div', { key: s.id, className: 'h2l-section-container' },
                     el('div', { className: 'h2l-section-header', onClick: () => setIsOpen(!isOpen) },
-                        el(Icon, { name: 'chevron-down', className: `h2l-section-toggle ${!isOpen?'closed':''}` }),
+                        el(Icon, { name: isOpen ? 'chevron-down' : 'chevron-right', className: 'h2l-section-toggle' }),
                         el('span', { className: 'h2l-section-title' }, s.name),
                         el('span', { className: 'h2l-section-count' }, sTasks.length)
                     ),
@@ -138,52 +177,119 @@
                     isOpen && el(QuickAdd, { sectionId: s.id, onAdd: onAddTask })
                 );
             }),
-            // Bölüm Ekle (Liste Sonunda)
+            
+            // BÖLÜM EKLE (EN ALT)
             el(SectionAdd, { onAdd: onAddSection })
         );
     };
 
     // --- BOARD VIEW ---
-    const BoardView = ({ tasks, sections, onUpdateTask }) => {
-        // ... (Board logic - Placeholder for now) ...
-        return el('div', { className: 'h2l-board-container' }, 'Board Görünümü');
-    };
+    const BoardView = ({ tasks, sections, onUpdateTask }) => { return el('div', { className: 'h2l-board-container' }, 'Board Görünümü (Yakında)'); };
 
     // --- MAIN EXPORT ---
-    window.H2L.ProjectDetail = ({ project, tasks, sections, users, navigate, onAddTask, onDeleteTask, onUpdateTask, onAddSection }) => {
-        const [viewMode, setViewMode] = useState(project.view_type || 'list');
+    window.H2L.ProjectDetail = ({ project, folders, tasks, sections, users, navigate, onAddTask, onDeleteTask, onUpdateTask, onAddSection, onAction }) => {
+        const [viewMode, setViewMode] = useState(project ? (project.view_type || 'list') : 'list');
         const [selectedTask, setSelectedTask] = useState(null);
+        
+        const [isViewMenuOpen, setIsViewMenuOpen] = useState(false);
+        const [showCompleted, setShowCompleted] = useState(true);
+        const [highlightToday, setHighlightToday] = useState(false);
+        const [groupSubtasks, setGroupSubtasks] = useState(false);
+        const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
 
-        if (!project) return null;
+        const viewMenuRef = useRef(null);
+        const moreMenuRef = useRef(null);
 
-        return el('div', { className: 'h2l-project-detail-wrapper' },
-            el('div', { className: 'h2l-detail-header' },
-                el('div', { className: 'h2l-head-left' },
-                    el('div', { className: 'h2l-breadcrumb', onClick: () => navigate('') }, 'Projelerim', el(Icon,{name:'angle-right'}), project.title),
-                    el('div', { className: 'h2l-project-title-row' },
-                        el('h1', null, el('span', { style: { color: project.color, marginRight: 10 } }, '#'), project.title),
-                        el('span', { className: 'h2l-project-count' }, tasks.length)
+        useEffect(() => {
+            const handleClickOutside = (event) => { 
+                if (viewMenuRef.current && !viewMenuRef.current.contains(event.target)) setIsViewMenuOpen(false);
+                if (moreMenuRef.current && !moreMenuRef.current.contains(event.target)) setIsMoreMenuOpen(false);
+            };
+            document.addEventListener("mousedown", handleClickOutside);
+            return () => document.removeEventListener("mousedown", handleClickOutside);
+        }, [viewMenuRef, moreMenuRef]);
+
+        if (!project) return el('div', null, 'Yükleniyor...');
+
+        const folderId = parseInt(project.folderId || project.folder_id || 0);
+        const folder = folders ? folders.find(f => parseInt(f.id) === folderId) : null;
+        const folderName = folder ? folder.name : 'Projelerim';
+        
+        // Yöneticiler (Tümü)
+        const managers = (project.managers || []).map(uid => users.find(u => parseInt(u.id) === parseInt(uid))).filter(Boolean);
+
+        return el('div', { className: 'h2l-project-page' },
+            // HEADER (Full Width)
+            el('div', { className: 'h2l-project-header-wrapper' },
+                el('div', { className: 'h2l-detail-header' },
+                    el('div', { className: 'h2l-header-top' },
+                        el('div', { className: 'h2l-breadcrumb' },
+                            el('span', { className: 'link', onClick: () => navigate('') }, folderName),
+                            el('span', { className: 'divider' }, '/'),
+                            el('span', null, project.title)
+                        ),
+                        el('div', { className: 'h2l-header-actions' },
+                            // AVATARLAR (HEPSİ)
+                            managers.length > 0 && el('div', { className: 'h2l-avatars-stack' },
+                                managers.map((u, i) => el(Avatar, { key: u.id, userId: u.id, users, size: 26, style:{marginLeft: i===0?0:-8} }))
+                            ),
+                            el('button', { className: 'h2l-action-btn', title: 'Üye Ekle' }, el(Icon, { name: 'user-plus' }), 'Paylaş'),
+                            
+                            // GÖRÜNÜM MENÜSÜ
+                            el('div', { style: { position: 'relative' }, ref: viewMenuRef },
+                                el('button', { className: 'h2l-action-btn', onClick: () => setIsViewMenuOpen(!isViewMenuOpen) }, 
+                                    el(Icon, { name: 'sliders' }), 'Görünüm'
+                                ),
+                                isViewMenuOpen && el('div', { className: 'h2l-popover-menu right-aligned' },
+                                    el('div', { className: 'h2l-menu-section' },
+                                        el('span', { className: 'h2l-menu-title' }, 'DÜZEN'),
+                                        el('div', { className: 'h2l-view-selector' },
+                                            el('div', { className: `h2l-view-btn ${viewMode==='list'?'active':''}`, onClick: () => setViewMode('list') }, el(Icon, { name: 'list' }), ' Liste'),
+                                            el('div', { className: `h2l-view-btn ${viewMode==='board'?'active':''}`, onClick: () => setViewMode('board') }, el(Icon, { name: 'table-columns' }), ' Pano')
+                                        )
+                                    ),
+                                    el('div', { className: 'h2l-menu-section' },
+                                        el('div', { className: 'h2l-switch-item', onClick:()=>setShowCompleted(!showCompleted) }, 
+                                            el('span', null, 'Tamamlanan görevler'),
+                                            el('div', { className: `h2l-toggle-switch ${showCompleted?'on':''}` }, el('div', {className:'knob'}))
+                                        )
+                                    )
+                                )
+                            ),
+
+                            // DAHA FAZLA MENÜSÜ
+                            el('div', { style: { position: 'relative' }, ref: moreMenuRef },
+                                el('button', { className: 'h2l-action-btn', title: 'Diğer', onClick: () => setIsMoreMenuOpen(!isMoreMenuOpen) }, el(Icon, { name: 'ellipsis' })),
+                                isMoreMenuOpen && el('div', { className: 'h2l-popover-menu right-aligned' },
+                                    el('div', { className: 'h2l-menu-item', onClick: () => { if(onAction) onAction('edit_project', project); setIsMoreMenuOpen(false); } }, el(Icon, { name: 'pen' }), ' Projeyi düzenle'),
+                                    el('div', { className: 'h2l-menu-item' }, el(Icon, { name: 'box-archive' }), ' Projeyi arşivle'),
+                                    el('div', { className: 'h2l-menu-item text-danger', onClick: () => { if(onAction) onAction('delete_project', project.id); setIsMoreMenuOpen(false); } }, el(Icon, { name: 'trash' }), ' Projeyi sil')
+                                )
+                            )
+                        )
                     )
-                ),
-                el('div', { className: 'h2l-head-actions' },
-                     el('div', { className: 'h2l-avatars-stack' }, (project.managers||[]).slice(0,3).map(u => el(Avatar, { key: u, userId: u, users, size: 26 }))),
-                     el('button', {className:'h2l-action-btn'}, el(Icon,{name:'user-plus'})),
-                     el('div', { className: 'h2l-view-toggle' },
-                        el('button', { className: viewMode==='list'?'active':'', onClick:()=>setViewMode('list') }, el(Icon,{name:'list'}), 'Liste'),
-                        el('button', { className: viewMode==='board'?'active':'', onClick:()=>setViewMode('board') }, el(Icon,{name:'table-columns'}), 'Pano')
-                     ),
-                     el('button', {className:'h2l-action-btn'}, el(Icon,{name:'ellipsis'}))
+                    // HEADER MAIN BAŞLIĞI BURADAN KALDIRILDI
                 )
             ),
             
-            viewMode === 'list' 
-                ? el(ListView, { tasks, sections, users, onUpdateTask, onDeleteTask, onAddTask: (opts) => onAddTask({ projectId: project.id, ...opts }), onAddSection: (data) => onAddSection({ projectId: project.id, ...data }), onTaskClick: setSelectedTask })
-                : el(BoardView, { tasks, sections, onUpdateTask }),
+            // CONTENT
+            el('div', { className: 'h2l-project-content-wrapper' },
+                viewMode === 'list' 
+                    ? el(ListView, { 
+                        project, tasks, sections, users, 
+                        onUpdateTask, onDeleteTask, 
+                        onAddTask: (opts) => onAddTask({ projectId: project.id, ...opts }), 
+                        onAddSection: (data) => onAddSection({ projectId: project.id, ...data }), 
+                        onTaskClick: setSelectedTask,
+                        showCompleted, highlightToday
+                    })
+                    : el(BoardView, { tasks, sections, onUpdateTask })
+            ),
             
             selectedTask && el(TaskDetailModal, { 
                 task: selectedTask, 
                 onClose: () => setSelectedTask(null), 
-                onUpdate: (id, d) => { onUpdateTask(id, d); setSelectedTask({...selectedTask, ...d}); },
+                onUpdate: (id, d) => { onUpdateTask(id, d); setSelectedTask(prev => ({...prev, ...d})); },
                 users, projects: [project], sections 
             })
         );

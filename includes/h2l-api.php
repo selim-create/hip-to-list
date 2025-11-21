@@ -1,177 +1,137 @@
 <?php
+/**
+ * REST API - Frontend Veri Yönetimi (CRUD)
+ */
+
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 add_action( 'rest_api_init', function () {
-    // Başlangıç Verisi (Init)
+    // Başlangıç Verisi
     register_rest_route( 'h2l/v1', '/init', array(
         'methods' => 'GET',
         'callback' => 'h2l_api_get_init_data',
         'permission_callback' => function () { return is_user_logged_in(); }
-    ));
+    ) );
 
-    // Görev CRUD
+    // Görevler
     register_rest_route( 'h2l/v1', '/tasks(?:/(?P<id>\d+))?', array(
         'methods' => ['POST', 'DELETE'],
-        'callback' => 'h2l_api_manage_tasks',
+        'callback' => 'h2l_api_manage_task',
         'permission_callback' => function () { return is_user_logged_in(); }
-    ));
+    ) );
 
-    // Proje CRUD
+    // Projeler
     register_rest_route( 'h2l/v1', '/projects(?:/(?P<id>\d+))?', array(
         'methods' => ['POST', 'DELETE'],
-        'callback' => 'h2l_api_manage_projects',
+        'callback' => 'h2l_api_manage_project',
         'permission_callback' => function () { return is_user_logged_in(); }
-    ));
-    
-    // Bölüm CRUD
+    ) );
+
+    // Klasörler
+    register_rest_route( 'h2l/v1', '/folders(?:/(?P<id>\d+))?', array(
+        'methods' => ['POST', 'DELETE'],
+        'callback' => 'h2l_api_manage_folder',
+        'permission_callback' => function () { return is_user_logged_in(); }
+    ) );
+
+    // Bölümler (Sections)
     register_rest_route( 'h2l/v1', '/sections(?:/(?P<id>\d+))?', array(
         'methods' => ['POST', 'DELETE'],
-        'callback' => 'h2l_api_manage_sections',
+        'callback' => 'h2l_api_manage_section',
         'permission_callback' => function () { return is_user_logged_in(); }
-    ));
+    ) );
 });
 
 /**
- * Kullanıcı profil fotoğrafını en garantili şekilde getiren yardımcı fonksiyon.
- * Bazı eklentiler get_avatar_url filtresini kullanmadığı için HTML çıktısından src alınır.
+ * Kullanıcı profil fotoğrafını HTML çıktısından yakalar.
+ * Bu yöntem, avatar eklentilerinin filtrelediği nihai URL'yi bulmayı garanti eder.
  */
 function h2l_get_user_profile_picture_url( $user_id ) {
-    // 1. Önce WordPress'in standart URL fonksiyonunu dene
-    $url = get_avatar_url( $user_id, ['size' => 96] );
-
-    // 2. Eğer dönen URL Gravatar ise ve biz yerel bir avatar bekliyorsak, 
-    // Eklentilerin HTML çıktısını (get_avatar) kontrol et.
-    // Çünkü 'Simple Local Avatars' gibi eklentiler genelde buraya hook atar.
+    // 1. WordPress'ten avatar HTML'ini iste (96px boyutunda)
     $avatar_html = get_avatar( $user_id, 96 );
     
+    // 2. HTML içindeki src="..." kısmını regex ile bul
     if ( preg_match( '/src=["\']([^"\']+)["\']/', $avatar_html, $matches ) ) {
-        $html_url = html_entity_decode( $matches[1] );
-        // Eğer HTML'den çıkan URL farklıysa ve 'gravatar.com' içermiyorsa onu kullan
-        if ( ! empty( $html_url ) && strpos( $html_url, 'gravatar.com' ) === false ) {
-            return $html_url;
-        }
-        // Eğer elimizdeki URL zaten gravatar ise ama HTML çıktısı farklı bir kaynak gösteriyorsa (CDN vs.)
-        // yine HTML çıktısını tercih edebiliriz.
-        if ( $url !== $html_url ) {
-            return $html_url;
-        }
+        $url = html_entity_decode( $matches[1] );
+        return $url;
     }
 
-    // 3. ACF veya Özel Meta Kontrolü (Opsiyonel: Eğer yukarıdaki çalışmazsa)
-    // Bazı dashboardlar resmi direkt meta olarak tutar.
-    $custom_avatar_id = get_user_meta( $user_id, 'simple_local_avatar', true ); // Popüler eklenti meta key
-    if ( $custom_avatar_id ) {
-        $img = wp_get_attachment_image_src( $custom_avatar_id, 'thumbnail' );
-        if ( $img ) return $img[0];
-    }
-
-    return $url;
+    // 3. Bulunamazsa varsayılan URL
+    return get_avatar_url( $user_id );
 }
 
-function h2l_api_get_init_data() {
+function h2l_api_get_init_data( $request ) {
     global $wpdb;
     $uid = get_current_user_id();
     
-    // Verileri çek
     $folders = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_folders ORDER BY name ASC");
-    $projects = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_projects WHERE status != 'trash' ORDER BY id DESC");
-    $sections = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_sections ORDER BY sort_order ASC");
-    $tasks = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_tasks WHERE status != 'trash' ORDER BY sort_order ASC, created_at DESC");
     
-    // Kullanıcıları formatla - YENİ FONKSİYON KULLANILIYOR
+    $projects = $wpdb->get_results("
+        SELECT p.*, 
+        (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_tasks WHERE project_id = p.id AND status = 'completed') as completed_count,
+        (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_tasks WHERE project_id = p.id AND status != 'trash') as total_count
+        FROM {$wpdb->prefix}h2l_projects p 
+        WHERE status != 'trash' ORDER BY title ASC
+    ");
+    
+    $sections = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_sections ORDER BY sort_order ASC");
+    $tasks = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_tasks WHERE status != 'trash' ORDER BY created_at DESC");
+    
+    // KULLANICI AVATARLARI: Yeni fonksiyon kullanılıyor
     $users = array_map(function($u) {
         return [
             'id' => $u->ID, 
             'name' => $u->display_name, 
-            'avatar' => h2l_get_user_profile_picture_url($u->ID) // Güncellendi
+            'avatar' => h2l_get_user_profile_picture_url($u->ID)
         ];
     }, get_users());
 
-    // Tarih formatlama (Basit)
-    foreach($tasks as $task) {
-        $task->date_display = $task->due_date ? date_i18n('j M', strtotime($task->due_date)) : '';
-        $task->assignees = json_decode($task->assignee_ids ?: '[]');
-    }
+    $projects = array_map(function($p) { $p->managers = !empty($p->managers) ? json_decode((string)$p->managers) : []; return $p; }, $projects);
+    $tasks = array_map(function($t) {
+        $t->assignees = !empty($t->assignee_ids) ? json_decode((string)$t->assignee_ids) : [];
+        if($t->due_date) {
+            $ts = strtotime($t->due_date);
+            $t->date_display = (date('Y-m-d') == date('Y-m-d', $ts)) ? 'Bugün' : date_i18n('j M', $ts);
+        } else { $t->date_display = ''; }
+        return $t;
+    }, $tasks);
 
-    return rest_ensure_response(compact('folders', 'projects', 'sections', 'tasks', 'users', 'uid'));
+    return rest_ensure_response( compact('folders', 'projects', 'sections', 'tasks', 'users', 'uid') );
 }
 
-function h2l_api_manage_tasks($request) {
-    global $wpdb; 
-    $table = $wpdb->prefix . 'h2l_tasks';
-    $method = $request->get_method();
-    $id = $request->get_param('id');
-    $p = $request->get_json_params();
-
-    if ($method === 'DELETE') {
-        $wpdb->update($table, ['status' => 'trash'], ['id' => $id]);
-        return ['success' => true];
-    }
-
-    $data = [];
-    if(isset($p['title'])) $data['title'] = sanitize_text_field($p['title']);
-    if(isset($p['content'])) $data['content'] = wp_kses_post($p['content']);
-    if(isset($p['projectId'])) $data['project_id'] = intval($p['projectId']);
-    if(isset($p['sectionId'])) $data['section_id'] = intval($p['sectionId']);
-    if(isset($p['priority'])) $data['priority'] = intval($p['priority']);
-    if(isset($p['status'])) $data['status'] = sanitize_text_field($p['status']);
-    if(isset($p['dueDate'])) $data['due_date'] = sanitize_text_field($p['dueDate']);
-
-    if ($id) {
-        $wpdb->update($table, $data, ['id' => $id]);
-        $new_id = $id;
-    } else {
-        $data['created_at'] = current_time('mysql');
-        $wpdb->insert($table, $data);
-        $new_id = $wpdb->insert_id;
-    }
-
-    $task = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $new_id));
-    $task->date_display = $task->due_date ? date_i18n('j M', strtotime($task->due_date)) : '';
-    return $task;
+function h2l_api_manage_task($request) {
+    global $wpdb; $table = $wpdb->prefix . 'h2l_tasks';
+    $method = $request->get_method(); $id = $request->get_param('id'); $params = $request->get_json_params();
+    if ($method === 'DELETE') { $wpdb->update($table, ['status' => 'trash'], ['id' => $id]); return ['success' => true]; }
+    $data = ['title'=>sanitize_text_field($params['title']??''),'content'=>wp_kses_post($params['content']??''),'project_id'=>intval($params['projectId']??0),'section_id'=>intval($params['sectionId']??0),'priority'=>intval($params['priority']??4),'status'=>sanitize_text_field($params['status']??'open'),'due_date'=>!empty($params['dueDate'])?sanitize_text_field($params['dueDate']):null,'assignee_ids'=>json_encode($params['assignees']??[])];
+    if ($id) { $wpdb->update($table, $data, ['id'=>$id]); $new_id=$id; } else { $data['created_at']=current_time('mysql'); $wpdb->insert($table, $data); $new_id=$wpdb->insert_id; }
+    return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id=%d", $new_id));
 }
 
-function h2l_api_manage_projects($request) {
-    global $wpdb;
-    $table = $wpdb->prefix . 'h2l_projects';
-    $method = $request->get_method();
-    $id = $request->get_param('id');
-    $p = $request->get_json_params();
-
-    if ($method === 'DELETE') {
-        $wpdb->update($table, ['status' => 'trash'], ['id' => $id]);
-        return ['success' => true];
-    }
-
-    $data = [];
-    if(isset($p['title'])) $data['title'] = sanitize_text_field($p['title']);
-    if(isset($p['color'])) $data['color'] = sanitize_hex_color($p['color']);
-    if(isset($p['viewType'])) $data['view_type'] = sanitize_text_field($p['viewType']);
-    if(isset($p['folderId'])) $data['folder_id'] = intval($p['folderId']);
-    if(isset($p['managers'])) $data['managers'] = json_encode($p['managers']); // Yöneticileri kaydetme eklendi
-
-    if ($id) {
-        $wpdb->update($table, $data, ['id' => $id]);
-        return ['id' => $id];
-    } else {
-        $data['owner_id'] = get_current_user_id();
-        $wpdb->insert($table, $data);
-        return ['id' => $wpdb->insert_id];
-    }
+function h2l_api_manage_project($request) {
+    global $wpdb; $table = $wpdb->prefix . 'h2l_projects';
+    $method = $request->get_method(); $id = $request->get_param('id'); $params = $request->get_json_params();
+    if ($method === 'DELETE') { $wpdb->update($table, ['status' => 'trash'], ['id' => $id]); return ['success' => true]; }
+    $data = ['title'=>sanitize_text_field($params['title']??''),'folder_id'=>intval($params['folderId']??0),'color'=>sanitize_hex_color($params['color']??'#808080'),'view_type'=>sanitize_text_field($params['viewType']??'list'),'managers'=>json_encode($params['managers']??[]),'owner_id'=>get_current_user_id()];
+    if ($id) { $wpdb->update($table, $data, ['id'=>$id]); $new_id=$id; } else { $data['created_at']=current_time('mysql'); $data['status']='active'; $wpdb->insert($table, $data); $new_id=$wpdb->insert_id; }
+    return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id=%d", $new_id));
 }
 
-function h2l_api_manage_sections($request) {
-    global $wpdb;
-    $table = $wpdb->prefix . 'h2l_sections';
-    $p = $request->get_json_params();
-    
-    if ($request->get_method() === 'DELETE') {
-        $wpdb->delete($table, ['id' => $request->get_param('id')]);
-        return true;
-    }
-    
-    $data = ['name' => sanitize_text_field($p['name']), 'project_id' => intval($p['projectId'])];
-    $wpdb->insert($table, $data);
-    return ['id' => $wpdb->insert_id, 'name' => $data['name'], 'projectId' => $data['project_id']];
+function h2l_api_manage_folder($request) {
+    global $wpdb; $table = $wpdb->prefix . 'h2l_folders';
+    $method = $request->get_method(); $id = $request->get_param('id'); $params = $request->get_json_params();
+    if ($method === 'DELETE') { $wpdb->delete($table, ['id' => $id]); return ['success' => true]; }
+    $data = ['name'=>sanitize_text_field($params['name']??''),'access_type'=>sanitize_text_field($params['access_type']??'private'),'description'=>sanitize_textarea_field($params['description']??''),'owner_id'=>get_current_user_id()];
+    if ($id) { $wpdb->update($table, $data, ['id'=>$id]); $new_id=$id; } else { $wpdb->insert($table, $data); $new_id=$wpdb->insert_id; }
+    return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id=%d", $new_id));
+}
+
+function h2l_api_manage_section($request) {
+    global $wpdb; $table = $wpdb->prefix . 'h2l_sections';
+    $method = $request->get_method(); $id = $request->get_param('id'); $params = $request->get_json_params();
+    if ($method === 'DELETE') { $wpdb->delete($table, ['id' => $id]); return ['success' => true]; }
+    $data = ['name' => sanitize_text_field($params['name']), 'project_id' => intval($params['projectId']), 'sort_order' => intval($params['sortOrder'] ?? 0)];
+    if ($id) { $wpdb->update($table, $data, ['id' => $id]); $new_id = $id; } else { $data['created_at'] = current_time('mysql'); $wpdb->insert($table, $data); $new_id = $wpdb->insert_id; }
+    return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $new_id));
 }
 ?>
