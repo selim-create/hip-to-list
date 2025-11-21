@@ -106,6 +106,53 @@
         );
     };
 
+    // --- GÖREV SATIRI ---
+    const TaskRow = ({ task, users, onUpdateTask, onTaskClick, highlightToday }) => {
+        let assignee = null;
+        if (task.assignees && task.assignees.length > 0) { assignee = users.find(u => parseInt(u.id) === parseInt(task.assignees[0])); }
+        
+        const isToday = task.date_display === 'Bugün';
+        const highlightClass = (highlightToday && isToday) ? 'h2l-highlight-today' : '';
+
+        return el('div', { className: `h2l-task-row ${highlightClass}`, onClick: () => onTaskClick(task) },
+            // Sol: Checkbox
+            el('div', { className: 'h2l-task-left' },
+                el('div', { className: `h2l-task-check p${task.priority} ${task.status==='completed'?'completed':''}`, onClick: (e) => { e.stopPropagation(); onUpdateTask(task.id, { status: task.status==='completed'?'open':'completed' }); } }, el(Icon, { name: 'check' }))
+            ),
+            // Orta: İçerik
+            el('div', { className: 'h2l-task-content' },
+                el('span', { className: `h2l-task-title ${task.status==='completed'?'completed':''}` }, task.title),
+                el('div', { className: 'h2l-task-details' },
+                    task.date_display && el('span', { className: `h2l-detail-item date ${isToday ? 'today' : ''}` }, el(Icon, {name:'calendar'}), task.date_display),
+                )
+            ),
+            // Sağ: Atanan & Menü
+            el('div', { className: 'h2l-task-right' },
+                assignee && el('div', { className: 'h2l-assignee-wrapper' }, el(Avatar, { userId: assignee.id, users, size: 24 })),
+                el('div', { className: 'h2l-task-menu' },
+                    el('button', { className: 'h2l-icon-btn', onClick: (e) => { e.stopPropagation(); /* Menü aç */ } }, el(Icon, { name: 'ellipsis' }))
+                )
+            )
+        );
+    };
+
+    // --- BÖLÜM GRUBU BİLEŞENİ (HOOK HATASINI ÇÖZEN YAPI) ---
+    const SectionGroup = ({ section, tasks, users, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, highlightToday }) => {
+        const [isOpen, setIsOpen] = useState(true);
+
+        return el('div', { className: 'h2l-section-container' },
+            el('div', { className: 'h2l-section-header', onClick: () => setIsOpen(!isOpen) },
+                el(Icon, { name: isOpen ? 'chevron-down' : 'chevron-right', className: 'h2l-section-toggle' }),
+                el('span', { className: 'h2l-section-title' }, section.name),
+                el('span', { className: 'h2l-section-count' }, tasks.length)
+            ),
+            isOpen && tasks.map(t => 
+                el(TaskRow, { key: t.id, task: t, users, onUpdateTask, onDeleteTask, onTaskClick, highlightToday })
+            ),
+            isOpen && el(QuickAdd, { sectionId: section.id, onAdd: onAddTask })
+        );
+    };
+
     // --- LİSTE GÖRÜNÜMÜ ---
     const ListView = ({ project, tasks, sections, users, onUpdateTask, onDeleteTask, onAddTask, onAddSection, onTaskClick, showCompleted, highlightToday }) => {
         // Tamamlananları filtrele
@@ -116,66 +163,31 @@
 
         const rootTasks = visibleTasks.filter(t => { const sId = t.section_id || t.sectionId; return !sId || sId == 0; });
 
-        // GÖREV SATIRI (YENİ TASARIM)
-        const TaskRow = ({ task }) => {
-            let assignee = null;
-            if (task.assignees && task.assignees.length > 0) { assignee = users.find(u => parseInt(u.id) === parseInt(task.assignees[0])); }
-            
-            const isToday = task.date_display === 'Bugün';
-            const highlightClass = (highlightToday && isToday) ? 'h2l-highlight-today' : '';
-
-            return el('div', { key: task.id, className: `h2l-task-row ${highlightClass}`, onClick: () => onTaskClick(task) },
-                // Sol: Checkbox
-                el('div', { className: 'h2l-task-left' },
-                    el('div', { className: `h2l-task-check p${task.priority} ${task.status==='completed'?'completed':''}`, onClick: (e) => { e.stopPropagation(); onUpdateTask(task.id, { status: task.status==='completed'?'open':'completed' }); } }, el(Icon, { name: 'check' }))
-                ),
-                // Orta: İçerik
-                el('div', { className: 'h2l-task-content' },
-                    el('span', { className: `h2l-task-title ${task.status==='completed'?'completed':''}` }, task.title),
-                    el('div', { className: 'h2l-task-details' },
-                        task.date_display && el('span', { className: `h2l-detail-item date ${isToday ? 'today' : ''}` }, el(Icon, {name:'calendar'}), task.date_display),
-                        // Label (Örnek)
-                        // el('span', { className: 'h2l-detail-item label' }, el(Icon, {name:'tag'}), 'Sıfıra'),
-                        // Alt görev (Örnek)
-                        // el('span', { className: 'h2l-detail-item subtask' }, el(Icon, {name:'code-branch'}), '0/3'),
-                    )
-                ),
-                // Sağ: Atanan & Menü
-                el('div', { className: 'h2l-task-right' },
-                    assignee && el('div', { className: 'h2l-assignee-wrapper' }, el(Avatar, { userId: assignee.id, users, size: 24 })),
-                    el('div', { className: 'h2l-task-menu' },
-                        el('button', { className: 'h2l-icon-btn', onClick: (e) => { e.stopPropagation(); /* Menü aç */ } }, el(Icon, { name: 'ellipsis' }))
-                    )
-                )
-            );
-        };
-
         return el('div', { className: 'h2l-list-view' },
-            // PROJE BAŞLIĞI (İÇERİK ALANINDA)
+            // PROJE BAŞLIĞI
             el('div', { className: 'h2l-project-content-header' },
                 el('h1', null, 
                     el('span', { className:'h2l-hash', style: { color: project.color } }, '#'), 
                     project.title
                 ),
-                el('span', { className: 'h2l-project-badge' }, tasks.length)
+                el('span', { className: 'h2l-project-badge', style: { backgroundColor: project.color, color: '#fff' } }, tasks.length)
             ),
 
             // BÖLÜMSÜZ GÖREVLER
-            el('div', { className: 'h2l-section-container' }, rootTasks.map(t => TaskRow({ task: t })), el(QuickAdd, { sectionId: 0, onAdd: onAddTask })),
+            el('div', { className: 'h2l-section-container' }, 
+                rootTasks.map(t => el(TaskRow, { key: t.id, task: t, users, onUpdateTask, onDeleteTask, onTaskClick, highlightToday })), 
+                el(QuickAdd, { sectionId: 0, onAdd: onAddTask })
+            ),
             
-            // BÖLÜMLER
+            // BÖLÜMLER (DÖNGÜ İÇİNDE COMPONENT KULLANILARAK HATA ÖNLENİYOR)
             sections.map(s => {
                 const sTasks = visibleTasks.filter(t => parseInt(t.section_id || t.sectionId) === parseInt(s.id));
-                const [isOpen, setIsOpen] = useState(true);
-                return el('div', { key: s.id, className: 'h2l-section-container' },
-                    el('div', { className: 'h2l-section-header', onClick: () => setIsOpen(!isOpen) },
-                        el(Icon, { name: isOpen ? 'chevron-down' : 'chevron-right', className: 'h2l-section-toggle' }),
-                        el('span', { className: 'h2l-section-title' }, s.name),
-                        el('span', { className: 'h2l-section-count' }, sTasks.length)
-                    ),
-                    isOpen && sTasks.map(t => TaskRow({ task: t })),
-                    isOpen && el(QuickAdd, { sectionId: s.id, onAdd: onAddTask })
-                );
+                return el(SectionGroup, { 
+                    key: s.id, 
+                    section: s, 
+                    tasks: sTasks, 
+                    users, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, highlightToday 
+                });
             }),
             
             // BÖLÜM EKLE (EN ALT)
@@ -268,7 +280,6 @@
                             )
                         )
                     )
-                    // HEADER MAIN BAŞLIĞI BURADAN KALDIRILDI
                 )
             ),
             

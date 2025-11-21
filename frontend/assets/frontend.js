@@ -24,19 +24,7 @@
     const Avatar = ({ userId, users, size = 24, style = {} }) => {
         if (!users || !Array.isArray(users)) return null;
         const user = users.find(u => parseInt(u.id) === parseInt(userId));
-        
-        // Style birleştirme
-        const finalStyle = { 
-            width: size, 
-            height: size, 
-            minWidth: size,
-            borderRadius: '50%', 
-            objectFit: 'cover', 
-            flexShrink: 0, 
-            display: 'block',
-            ...style 
-        };
-
+        const finalStyle = { width: size, height: size, minWidth: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, display: 'block', ...style };
         if (!user) return el('div', { className: 'h2l-avatar-ph', style: { ...finalStyle, background:'#eee' } });
         return el('img', { src: user.avatar, className: 'h2l-avatar', style: finalStyle, title: user.name });
     };
@@ -183,7 +171,7 @@
     const ProjectsDashboard = ({ data, navigate, onAction }) => {
         const [search, setSearch] = useState('');
         const [filterTab, setFilterTab] = useState('all');
-        const [showFavorites, setShowFavorites] = useState(false); // YENİ: Favori Filtresi State'i
+        const [showFavorites, setShowFavorites] = useState(false); 
         const [expandedFolders, setExpandedFolders] = useState({}); 
 
         useEffect(() => {
@@ -197,10 +185,8 @@
         const projects = Array.isArray(data.projects) ? data.projects : [];
         const folders = Array.isArray(data.folders) ? data.folders : [];
         
-        // Filtreleme Mantığı
         let filteredProjects = projects.filter(p => p.title.toLowerCase().includes(search.toLowerCase()));
         
-        // Favori filtresi aktifse sadece favorileri göster
         if (showFavorites) {
             filteredProjects = filteredProjects.filter(p => parseInt(p.is_favorite) === 1);
         }
@@ -208,7 +194,6 @@
         const rootProjects = filteredProjects.filter(p => parseInt(getFolderId(p)) === 0);
         const folderGroups = folders.map(f => ({...f, projects: filteredProjects.filter(p => parseInt(getFolderId(p)) === parseInt(f.id)) }));
 
-        // --- PROJE SATIRI BİLEŞENİ ---
         const ProjectRow = ({ project, nested }) => {
             const total = project.total_count || 0;
             const completed = project.completed_count || 0;
@@ -221,7 +206,6 @@
                 el('div', { className: 'h2l-cell-name' }, 
                     el('span', { className: 'h2l-hash', style: { color: project.color } }, '#'), 
                     el('span', { className: 'h2l-row-title' }, project.title),
-                    
                     managers.length > 0 && el('div', { className: 'h2l-row-avatars' },
                         managers.slice(0, 4).map((u, index) => 
                             el(Avatar, { 
@@ -229,10 +213,7 @@
                                 userId: u.id, 
                                 users: data.users, 
                                 size: 20, 
-                                style: { 
-                                    marginLeft: index === 0 ? 0 : -6, 
-                                    border: '1px solid #fff' 
-                                } 
+                                style: { marginLeft: index === 0 ? 0 : -6, border: '1px solid #fff' } 
                             })
                         )
                     )
@@ -263,8 +244,6 @@
                         el('button', { className: filterTab==='all'?'active':'', onClick:()=>setFilterTab('all') }, 'Tümü'), 
                         el('button', { className: filterTab==='joined'?'active':'', onClick:()=>setFilterTab('joined') }, 'Katıldığım projeler'), 
                         el('button', { className: filterTab==='not_joined'?'active':'', onClick:()=>setFilterTab('not_joined') }, 'Katılmadığım projeler'),
-                        
-                        // YENİ: Favorilerim Switch
                         el('div', { className: 'switch-row', style: { marginLeft: 15, display: 'inline-flex', marginTop: 0 } },
                             el('label', { className: 'h2l-switch', style: { width: 30, height: 18 } },
                                 el('input', { type: 'checkbox', checked: showFavorites, onChange: e => setShowFavorites(e.target.checked) }),
@@ -292,11 +271,7 @@
                             el(Icon, { name: expandedFolders[f.id] ? 'angle-down' : 'angle-right', style: { width: 20, color: '#666' } }), 
                             el(Icon, { name: 'folder-open', style: { marginRight: 8, color: '#888' } }), 
                             el('span', { className: 'h2l-folder-name' }, f.name),
-                            el(Icon, { 
-                                name: f.access_type === 'private' ? 'lock' : 'globe', 
-                                style: { fontSize: 12, marginLeft: 10, color: '#aaa' },
-                                title: f.access_type === 'private' ? 'Özel' : 'Herkese Açık'
-                            })
+                            el(Icon, { name: f.access_type === 'private' ? 'lock' : 'globe', style: { fontSize: 12, marginLeft: 10, color: '#aaa' } })
                         ),
                         el('div', { className: 'h2l-folder-right' }, 
                             el(Icon, { name: 'ellipsis', onClick: (e)=>{e.stopPropagation(); onAction('edit_folder', f)} })
@@ -315,7 +290,6 @@
         const [viewState, setViewState] = useState({ type: 'projects' });
         const [modal, setModal] = useState(null);
 
-        // External Module
         const ProjectDetail = window.H2L && window.H2L.ProjectDetail 
             ? window.H2L.ProjectDetail 
             : () => el('div', {className:'h2l-loading'}, 'Detay modülü yükleniyor...');
@@ -355,9 +329,12 @@
         const handleUpdateTask = (id, d) => apiFetch({ path: `/h2l/v1/tasks/${id}`, method: 'POST', data: d }).then(res => { loadData(); });
         const handleDeleteTask = (id) => apiFetch({ path: `/h2l/v1/tasks/${id}`, method: 'DELETE' }).then(() => { loadData(); });
         
+        // YENİ: Bölüm ekleme crash'ini önleyen güvenli yöntem
         const handleAddSection = (d) => {
             apiFetch({ path: '/h2l/v1/sections', method: 'POST', data: d })
-                .then(res => { loadData(); })
+                .then(res => {
+                    loadData(); // Güvenli yenileme
+                })
                 .catch(err => console.error("Bölüm eklenemedi:", err));
         };
         
