@@ -329,13 +329,26 @@
         const handleUpdateTask = (id, d) => apiFetch({ path: `/h2l/v1/tasks/${id}`, method: 'POST', data: d }).then(res => { loadData(); });
         const handleDeleteTask = (id) => apiFetch({ path: `/h2l/v1/tasks/${id}`, method: 'DELETE' }).then(() => { loadData(); });
         
-        // YENİ: Bölüm ekleme crash'ini önleyen güvenli yöntem
+        // YENİ: Bölüm Ekleme (Crash Önleyici)
         const handleAddSection = (d) => {
             apiFetch({ path: '/h2l/v1/sections', method: 'POST', data: d })
-                .then(res => {
-                    loadData(); // Güvenli yenileme
+                .then(newSection => {
+                    if (!newSection || typeof newSection !== 'object') return;
+                    setData(prev => ({
+                        ...prev,
+                        sections: [...prev.sections, newSection]
+                    }));
                 })
                 .catch(err => console.error("Bölüm eklenemedi:", err));
+        };
+
+        // YENİ: Bölüm Güncelleme ve Silme
+        const handleUpdateSection = (id, data) => {
+            apiFetch({ path: `/h2l/v1/sections/${id}`, method: 'POST', data: data }).then(loadData);
+        };
+
+        const handleDeleteSection = (id) => {
+            apiFetch({ path: `/h2l/v1/sections/${id}`, method: 'DELETE' }).then(loadData);
         };
         
         if(loading) return el('div', {className:'h2l-loading'}, el(Icon,{name:'circle-notch', className:'fa-spin'}), ' Yükleniyor...');
@@ -368,7 +381,9 @@
                         onAddTask: handleAddTask, 
                         onUpdateTask: handleUpdateTask, 
                         onDeleteTask: handleDeleteTask,
-                        onAddSection: handleAddSection
+                        onAddSection: handleAddSection,
+                        onUpdateSection: handleUpdateSection,
+                        onDeleteSection: handleDeleteSection
                     })
             ),
 
