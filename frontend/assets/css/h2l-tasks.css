@@ -368,42 +368,59 @@ textarea.h2l-rich-textarea.desc-mode {
     color: #555;
 }
 
-/* Textarea (Ortak) */
-textarea.h2l-rich-textarea {
+/* Yeni contenteditable editör kabuğu */
+.h2l-editor-shell {
+    border: 1px solid #ededed;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #fff, #fdfdfd);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.04);
+    margin-bottom: 8px;
     position: relative;
-    z-index: 1;
-    background: transparent !important;
-    color: transparent !important;
-    caret-color: #202020;
-    margin-bottom: 0 !important;
-    width: 100% !important;
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
-    resize: none !important;
-    display: block;
-    overflow-y: auto !important;
-    padding: 0 !important;
 }
 
-/* Max Yükseklikler */
-textarea.h2l-rich-textarea.title-mode,
-.h2l-highlight-layer.title-mode {
-    min-height: 24px;
-    max-height: 160px; /* ~6-7 satır */
+.h2l-editor-shell .h2l-rich-editor {
+    padding: 8px 10px 10px;
+    min-height: 32px;
+    background: #fff;
+    border-radius: 8px;
+    transition: border 0.15s ease, box-shadow 0.15s ease;
 }
 
-textarea.h2l-rich-textarea.desc-mode,
-.h2l-highlight-layer.desc-mode {
-    min-height: 20px;
-    max-height: 140px; /* ~6-7 satır (font küçük olduğu için px daha az) */
+.h2l-editor-shell .h2l-rich-editor:focus {
+    outline: none;
+    border: 1px solid #db4c3f;
+    box-shadow: 0 0 0 3px rgba(219, 76, 63, 0.12);
 }
 
-/* Placeholder Rengi */
-textarea.h2l-rich-textarea::placeholder {
-    color: #aaa !important; 
-    opacity: 1;
-    -webkit-text-fill-color: #aaa;
+.h2l-editor-toolbar {
+    display: flex;
+    gap: 6px;
+    padding: 6px 6px 4px;
+    border-bottom: 1px solid #f1f1f1;
+    background: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.h2l-toolbar-btn {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: #f7f7f7;
+    color: #555;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.h2l-toolbar-btn:hover {
+    background: #fff;
+    border-color: #e6e6e6;
+    color: #db4c3f;
 }
 
 /* --- STİL SINIFLARI --- */
@@ -428,10 +445,12 @@ textarea.h2l-rich-textarea::placeholder {
 
 /* Rich Editor Styles */
 .h2l-rich-editor {
-    border: none;
+    border: 1px solid transparent;
     outline: none;
     font-family: inherit;
     color: #202020;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
 /* Placeholder Logic */
@@ -488,3 +507,18 @@ textarea.h2l-rich-textarea::placeholder {
 }
 .h2l-tooltip-btn:hover { background: rgba(255,255,255,0.2); }
 .h2l-tooltip-divider { width: 1px; background: rgba(255,255,255,0.2); margin: 0 4px; }
+
+.h2l-tooltip-link-area {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.h2l-tooltip-input {
+    border: none;
+    outline: none;
+    padding: 6px 8px;
+    border-radius: 4px;
+    min-width: 160px;
+    font-size: 12px;
+}
