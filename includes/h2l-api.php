@@ -20,7 +20,7 @@ add_action( 'rest_api_init', function () {
         'permission_callback' => function () { return is_user_logged_in(); }
     ) );
 
-    // Yorumlar (YENİ)
+    // Yorumlar
     register_rest_route( 'h2l/v1', '/comments(?:/(?P<id>\d+))?', array(
         'methods' => ['GET', 'POST', 'DELETE'],
         'callback' => 'h2l_api_manage_comments',
@@ -49,9 +49,6 @@ add_action( 'rest_api_init', function () {
     ) );
 });
 
-/**
- * Kullanıcı profil fotoğrafını HTML çıktısından yakalar.
- */
 function h2l_get_user_profile_picture_url( $user_id ) {
     $avatar_html = get_avatar( $user_id, 96 );
     if ( preg_match( '/src=["\']([^"\']+)["\']/', $avatar_html, $matches ) ) {
@@ -75,10 +72,8 @@ function h2l_api_get_init_data( $request ) {
     ");
     
     $sections = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_sections ORDER BY sort_order ASC");
-    // SIRALAMA GÜNCELLENDİ: created_at ASC (Eskiden yeniye)
     $tasks = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_tasks WHERE status != 'trash' ORDER BY created_at ASC");
     
-    // KULLANICI AVATARLARI
     $users = array_map(function($u) {
         return [
             'id' => $u->ID, 
@@ -103,34 +98,52 @@ function h2l_api_get_init_data( $request ) {
 function h2l_api_manage_task($request) {
     global $wpdb; $table = $wpdb->prefix . 'h2l_tasks';
     $method = $request->get_method(); $id = $request->get_param('id'); $params = $request->get_json_params();
-    if ($method === 'DELETE') { $wpdb->update($table, ['status' => 'trash'], ['id' => $id]); return ['success' => true]; }
-    $data = ['title'=>sanitize_text_field($params['title']??''),'content'=>wp_kses_post($params['content']??''),'project_id'=>intval($params['projectId']??0),'section_id'=>intval($params['sectionId']??0),'priority'=>intval($params['priority']??4),'status'=>sanitize_text_field($params['status']??'open'),'due_date'=>!empty($params['dueDate'])?sanitize_text_field($params['dueDate']):null,'assignee_ids'=>json_encode($params['assignees']??[])];
-    if ($id) { $wpdb->update($table, $data, ['id'=>$id]); $new_id=$id; } else { $data['created_at']=current_time('mysql'); $wpdb->insert($table, $data); $new_id=$wpdb->insert_id; }
+    
+    if ($method === 'DELETE') { 
+        $wpdb->update($table, ['status' => 'trash'], ['id' => $id]); 
+        return ['success' => true]; 
+    }
+    
+    // DÜZELTME: sanitize_text_field yerine wp_kses_post kullanıldı (HTML İzni)
+    $data = [
+        'title' => wp_kses_post($params['title'] ?? ''), 
+        'content' => wp_kses_post($params['content'] ?? ''),
+        'project_id' => intval($params['projectId'] ?? 0),
+        'section_id' => intval($params['sectionId'] ?? 0),
+        'priority' => intval($params['priority'] ?? 4),
+        'status' => sanitize_text_field($params['status'] ?? 'open'),
+        'due_date' => !empty($params['dueDate']) ? sanitize_text_field($params['dueDate']) : null,
+        'assignee_ids' => json_encode($params['assignees'] ?? [])
+    ];
+    
+    if ($id) { 
+        $wpdb->update($table, $data, ['id'=>$id]); 
+        $new_id = $id; 
+    } else { 
+        $data['created_at'] = current_time('mysql'); 
+        $wpdb->insert($table, $data); 
+        $new_id = $wpdb->insert_id; 
+    }
     return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id=%d", $new_id));
 }
 
-// YENİ: Yorum Yönetimi
 function h2l_api_manage_comments($request) {
     $method = $request->get_method();
     $comment_cls = new H2L_Comment();
 
-    // Yorumları Getir: GET /comments?task_id=123
     if ($method === 'GET') {
         $task_id = $request->get_param('task_id');
         if (!$task_id) return new WP_Error('no_task', 'Task ID required', ['status'=>400]);
         return rest_ensure_response( $comment_cls->get_by_task($task_id) );
     }
 
-    // Yorum Ekle: POST /comments
     if ($method === 'POST') {
         $params = $request->get_json_params();
         if(empty($params['task_id']) || empty($params['content'])) return new WP_Error('invalid_data', 'Missing data', ['status'=>400]);
-        
         $comment = $comment_cls->add($params['task_id'], $params['content']);
         return rest_ensure_response($comment);
     }
 
-    // Yorum Sil: DELETE /comments/123
     if ($method === 'DELETE') {
         $id = $request->get_param('id');
         $comment = $comment_cls->get($id);

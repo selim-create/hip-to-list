@@ -1,6 +1,6 @@
 /* --- Hip to List: Tasks & Sections --- */
 
-/* --- ESKİ STİLLER (KORUNUYOR - LİSTE DÜZENİ İÇİN) --- */
+/* --- ESKİ STİLLER (KORUNUYOR) --- */
 .h2l-task-list { padding-top: 0; }
 .h2l-task-row { display: flex; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #f9f9f9; position: relative; cursor: pointer; transition: background 0.1s; background-color: #fff; margin-left: 28px; padding-left: 0; }
 .h2l-task-row:hover { background: #fafafa; }
@@ -127,7 +127,6 @@
 }
 
 /* Content Editable Input (ÖZEL) */
-/* ÖNEMLİ DÜZELTME: unicode-bidi: normal olarak ayarlandı */
 .h2l-content-editable {
     width: 100%;
     border: none;
@@ -180,6 +179,49 @@
     color: #555;
     min-height: 20px;
     margin-bottom: 5px;
+}
+
+/* --- Content Editable & Task List Rich Text Styles (GÜNCELLENDİ) --- */
+/* Hem editör (.h2l-content-editable) hem de liste başlığı (.h2l-task-title) için geçerli olacak */
+
+.h2l-content-editable code, 
+.h2l-task-title code {
+    background-color: #f5f5f5;
+    border: 1px solid #eee;
+    border-radius: 3px;
+    padding: 0 3px;
+    font-family: monospace;
+    color: #e83e8c;
+    font-size: 0.9em;
+}
+
+.h2l-content-editable u, 
+.h2l-task-title u {
+    text-decoration: underline;
+    text-decoration-color: #db4c3f; /* Tema rengi */
+}
+
+.h2l-content-editable s, 
+.h2l-content-editable strike, 
+.h2l-task-title s, 
+.h2l-task-title strike {
+    text-decoration: line-through;
+    color: #888;
+}
+
+/* GÜNCELLENDİ: Link Stilleri - Liste Görünümü Dahil */
+.h2l-content-editable a,
+.h2l-task-title a {
+    color: inherit !important;
+    text-decoration: underline !important;
+    text-decoration-color: #db4c3f !important;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.h2l-content-editable a:hover,
+.h2l-task-title a:hover {
+    color: #db4c3f !important;
 }
 
 /* Chips (Etiketler/Butonlar) Alanı */
@@ -314,3 +356,121 @@ button.h2l-todoist-btn-cancel:hover { background-color: #e5e5e5 !important; colo
 .h2l-tooltip-btn:hover { background: rgba(255,255,255,0.2); }
 .h2l-tooltip-divider { width: 1px; background: rgba(255,255,255,0.2); margin: 0 4px; }
 @keyframes h2l-fade-in { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+
+/* Link Input Area in Tooltip */
+.h2l-tooltip-link-area {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.h2l-tooltip-input {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 3px;
+    outline: none;
+    width: 200px;
+}
+.h2l-tooltip-input::placeholder { color: #bbb; }
+
+/* --- YAPIŞTIRMA MODALI STİLLERİ (YENİ) --- */
+.h2l-paste-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 100000; /* En üstte */
+    backdrop-filter: blur(2px);
+}
+
+.h2l-paste-modal {
+    background: #fff;
+    width: 500px;
+    max-width: 90%;
+    border-radius: 8px;
+    box-shadow: 0 15px 50px rgba(0,0,0,0.3);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    animation: h2l-fade-in 0.2s ease-out;
+}
+
+.h2l-paste-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #eee;
+}
+
+.h2l-paste-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #202020;
+}
+
+.h2l-paste-body {
+    padding: 20px;
+}
+
+.h2l-paste-body p {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 14px;
+    color: #555;
+}
+
+.h2l-paste-preview {
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    padding: 10px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.h2l-preview-line {
+    font-size: 13px;
+    color: #333;
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+}
+
+.h2l-preview-line .bullet {
+    color: #999;
+    margin-right: 8px;
+    font-size: 10px;
+}
+
+.h2l-preview-more {
+    font-size: 12px;
+    color: #888;
+    padding-top: 8px;
+    padding-left: 12px;
+    font-style: italic;
+}
+
+.h2l-paste-footer {
+    padding: 16px 20px;
+    background: #fcfcfc;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.h2l-paste-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #333;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.h2l-paste-actions {
+    display: flex;
+    gap: 10px;
+}
