@@ -38,6 +38,9 @@ function h2l_enqueue_frontend_assets() {
         // 4. Tasks: Görev Detayları ve Bölümler (App'e bağımlı)
         wp_enqueue_style( 'h2l-tasks-css', H2L_URL . 'frontend/assets/css/h2l-tasks.css', array('h2l-app-css'), time() );
 
+        // YENİ: Datepicker CSS
+        wp_enqueue_style( 'h2l-datepicker-css', H2L_URL . 'frontend/assets/css/h2l-datepicker.css', array(), time() );
+
         // --- JS Dosyaları ---
         // (JS yapısı aynen korundu)
         $deps = array( 'wp-element', 'wp-api-fetch', 'jquery' );
@@ -50,12 +53,17 @@ function h2l_enqueue_frontend_assets() {
 
         // 3. Sidebar (App ihtiyaç duyar)
         wp_enqueue_script('h2l-sidebar-js', H2L_URL . 'frontend/assets/js/h2l-sidebar.js', array('h2l-common-js'), time(), true);
-// 4. Proje & Klasörler (Dashboard & Modals)
+        
+        // 4. Proje & Klasörler (Dashboard & Modals)
         wp_enqueue_script('h2l-projects-js', H2L_URL . 'frontend/assets/js/h2l-projects.js', array('h2l-common-js'), time(), true);
 
         // [YENİ] 5. Görev Girdileri (Task Input - QuickAdd, RichInput, InlineEditor)
         // Bu dosya Reminders ve Common'a ihtiyaç duyar.
-        wp_enqueue_script('h2l-task-input-js', H2L_URL . 'frontend/assets/js/h2l-task-input.js', array('h2l-reminders-js', 'h2l-common-js'), time(), true);
+        // YENİ: Datepicker JS (h2l-common-js'den sonra, h2l-task-input-js'den önce)
+        wp_enqueue_script('h2l-datepicker-js', H2L_URL . 'frontend/assets/js/h2l-datepicker.js', array('h2l-common-js'), time(), true);
+        
+        // h2l-task-input-js artık datepicker'a da bağımlı olabilir veya doğrudan globalden kullanabilir.
+        wp_enqueue_script('h2l-task-input-js', H2L_URL . 'frontend/assets/js/h2l-task-input.js', array('h2l-reminders-js', 'h2l-common-js', 'h2l-datepicker-js'), time(), true);
 
         // [GÜNCELLENDİ] 6. Görev Listesi & Modallar (Tasks Logic)
         // Bu dosya artık h2l-task-input-js dosyasına bağımlıdır.
