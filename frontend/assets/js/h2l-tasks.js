@@ -13,13 +13,16 @@
     // --- 1. TASK ROW ---
     const TaskRow = ({ task, users, projects = [], sections = [], onUpdateTask, onTaskClick, highlightToday }) => {
         const [isEditing, setIsEditing] = useState(false);
-        // ... (assignee ve date logic aynı)
+        
         let assignee = null;
         if (task.assignees && task.assignees.length > 0) { 
             assignee = users.find(u => parseInt(u.id) === parseInt(task.assignees[0])); 
         }
         const isToday = task.date_display === 'Bugün';
         const highlightClass = (highlightToday && isToday) ? 'h2l-highlight-today' : '';
+
+        // Açıklamadan HTML'i temizle (Liste görünümü için)
+        const plainDesc = task.content ? task.content.replace(/<[^>]*>/g, ' ').trim() : '';
 
         if (isEditing) {
             return el('div', { style: { marginLeft: 28, marginBottom: 10 } },
@@ -28,7 +31,7 @@
                     initialData: task,
                     users: users,
                     projects: projects,
-                    sections: sections, // DÜZELTME: Sectionları geçirdik
+                    sections: sections, 
                     onSave: (updatedData) => {
                         onUpdateTask(task.id, updatedData);
                         setIsEditing(false);
@@ -50,6 +53,9 @@
                     className: `h2l-task-title ${task.status==='completed'?'completed':''}`,
                     dangerouslySetInnerHTML: { __html: task.title } 
                 }),
+                // Açıklama Satırı (EKLENDİ)
+                plainDesc && el('div', { className: 'h2l-task-desc' }, plainDesc),
+
                 el('div', { className: 'h2l-task-details' },
                     task.date_display && el('span', { className: `h2l-detail-item date ${isToday ? 'today' : ''}` }, el(Icon, {name:'calendar'}), task.date_display),
                     assignee && el('span', { className: 'h2l-detail-item' }, assignee.name)
@@ -78,7 +84,7 @@
                 mode: 'add',
                 users: users,
                 projects: projects,
-                sections: sections, // DÜZELTME: Sections geçildi
+                sections: sections, 
                 activeProjectId: projectId,
                 onSave: (data) => {
                     onAdd({ ...data, sectionId, projectId }); 
@@ -127,7 +133,6 @@
                     )
                 )
             ),
-            // DÜZELTME: Props'ları alt bileşenlere iletme
             isOpen && tasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, highlightToday })),
             isOpen && el(QuickAddContainer, { sectionId: section.id, projectId: section.project_id, users, projects, sections, onAdd: onAddTask }),
             showDeleteModal && el(DeleteSectionModal, { section: section, taskCount: tasks.length, onClose: () => setShowDeleteModal(false), onConfirm: () => { onDeleteSection(section.id); setShowDeleteModal(false); } })
@@ -168,7 +173,6 @@
                 el('span', { className: 'h2l-project-badge', style: { backgroundColor: project.color, color: '#fff' } }, tasks.length)
             ),
             el('div', { className: 'h2l-section-container' }, 
-                // DÜZELTME: Sections iletildi
                 rootTasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, highlightToday })), 
                 el(QuickAddContainer, { sectionId: 0, projectId: project.id, users, projects: projects.length ? projects : [project], sections, onAdd: onAddTask })
             ),

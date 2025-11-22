@@ -4,7 +4,6 @@
     const Common = window.H2L && window.H2L.Common ? window.H2L.Common : { Icon: () => null, Avatar: () => null };
     const { Icon, Avatar } = Common;
     
-    // Reminders Güvenli Yükleme
     const getReminders = () => {
         return window.H2L && window.H2L.Reminders ? window.H2L.Reminders : {
             getPriorityColor: () => '#808080',
@@ -16,22 +15,22 @@
     window.H2L = window.H2L || {};
     window.H2L.TaskInput = window.H2L.TaskInput || {};
 
-    // --- PLACEHOLDER LİSTESİ (Zengin Senaryolar) ---
+    // --- PLACEHOLDER LİSTESİ ---
     const PLACEHOLDERS = [
-        "Kampanya kurulumu ekleyin… ör. yarın 10:00 #DV360 p1 @elifnaz",
+        "Kampanya kurulumu ekleyin… ör. yarın 10:00 #DV360 p1",
         "Müşteri onayı iste… @selim bugün 15:00",
         "Günlük optimizasyon görevi… her gün 09:30 #MetaAds",
         "Teklif hazırlama… 2 gün sonra >Satış @berkay",
         "Story tasarımı ekleyin… bugün 17:00 p2",
-        "Kreatif revize iste… @özge yarın sabah @berkay",
-        "IION kurulum kontrolü… >Analitik p1 @elifnaz",
+        "Kreatif revize iste… @özge yarın sabah",
+        "IION kurulum kontrolü… >Analitik p1",
         "Aylık performans raporu… her ayın 1’i #Raporlama",
         "Müşteri toplantısı ekleyin… cuma 14:00",
-        "Kampanya bütçe güncellemesi… 5 şubat 10:00 @berkay",
-        "Yeni reklam metni yaz… @cemre #Kreatif @elifnaz",
+        "Kampanya bütçe güncellemesi… 5 şubat 10:00",
+        "Yeni reklam metni yaz… @cemre #Kreatif",
         "Rakip analizi planla… 3 gün sonra p2",
         "DV360 yayına alma… yarın 08:00 p1",
-        "Kampanya durdurma talebi… bugün 18:00 @berkay",
+        "Kampanya durdurma talebi… bugün 18:00",
         "Influencer seçimi… >SosyalMedya @elifnaz",
         "Fatura talebi oluştur… #Muhasebe p1",
         "Etiketleme (GTM) görevi… 12/2 saat 16:00",
@@ -44,27 +43,27 @@
         "Maliyet optimizasyonu… 2 hafta sonra p2",
         "Rapor gönderimi… bugün 11:00 @selim",
         "Video reklam çıkışı… 3 gün sonra @özge",
-        "Reklam reddi çözümü… bugün >Acil p1 @elifnaz",
-        "Strateji dokümanı hazırla… pazartesi 10:00 @cemre",
-        "Tracking testleri yap… yarın 14:30 >Analitik @süleyman",
-        "Kampanya kalite kontrol… her hafta içi 09:00 @süleyman",
-        "UTM parametrelerini oluştur… bugün #Analitik @süleyman",
-        "Yaratıcı konsept hazırlanması… @özge yarın @selim",
-        "CRM datasını güncelle… #Müşteri @cemre",
-        "Banner adaptasyonları… 2 gün sonra p2 @cemre",
-        "Budget pacing kontrolü… >Performans @selim",
+        "Reklam reddi çözümü… bugün >Acil p1",
+        "Strateji dokümanı hazırla… pazartesi 10:00",
+        "Tracking testleri yap… yarın 14:30 >Analitik",
+        "Kampanya kalite kontrol… her hafta içi 09:00",
+        "UTM parametrelerini oluştur… bugün #Analitik",
+        "Yaratıcı konsept hazırlanması… @özge yarın",
+        "CRM datasını güncelle… #Müşteri",
+        "Banner adaptasyonları… 2 gün sonra p2",
+        "Budget pacing kontrolü… >Performans",
         "Sosyal medya içerik planı… her pazartesi",
-        "Müşteri SLA kontrolü… yarın sabah @selim",
-        "A/B test kurulumu… cuma 11:00 @selim",
+        "Müşteri SLA kontrolü… yarın sabah",
+        "A/B test kurulumu… cuma 11:00",
         "Kampanya yayını izleme… her gün 10:00",
         "Reklam metni varyasyonları oluştur… bugün @cemre",
         "Segment oluşturma… #Programmatic",
-        "Yeni hedef kitle tanımı… 2 gün sonra @selim",
+        "Yeni hedef kitle tanımı… 2 gün sonra",
         "Tag Manager publish… bugün 17:00 p1",
         "Creative approval follow-up… @selim",
-        "Yayın durumu raporla… gelecek hafta @elifnaz",
-        "Rewarded Ads retest… yarın öğleden sonra @berkay",
-        "Lookalike audience ekle… #MetaAds @cemre",
+        "Yayın durumu raporla… gelecek hafta",
+        "Meta Ads retest… yarın öğleden sonra",
+        "Lookalike audience ekle… #MetaAds",
         "Video kurgusu hazırlansın… @özge cuma 15:00",
         "Data Studio dashboard güncelle… bugün",
         "Remarketing listeleri kontrol… her salı",
@@ -76,7 +75,7 @@
         "Yayın optimizasyon notu ekle… p2",
         "Erişim frekans kontrolü… yarın sabah",
         "Brief dokümanı paylaş… @süleyman",
-        "Müşteri önerilerini takip et… #Müşteri @cemre",
+        "Müşteri önerilerini takip et… #Müşteri",
         "Video thumbnail düzenle… 4pm @özge",
         "Sosyal medya raporu hazırla… cuma 17:00",
         "Kreatif yönlendirme hazırla… #KreatifBrief",
@@ -88,31 +87,31 @@
         "Theadx kreatif ekleme sorunu çöz… p1 @alper",
         "Adform Ads kurulumu… @cemre",
         "Yayın sonrası performans değerlendirmesi… gelecek pazartesi",
-        "Müşteriden missing asset iste… bugün @süleyman",
-        "Conversion tracking doğrula… 12:00 p1 @selim",
-        "Kampanya maliyet tahmini oluştur… #Planlama @cemre",
+        "Müşteriden missing asset iste… bugün",
+        "Conversion tracking doğrula… 12:00 p1",
+        "Kampanya maliyet tahmini oluştur… #Planlama",
         "Cross-channel kontrol… perşembe",
         "Reklam yöneticisinde hata giderme… bugün >Acil",
         "Rakip banner görsellerini topla… @elifnaz",
         "Creative X çıkış kontrolü… gün içinde",
-        "Story & Reel planlama… #SosyalMedya @selim",
+        "Story & Reel planlama… #SosyalMedya",
         "Yayın, harcama ve pacing uyumu kontrol… p2",
         "Google DV360 kalite puanı artırma görevi… yarın",
         "GAM Ads kur… >B2B @süleyman",
-        "Kampanya döviz kuruna göre düzeltme… #Finans @süleyman",
+        "Kampanya döviz kuruna göre düzeltme… #Finans",
         "YouTube bumper hazırlığı… bugün",
-        "Hedef kitle temizliği… 2 hafta sonra @cemre",
-        "Yeni müşteri onboarding akışı… #CRM @cemre",
+        "Hedef kitle temizliği… 2 hafta sonra",
+        "Yeni müşteri onboarding akışı… #CRM",
         "Ajans içi not ekle… @selim",
         "İçerik revize takip… @cemre",
-        "Finansal döküman gönder… #Muhasebe @selim",
+        "Finansal döküman gönder… #Muhasebe",
         "Müşteri feedback dokümanı oluştur… >Müşteriİlişkileri",
         "DV360 event mapping güncelle… p1",
-        "Performance Max görsel kontrolü… bugün @süleyman",
-        "Hesap güvenlik kontrolü… #Admin @cemre",
+        "Performance Max görsel kontrolü… bugün",
+        "Hesap güvenlik kontrolü… #Admin",
         "Yayın harcama limiti ayarla… @berkay",
         "Müşteri blacklist/whitelist düzenle… #Programmatic",
-        "Kreatif test planı oluştur… yarın p3 @süleyman",
+        "Kreatif test planı oluştur… yarın p3",
         "Yayın içgörüleri topla… cuma",
         "Toplantı özetini yaz… @selim bugün",
         "Feed optimizasyonu… 3 gün sonra",
@@ -124,43 +123,51 @@
         return PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)];
     };
 
-    // --- YARDIMCI FONKSİYONLAR ---
+    // --- YARDIMCI FONKSİYONLAR (Sanitize Güncellendi: H1, List vb. için) ---
     const sanitizeHTML = (html) => {
+        if (!html) return '';
+        
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
-        const allowedTags = ['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'CODE', 'A', 'SPAN'];
+        // Zengin metin taglerine izin ver
+        const allowedTags = ['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'CODE', 'A', 'SPAN', 'H1', 'H2', 'H3', 'BLOCKQUOTE', 'PRE', 'UL', 'OL', 'LI'];
+        
         const clean = (node) => {
             for (let i = node.childNodes.length - 1; i >= 0; i--) {
                 const child = node.childNodes[i];
-                if (child.nodeType === 1) { 
-                    // Highlight classlarını koru
-                    if(child.classList.contains('h2l-highlight-tag')) {
-                        child.removeAttribute('style');
-                        child.removeAttribute('id');
-                    } else {
-                        child.removeAttribute('style'); 
-                        child.removeAttribute('class'); 
-                        child.removeAttribute('id');
-                    }
-                    if (!allowedTags.includes(child.tagName)) {
-                        if(['DIV', 'P', 'BR', 'LI', 'TR'].includes(child.tagName)) { 
-                            const space = document.createTextNode(' '); node.insertBefore(space, child); 
+                
+                if (child.nodeType === 1) { // Element Node
+                    const tagName = child.tagName;
+
+                    if (!allowedTags.includes(tagName)) {
+                        // Blok elemanları arasına boşluk koy
+                        if (['DIV', 'P', 'BR', 'TR'].includes(tagName)) {
+                            const space = document.createTextNode(' ');
+                            node.insertBefore(space, child);
                         }
-                        while (child.firstChild) { node.insertBefore(child.firstChild, child); }
+                        while (child.firstChild) {
+                            node.insertBefore(child.firstChild, child);
+                        }
                         node.removeChild(child);
                     } else {
-                        const href = child.getAttribute('href');
-                        while (child.attributes.length > 0) { 
-                            if(child.attributes[0].name !== 'class' && child.attributes[0].name !== 'href' && child.attributes[0].name !== 'target') {
-                                child.removeAttribute(child.attributes[0].name); 
-                            }
+                        // Attribute temizliği
+                        const attrs = Array.from(child.attributes);
+                        for (const attr of attrs) {
+                            const name = attr.name.toLowerCase();
+                            if (tagName === 'A' && (name === 'href' || name === 'target')) continue;
+                            if (tagName === 'SPAN' && name === 'class' && attr.value.includes('h2l-highlight-tag')) continue;
+                            child.removeAttribute(name);
                         }
-                        if (child.tagName === 'A' && href) { child.setAttribute('href', href); child.setAttribute('target', '_blank'); }
+
+                        if (tagName === 'A') {
+                            child.setAttribute('target', '_blank');
+                        }
                         clean(child);
                     }
                 }
             }
         };
+
         clean(doc.body);
         return doc.body.innerHTML.replace(/&nbsp;/g, ' ').trim();
     };
@@ -184,7 +191,7 @@
         );
     };
 
-    // --- CONTENT EDITABLE (GÜNCELLENDİ) ---
+    // --- CONTENT EDITABLE ---
     const ContentEditable = ({ html, onChange, placeholder, className, autoFocus, onKeyDown, onPasteIntent, onInputHighlight }) => {
         const contentEditableRef = useRef(null);
         const lastHtml = useRef(null);
@@ -202,10 +209,8 @@
             let newHtml = e.target.innerHTML;
             const textContent = e.target.textContent || ""; 
 
-            // Eğer içerik sadece <br> veya boşluktan ibaretse temizle ki placeholder görünsün
             if (textContent.trim() === "" && (!newHtml || newHtml === "<br>" || newHtml === "<div><br></div>")) {
                 newHtml = "";
-                // DOM'u da temizle
                 e.target.innerHTML = "";
             }
 
@@ -243,39 +248,70 @@
             onKeyDown: handleKeyDownLocal, 
             onKeyUp: handleKeyUp, 
             onPaste: handlePasteLocal, 
-            'data-placeholder': placeholder, // DİNAMİK PLACEHOLDER
+            'data-placeholder': placeholder, 
             suppressContentEditableWarning: true, 
             dir: "ltr", 
             style: { direction: 'ltr', textAlign: 'left', unicodeBidi: 'normal', whiteSpace: 'pre-wrap', wordBreak: 'break-word' } 
         });
     };
 
-    // --- TEXT TOOLTIP ---
-    const TextTooltip = ({ position, onFormat, showLinkInput, onLinkSubmit, onClose }) => {
+    // --- TEXT TOOLTIP (ZENGİN METİN) ---
+    const TextTooltip = ({ position, onFormat, showLinkInput, onLinkSubmit, onClose, type = 'basic' }) => {
         const [linkUrl, setLinkUrl] = useState('');
         const inputRef = useRef(null);
         useEffect(() => { if (showLinkInput && inputRef.current) inputRef.current.focus(); }, [showLinkInput]);
         if (!position) return null;
+        
         const handleLinkKey = (e) => { 
             if (e.key === 'Enter') { e.preventDefault(); onLinkSubmit(linkUrl); } 
             if (e.key === 'Escape') { e.preventDefault(); onClose(); } 
         };
-        return el('div', { className: 'h2l-tooltip-popover', style: { left: position.left, top: position.top }, onMouseDown: e => e.stopPropagation() },
-            showLinkInput 
-            ? el('div', { className: 'h2l-tooltip-link-area' }, 
-                el('input', { ref: inputRef, className: 'h2l-tooltip-input', placeholder: 'https://...', value: linkUrl, onChange: e => setLinkUrl(e.target.value), onKeyDown: handleLinkKey }), 
-                el('button', { className: 'h2l-tooltip-btn action', onClick: () => onLinkSubmit(linkUrl) }, el(Icon, {name:'check'})), 
-                el('button', { className: 'h2l-tooltip-btn action', onClick: onClose }, el(Icon, {name:'xmark'}))
-              ) 
-            : [ 
+
+        const renderButtons = () => {
+            if (showLinkInput) {
+                return el('div', { className: 'h2l-tooltip-link-area' }, 
+                    el('input', { ref: inputRef, className: 'h2l-tooltip-input', placeholder: 'https://...', value: linkUrl, onChange: e => setLinkUrl(e.target.value), onKeyDown: handleLinkKey }), 
+                    el('button', { className: 'h2l-tooltip-btn action', onClick: () => onLinkSubmit(linkUrl) }, el(Icon, {name:'check'})), 
+                    el('button', { className: 'h2l-tooltip-btn action', onClick: onClose }, el(Icon, {name:'xmark'}))
+                );
+            }
+
+            const buttons = [
                 el('button', { key:'b', className: 'h2l-tooltip-btn', title:'Kalın', onClick: () => onFormat('bold') }, el(Icon, {name:'bold'})), 
                 el('button', { key:'i', className: 'h2l-tooltip-btn', title:'İtalik', onClick: () => onFormat('italic') }, el(Icon, {name:'italic'})), 
                 el('button', { key:'u', className: 'h2l-tooltip-btn', title:'Altı Çizili', onClick: () => onFormat('underline') }, el(Icon, {name:'underline'})), 
                 el('button', { key:'s', className: 'h2l-tooltip-btn', title:'Üstü Çizili', onClick: () => onFormat('strikethrough') }, el(Icon, {name:'strikethrough'})), 
-                el('button', { key:'c', className: 'h2l-tooltip-btn', title:'Kod', onClick: () => onFormat('code') }, el(Icon, {name:'code'})), 
-                el('div', { key:'div', className: 'h2l-tooltip-divider' }), 
-                el('button', { key:'l', className: 'h2l-tooltip-btn', title:'Link', onClick: () => onFormat('link_prompt') }, el(Icon, {name:'link'})) 
-              ]
+            ];
+
+            // SADECE AÇIKLAMA ALANI İÇİN EKSTRA BUTONLAR
+            if (type === 'advanced') {
+                buttons.push(
+                    el('div', { key:'sep1', className: 'h2l-tooltip-divider' }),
+                    el('button', { key:'h1', className: 'h2l-tooltip-btn', title:'Başlık 1', onClick: () => onFormat('formatBlock', 'H1') }, 'H1'),
+                    el('button', { key:'h2', className: 'h2l-tooltip-btn', title:'Başlık 2', onClick: () => onFormat('formatBlock', 'H2') }, 'H2'),
+                    el('button', { key:'h3', className: 'h2l-tooltip-btn', title:'Başlık 3', onClick: () => onFormat('formatBlock', 'H3') }, 'H3'),
+                    el('div', { key:'sep2', className: 'h2l-tooltip-divider' }),
+                    el('button', { key:'quote', className: 'h2l-tooltip-btn', title:'Alıntı', onClick: () => onFormat('formatBlock', 'BLOCKQUOTE') }, el(Icon, {name:'quote-right'})),
+                    el('button', { key:'code', className: 'h2l-tooltip-btn', title:'Kod Bloğu', onClick: () => onFormat('formatBlock', 'PRE') }, el(Icon, {name:'code'})),
+                    el('div', { key:'sep3', className: 'h2l-tooltip-divider' }),
+                    el('button', { key:'ul', className: 'h2l-tooltip-btn', title:'Madde İşaretli Liste', onClick: () => onFormat('insertUnorderedList') }, el(Icon, {name:'list-ul'})),
+                    el('button', { key:'ol', className: 'h2l-tooltip-btn', title:'Numaralı Liste', onClick: () => onFormat('insertOrderedList') }, el(Icon, {name:'list-ol'})),
+                );
+            } else {
+                // Başlık alanında inline code
+                buttons.push(el('button', { key:'c', className: 'h2l-tooltip-btn', title:'Kod', onClick: () => onFormat('code') }, el(Icon, {name:'code'})));
+            }
+
+            buttons.push(
+                el('div', { key:'sep_link', className: 'h2l-tooltip-divider' }), 
+                el('button', { key:'l', className: 'h2l-tooltip-btn', title:'Link', onClick: () => onFormat('link_prompt') }, el(Icon, {name:'link'}))
+            );
+
+            return buttons;
+        };
+        
+        return el('div', { className: 'h2l-tooltip-popover', style: { left: position.left, top: position.top }, onMouseDown: e => e.stopPropagation() },
+            renderButtons()
         );
     };
 
@@ -284,9 +320,7 @@
         const [title, setTitle] = useState(initialData.title || '');
         const [description, setDescription] = useState(initialData.content || '');
         
-        // Random placeholder (Her mount olduğunda)
         const [currentPlaceholder, setCurrentPlaceholder] = useState(mode === 'add' ? getRandomPlaceholder() : 'Görev adı');
-
         const [priority, setPriority] = useState(initialData.priority || 4);
         const [assigneeId, setAssigneeId] = useState(initialData.assignees && initialData.assignees.length > 0 ? initialData.assignees[0] : null);
         const [dueDate, setDueDate] = useState(initialData.due_date ? initialData.due_date.split(' ')[0] : '');
@@ -306,6 +340,7 @@
         const currentLength = plainTitle.length;
         const isLimitExceeded = currentLength > MAX_CHARS;
 
+        // Caret işlemleri (aynı kaldı)
         const saveCaret = (el) => {
             const selection = window.getSelection();
             if (selection.rangeCount === 0) return null;
@@ -351,6 +386,7 @@
             }
         };
 
+        // Smart Parser (Sadece title için)
         useEffect(() => {
             if (!title || title.replace(/<[^>]*>/g, '').trim().length < 2) return;
             const plainText = title.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ');
@@ -366,8 +402,36 @@
             }
         }, [title, users, projects, sections]);
 
+        // Popup kapatma
         useEffect(() => { const handleClickOutside = (event) => { if (wrapperRef.current && !wrapperRef.current.contains(event.target)) { if(!event.target.closest('.h2l-tooltip-popover')) { setActivePopup(null); } } }; document.addEventListener("mousedown", handleClickOutside); return () => document.removeEventListener("mousedown", handleClickOutside); }, [wrapperRef]);
-        useEffect(() => { const handleSelection = () => { const selection = window.getSelection(); if (!selection.isCollapsed && wrapperRef.current && wrapperRef.current.contains(selection.anchorNode)) { const range = selection.getRangeAt(0); const rect = range.getBoundingClientRect(); setTooltipState(prev => prev && prev.showLinkInput ? prev : { pos: { left: rect.left + (rect.width / 2) - 80, top: rect.top - 45 }, showLinkInput: false }); } else { setTooltipState(prev => prev && prev.showLinkInput ? prev : null); } }; document.addEventListener('selectionchange', handleSelection); return () => document.removeEventListener('selectionchange', handleSelection); }, []);
+        
+        // SEÇİM DİNLEYİCİSİ (Tooltip Tipi Belirleme)
+        useEffect(() => { 
+            const handleSelection = () => { 
+                const selection = window.getSelection(); 
+                if (!selection.isCollapsed && wrapperRef.current && wrapperRef.current.contains(selection.anchorNode)) { 
+                    const range = selection.getRangeAt(0); 
+                    const rect = range.getBoundingClientRect();
+                    
+                    // Hangi alanın içindeyiz?
+                    let type = 'basic';
+                    let node = selection.anchorNode;
+                    if(node.nodeType === 3) node = node.parentElement;
+                    if (node.closest('.desc-mode')) {
+                        type = 'advanced'; // Açıklama alanı için gelişmiş tooltip
+                    }
+
+                    setTooltipState(prev => prev && prev.showLinkInput ? prev : { 
+                        pos: { left: rect.left + (rect.width / 2) - 100, top: rect.top - 50 }, 
+                        showLinkInput: false,
+                        type: type 
+                    }); 
+                } else { 
+                    setTooltipState(prev => prev && prev.showLinkInput ? prev : null); 
+                } 
+            }; 
+            document.addEventListener('selectionchange', handleSelection); return () => document.removeEventListener('selectionchange', handleSelection); 
+        }, []);
 
         const handlePasteIntent = (lines, htmlContent) => { setPasteLines(lines); };
         const handlePasteConfirm = (merge) => {
@@ -386,7 +450,7 @@
                 });
                 if(mode === 'add') { 
                     setTitle(''); setDescription(''); 
-                    setCurrentPlaceholder(getRandomPlaceholder()); // Her eklemeden sonra değiştir
+                    setCurrentPlaceholder(getRandomPlaceholder());
                     const titleEl = wrapperRef.current.querySelector('.h2l-content-editable.title-mode'); 
                     if(titleEl) titleEl.innerHTML = ''; 
                 }
@@ -403,7 +467,7 @@
                 if(mode === 'add') { 
                     setTitle(''); setDescription(''); 
                     setPriority(4); setAssigneeId(null); setDueDate(''); 
-                    setCurrentPlaceholder(getRandomPlaceholder()); // Her eklemeden sonra değiştir
+                    setCurrentPlaceholder(getRandomPlaceholder());
                     const titleEl = wrapperRef.current.querySelector('.h2l-content-editable.title-mode'); 
                     if(titleEl) titleEl.innerHTML = ''; 
                 }
@@ -411,9 +475,40 @@
         };
 
         const execCmd = (cmd, val = null) => { document.execCommand(cmd, false, val); };
-        const handleFormat = (type) => { if (type === 'bold') execCmd('bold'); else if (type === 'italic') execCmd('italic'); else if (type === 'underline') execCmd('underline'); else if (type === 'strikethrough') execCmd('strikeThrough'); else if (type === 'code') { const selection = window.getSelection(); if(selection.rangeCount > 0) { const range = selection.getRangeAt(0); const codeNode = document.createElement('code'); codeNode.appendChild(range.extractContents()); range.insertNode(codeNode); } } else if (type === 'link_prompt') { const selection = window.getSelection(); if (selection.rangeCount > 0) savedSelectionRange.current = selection.getRangeAt(0); setTooltipState(prev => ({ ...prev, showLinkInput: true })); } };
-        const handleLinkSubmit = (url) => { if (url) { const selection = window.getSelection(); selection.removeAllRanges(); if (savedSelectionRange.current) selection.addRange(savedSelectionRange.current); execCmd('createLink', url); if (selection.anchorNode && selection.anchorNode.parentElement.tagName === 'A') { selection.anchorNode.parentElement.setAttribute('target', '_blank'); } } setTooltipState(null); savedSelectionRange.current = null; };
-        const handleKeyDown = (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); handleFormat('bold'); } else if ((e.ctrlKey || e.metaKey) && e.key === 'i') { e.preventDefault(); handleFormat('italic'); } else if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); handleFormat('link_prompt'); } if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); } if (e.key === 'Escape') onCancel(); };
+        
+        // Format Handler (Genişletildi)
+        const handleFormat = (type, value = null) => { 
+            if (type === 'link_prompt') { 
+                const selection = window.getSelection(); 
+                if (selection.rangeCount > 0) savedSelectionRange.current = selection.getRangeAt(0); 
+                setTooltipState(prev => ({ ...prev, showLinkInput: true })); 
+            } else if (type === 'code') {
+                // Inline code
+                const selection = window.getSelection(); 
+                if(selection.rangeCount > 0) { 
+                    const range = selection.getRangeAt(0); 
+                    const codeNode = document.createElement('code'); 
+                    codeNode.appendChild(range.extractContents()); 
+                    range.insertNode(codeNode); 
+                }
+            } else {
+                execCmd(type, value);
+            }
+        };
+
+        const handleLinkSubmit = (url) => { 
+            if (url) { 
+                const selection = window.getSelection(); 
+                selection.removeAllRanges(); 
+                if (savedSelectionRange.current) selection.addRange(savedSelectionRange.current); 
+                execCmd('createLink', url); 
+                if (selection.anchorNode && selection.anchorNode.parentElement.tagName === 'A') { selection.anchorNode.parentElement.setAttribute('target', '_blank'); } 
+            } 
+            setTooltipState(null); 
+            savedSelectionRange.current = null; 
+        };
+        
+        const handleKeyDown = (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); handleFormat('bold'); } if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); } if (e.key === 'Escape') onCancel(); };
 
         const { getPriorityColor } = getReminders();
         const renderPopup = () => {
@@ -431,7 +526,14 @@
         const selectedProject = projects.find(p => parseInt(p.id) === parseInt(projectId));
 
         return el('div', { className: 'h2l-todoist-editor-wrapper', ref: wrapperRef },
-            tooltipState && el(TextTooltip, { position: tooltipState.pos, showLinkInput: tooltipState.showLinkInput, onFormat: handleFormat, onLinkSubmit: handleLinkSubmit, onClose: () => setTooltipState(null) }),
+            tooltipState && el(TextTooltip, { 
+                position: tooltipState.pos, 
+                showLinkInput: tooltipState.showLinkInput, 
+                onFormat: handleFormat, 
+                onLinkSubmit: handleLinkSubmit, 
+                onClose: () => setTooltipState(null),
+                type: tooltipState.type
+            }),
             pasteLines && el(PasteModal, { lines: pasteLines, onConfirm: handlePasteConfirm, onCancel: () => setPasteLines(null) }),
 
             el('div', { className: 'h2l-todoist-editor-body' },
@@ -446,7 +548,18 @@
                     onInputHighlight: handleHighlight
                 }),
                 
-                el(ContentEditable, { html: description, onChange: setDescription, placeholder: 'Açıklama', className: 'desc-mode' }),
+                el(ContentEditable, { 
+                    html: description, 
+                    onChange: setDescription, 
+                    placeholder: 'Açıklama', 
+                    className: 'desc-mode', 
+                    onPasteIntent: (lines, html) => { 
+                        // Açıklamaya yapıştırmada modal yok, direkt ekle
+                        let content = html ? sanitizeHTML(html) : lines.join('\n'); 
+                        document.execCommand('insertHTML', false, content); 
+                    }, 
+                    onInputHighlight: null // Açıklamada highlight YOK
+                }),
                 
                 isLimitExceeded && el('div', { className: 'h2l-limit-warning' }, 
                     `Görev ismi karakter limiti: ${currentLength} / ${MAX_CHARS}`
