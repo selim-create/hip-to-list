@@ -13,7 +13,54 @@
     margin: 5px 0px 5px 28px;
     z-index: 1;
     border-radius: 5px;
-    min-height: 42px; /* Satır yüksekliğini sabitlemek hover stabilitesi sağlar */
+    min-height: 42px;
+    /* Drag için gerekli */
+    user-select: none; 
+}
+
+/* --- DRAG & DROP STYLES --- */
+.h2l-task-row.h2l-is-dragging {
+    opacity: 0.4;
+    background: #f5f5f5;
+    border: 1px dashed #ccc;
+}
+
+.h2l-task-row.h2l-drag-over-top {
+    border-top: 2px solid #db4c3f;
+}
+
+.h2l-task-row.h2l-drag-over-bottom {
+    border-bottom: 2px solid #db4c3f;
+}
+
+.h2l-section-container.h2l-drag-over {
+    background: #fffcf9;
+    box-shadow: inset 0 0 0 2px #db4c3f;
+    border-radius: 8px;
+}
+
+/* Section Drag Styles */
+.h2l-section-container.h2l-section-is-dragging {
+    opacity: 0.5;
+    border: 2px dashed #ccc;
+    background: #fafafa;
+}
+
+.h2l-section-container.h2l-section-drag-over-top {
+    border-top: 3px solid #246fe0; /* Mavi çizgi */
+    margin-top: 10px;
+}
+
+.h2l-section-container.h2l-section-drag-over-bottom {
+    border-bottom: 3px solid #246fe0; /* Mavi çizgi */
+    margin-bottom: 10px;
+}
+
+.h2l-section-header-row {
+    cursor: grab; /* Header'dan tutulacağını belirt */
+}
+.h2l-section-header-row:active {
+    cursor: grabbing;
 }
 
 /* HOVER VE MENÜ AÇIKKEN Z-INDEX ARTIR */
@@ -28,7 +75,19 @@
     background: #fafafa;
 }
 
-.h2l-task-row::before { content: '\f58e'; font-family: "Font Awesome 6 Free"; font-weight: 900; position: absolute; left: -24px; top: 12px; color: #ccc; cursor: grab; opacity: 0; transition: opacity 0.2s; font-size: 12px; }
+.h2l-task-row::before { 
+    content: '\f58e'; /* Grip lines icon */
+    font-family: "Font Awesome 6 Free"; 
+    font-weight: 900; 
+    position: absolute; 
+    left: -24px; 
+    top: 12px; 
+    color: #ccc; 
+    cursor: grab; 
+    opacity: 0; 
+    transition: opacity 0.2s; 
+    font-size: 12px; 
+}
 .h2l-task-row:hover::before { opacity: 1; }
 .h2l-task-row.h2l-highlight-today { background-color: #fffcf9; }
 
@@ -148,7 +207,6 @@
 .h2l-popover-menu.top-right {
     top: 100%; right: 0; margin-top: 4px; transform-origin: top right; animation: menuScale 0.1s ease-out;
     min-width: 220px; padding: 6px 0;
-    /* Menü z-index satırdan yüksek olmalı ama task-right içinde relative olduğu için sorun yok */
 }
 .h2l-popover-menu.assignee-menu {
     top: 100%; right: 0; margin-top: 4px; width: 200px;

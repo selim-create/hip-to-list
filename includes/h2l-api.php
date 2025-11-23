@@ -49,6 +49,13 @@ add_action( 'rest_api_init', function () {
         'callback' => 'h2l_api_manage_section',
         'permission_callback' => function () { return is_user_logged_in(); }
     ) );
+
+    // YENİ: SIRALAMA (Reorder)
+    register_rest_route( 'h2l/v1', '/reorder', array(
+        'methods' => 'POST',
+        'callback' => 'h2l_api_reorder_items',
+        'permission_callback' => function () { return is_user_logged_in(); }
+    ) );
 });
 
 function h2l_get_user_profile_picture_url( $user_id ) {
@@ -99,22 +106,17 @@ function h2l_api_get_init_data( $request ) {
     if (!empty($visible_project_ids)) {
         $ids_placeholder = implode(',', array_fill(0, count($visible_project_ids), '%d'));
         
-        // Yorum sayısını (comment_count) subquery ile alıyoruz
+        // ORDER BY sort_order ASC olarak güncellendi (Sürükle bırak için kritik)
         $tasks = $wpdb->get_results($wpdb->prepare(
             "SELECT t.*, 
             (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_comments c WHERE c.task_id = t.id) as comment_count
             FROM {$wpdb->prefix}h2l_tasks t 
             WHERE status != 'trash' 
             AND project_id IN ($ids_placeholder) 
-            ORDER BY created_at ASC",
+            ORDER BY sort_order ASC, created_at ASC",
             $visible_project_ids
         ));
         
-        // Label'ları alalım ve tasklara eşleştirelim (Performans için toplu sorgu)
-        // Basitlik için şimdilik her task için ayrı sorgu yapmayacağız,
-        // Veya tüm task_label ilişkisini çekip PHP'de birleştirebiliriz.
-        
-        // Task ID'lerini topla
         $task_ids = array_column($tasks, 'id');
         $task_labels_map = [];
         
@@ -138,7 +140,6 @@ function h2l_api_get_init_data( $request ) {
             }
         }
         
-        // Task verilerini işle
         $tasks = array_map(function($t) use ($task_labels_map) {
             $t->assignees = !empty($t->assignee_ids) ? json_decode((string)$t->assignee_ids) : [];
             $t->labels = isset($task_labels_map[$t->id]) ? $task_labels_map[$t->id] : [];
@@ -182,6 +183,35 @@ function h2l_api_get_init_data( $request ) {
     ) );
 }
 
+// YENİ: Sıralama İşlemi
+function h2l_api_reorder_items($request) {
+    global $wpdb;
+    $params = $request->get_json_params();
+    $type = isset($params['type']) ? $params['type'] : 'task';
+    $items = isset($params['items']) ? $params['items'] : [];
+
+    if (empty($items)) return ['success' => false];
+
+    if ($type === 'task') {
+        $table = $wpdb->prefix . 'h2l_tasks';
+        foreach ($items as $item) {
+            $update_data = ['sort_order' => intval($item['order'])];
+            // Bölüm değişikliği varsa onu da güncelle
+            if (isset($item['section_id'])) {
+                $update_data['section_id'] = intval($item['section_id']);
+            }
+            $wpdb->update($table, $update_data, ['id' => intval($item['id'])]);
+        }
+    } elseif ($type === 'section') {
+        $table = $wpdb->prefix . 'h2l_sections';
+        foreach ($items as $item) {
+            $wpdb->update($table, ['sort_order' => intval($item['order'])], ['id' => intval($item['id'])]);
+        }
+    }
+
+    return ['success' => true];
+}
+
 function h2l_api_manage_task($request) {
     global $wpdb; 
     $table = $wpdb->prefix . 'h2l_tasks';
@@ -195,7 +225,6 @@ function h2l_api_manage_task($request) {
     }
     
     if ($id) {
-        // UPDATE MODU
         $data = [];
         if (isset($params['title'])) $data['title'] = wp_kses_post($params['title']);
         if (isset($params['content'])) $data['content'] = wp_kses_post($params['content']);
@@ -207,6 +236,7 @@ function h2l_api_manage_task($request) {
             $data['due_date'] = !empty($params['dueDate']) ? sanitize_text_field($params['dueDate']) : null;
         }
         if (isset($params['assignees'])) $data['assignee_ids'] = json_encode($params['assignees']);
+        if (isset($params['sortOrder'])) $data['sort_order'] = intval($params['sortOrder']); // Sort order update
         
         if (!empty($data)) {
             $wpdb->update($table, $data, ['id'=>$id]);
@@ -214,24 +244,28 @@ function h2l_api_manage_task($request) {
         $new_id = $id;
 
     } else {
-        // INSERT MODU
+        // Yeni görev eklerken en alta eklemek için max sort_order'ı bulabiliriz veya 0'da bırakabiliriz.
+        // Todoist tarzı en alta ekler.
+        $project_id = intval($params['projectId'] ?? 0);
+        $max_sort = $wpdb->get_var($wpdb->prepare("SELECT MAX(sort_order) FROM $table WHERE project_id = %d", $project_id));
+        
         $data = [
             'title' => wp_kses_post($params['title'] ?? ''), 
             'content' => wp_kses_post($params['content'] ?? ''),
-            'project_id' => intval($params['projectId'] ?? 0),
+            'project_id' => $project_id,
             'section_id' => intval($params['sectionId'] ?? 0),
             'priority' => intval($params['priority'] ?? 4),
             'status' => sanitize_text_field($params['status'] ?? 'open'),
             'due_date' => !empty($params['dueDate']) ? sanitize_text_field($params['dueDate']) : null,
             'assignee_ids' => json_encode($params['assignees'] ?? []),
-            'created_at' => current_time('mysql')
+            'created_at' => current_time('mysql'),
+            'sort_order' => $max_sort ? $max_sort + 1 : 0
         ];
         
         $wpdb->insert($table, $data); 
         $new_id = $wpdb->insert_id; 
     }
     
-    // Görevi döndürürken comment_count ve etiketleri de döndürelim
     $task = $wpdb->get_row($wpdb->prepare(
         "SELECT t.*, 
         (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_comments c WHERE c.task_id = t.id) as comment_count 
@@ -239,8 +273,6 @@ function h2l_api_manage_task($request) {
         $new_id
     ));
 
-    // Etiketleri de ekleyelim (Basitlik için şimdilik boş array veya sorgu eklenebilir)
-    // Tekil işlemde performans sorunu olmaz
     $task->labels = $wpdb->get_results($wpdb->prepare("
         SELECT l.* FROM {$wpdb->prefix}h2l_task_labels tl
         JOIN {$wpdb->prefix}h2l_labels l ON tl.label_id = l.id
@@ -273,8 +305,6 @@ function h2l_api_manage_comments($request) {
         $params = $request->get_json_params();
         if(empty($params['task_id']) || empty($params['content'])) return new WP_Error('invalid_data', 'Missing data', ['status'=>400]);
         $comment = $comment_cls->add($params['task_id'], $params['content']);
-        
-        // Return comment count as well optionally, but frontend handles increment
         return rest_ensure_response($comment);
     }
 
@@ -308,7 +338,7 @@ function h2l_api_manage_project($request) {
     }
 
     if ($id) { 
-        // UPDATE: Kısmi güncelleme
+        // UPDATE
         $data = [];
         if (isset($params['title'])) $data['title'] = sanitize_text_field($params['title']);
         if (isset($params['folderId'])) $data['folder_id'] = intval($params['folderId']);

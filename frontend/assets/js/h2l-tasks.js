@@ -14,6 +14,10 @@
     window.H2L = window.H2L || {};
     window.H2L.Tasks = window.H2L.Tasks || {};
 
+    // DRAG & DROP STATE (Global)
+    let currentDraggedId = null;
+    let currentDraggedType = null; // 'task' | 'section'
+
     // --- 0. HELPER: SMART DATE FORMATTER ---
     const getSmartDateDisplay = (dateStr, isRecurring = false) => {
         if (!dateStr) return null;
@@ -28,12 +32,11 @@
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         
         const dayNames = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
-        // Saat kontrolü
         const hasTime = dateStr.includes(' ') && !dateStr.endsWith('00:00:00');
         const timeStr = hasTime ? dateStr.split(' ')[1].substring(0, 5) : '';
 
         let text = '';
-        let color = '#e67e22'; // Varsayılan Gelecek Tarih Rengi (Turuncu - İstek üzerine)
+        let color = '#e67e22'; // Varsayılan Gelecek Tarih Rengi
         let icon = 'calendar';
 
         if (diffDays === 0) {
@@ -49,18 +52,17 @@
             color = '#d1453b'; // Kırmızı
         } else if (diffDays < -1) {
             text = target.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
-            color = '#d1453b'; // Gecikmiş
+            color = '#d1453b'; 
         } else if (diffDays > 1 && diffDays < 7) {
             text = dayNames[target.getDay()];
-            color = '#692fc2'; // Mor (Yakın gelecek hafta içi)
+            color = '#692fc2'; // Mor
             icon = 'calendar-week';
         } else {
-            // Uzak gelecek
             text = target.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
             if (target.getFullYear() !== today.getFullYear()) {
                 text += ` ${target.getFullYear()}`;
             }
-            color = '#e67e22'; // Turuncu (İstek üzerine genel tarih rengi)
+            color = '#e67e22';
         }
 
         return { 
@@ -194,7 +196,6 @@
                         el('div', { className: 'h2l-tm-meta-group' }, el('label', null, 'Öncelik'), el('div', { className: 'h2l-tm-meta-val clickable', onClick: () => { const nextP = priority === 1 ? 4 : priority - 1; updateField('priority', nextP); } }, el(Icon, { name: 'flag', style: { color: getPriorityColor(priority) } }), `P${priority}`)),
                         el('div', { className: 'h2l-tm-meta-group' }, el('label', null, 'Atanan'), el('div', { className: 'h2l-tm-meta-val' }, task.assignees && task.assignees.length > 0 ? [el(Avatar, { userId: task.assignees[0], users, size: 20 }), users.find(u=>u.id==task.assignees[0])?.name] : 'Kimse atanmamış')),
                         
-                        // ETİKETLER (SIDEBAR)
                         el('div', { className: 'h2l-tm-meta-group' }, 
                             el('label', null, 'Etiketler'), 
                             el('div', { className: 'h2l-tm-meta-val', style: { flexWrap: 'wrap', height: 'auto', gap: '4px' } }, 
@@ -212,125 +213,106 @@
         );
     };
 
-    // --- 3. TASK ROW ---
-    const TaskRow = ({ task, users, projects = [], sections = [], onUpdateTask, onDeleteTask, onTaskClick, highlightToday }) => {
+    // --- 3. TASK ROW (DRAGGABLE) ---
+    const TaskRow = ({ task, users, projects = [], sections = [], onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask }) => {
         const [isEditing, setIsEditing] = useState(false);
         const [isStatusHovered, setIsStatusHovered] = useState(false);
         const [isMenuOpen, setIsMenuOpen] = useState(false);
         const [isAssigneeMenuOpen, setIsAssigneeMenuOpen] = useState(false);
         const [showDeleteModal, setShowDeleteModal] = useState(false);
         const [assigneeSearch, setAssigneeSearch] = useState('');
+        const [dragOverState, setDragOverState] = useState(null); // 'top' | 'bottom' | null
 
         const hoverTimeoutRef = useRef(null);
         const menuRef = useRef(null);
         const assigneeRef = useRef(null);
         
+        // Drag Event Handlers (TASK)
+        const handleDragStart = (e) => {
+            currentDraggedId = task.id;
+            currentDraggedType = 'task'; // SÜRÜKLENEN TÜRÜ BELİRLE
+            e.dataTransfer.effectAllowed = 'move';
+            setTimeout(() => e.target.classList.add('h2l-is-dragging'), 0);
+        };
+
+        const handleDragEnd = (e) => {
+            currentDraggedId = null;
+            currentDraggedType = null;
+            e.target.classList.remove('h2l-is-dragging');
+            setDragOverState(null);
+        };
+
+        const handleDragOver = (e) => {
+            e.preventDefault(); 
+            if (currentDraggedId === task.id || currentDraggedType !== 'task') return; // Sadece task ise izin ver
+
+            const rect = e.currentTarget.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            setDragOverState(e.clientY < midY ? 'top' : 'bottom');
+        };
+
+        const handleDragLeave = () => {
+            setDragOverState(null);
+        };
+
+        const handleDrop = (e) => {
+            e.preventDefault();
+            setDragOverState(null);
+            if (currentDraggedId && currentDraggedId !== task.id && onMoveTask && currentDraggedType === 'task') {
+                const position = dragOverState === 'top' ? 'before' : 'after';
+                onMoveTask(currentDraggedId, task.id, position);
+            }
+        };
+
         let assignee = null;
         if (task.assignees && task.assignees.length > 0) { 
             assignee = users.find(u => parseInt(u.id) === parseInt(task.assignees[0])); 
         }
         
-        // Akıllı Tarih Bilgisi
         const smartDate = getSmartDateDisplay(task.due_date, !!task.recurrence_rule);
-        
         const highlightClass = (highlightToday && smartDate && smartDate.text.includes('Bugün')) ? 'h2l-highlight-today' : '';
         const plainDesc = task.content ? task.content.replace(/<[^>]*>/g, ' ').trim() : '';
 
-        const handleMouseEnter = () => {
-            if (hoverTimeoutRef.current) { clearTimeout(hoverTimeoutRef.current); hoverTimeoutRef.current = null; }
-            setIsStatusHovered(true);
-        };
-        const handleMouseLeave = () => {
-            hoverTimeoutRef.current = setTimeout(() => { setIsStatusHovered(false); }, 250); 
-        };
+        const handleMouseEnter = () => { if (hoverTimeoutRef.current) { clearTimeout(hoverTimeoutRef.current); hoverTimeoutRef.current = null; } setIsStatusHovered(true); };
+        const handleMouseLeave = () => { hoverTimeoutRef.current = setTimeout(() => { setIsStatusHovered(false); }, 250); };
 
         useEffect(() => {
-            const handleClickOutside = (event) => { 
-                if (menuRef.current && !menuRef.current.contains(event.target)) setIsMenuOpen(false);
-                if (assigneeRef.current && !assigneeRef.current.contains(event.target)) setIsAssigneeMenuOpen(false);
-            };
-            document.addEventListener("mousedown", handleClickOutside);
-            return () => document.removeEventListener("mousedown", handleClickOutside);
+            const handleClickOutside = (event) => { if (menuRef.current && !menuRef.current.contains(event.target)) setIsMenuOpen(false); if (assigneeRef.current && !assigneeRef.current.contains(event.target)) setIsAssigneeMenuOpen(false); };
+            document.addEventListener("mousedown", handleClickOutside); return () => document.removeEventListener("mousedown", handleClickOutside);
         }, [menuRef, assigneeRef]);
 
         const handleAssigneeToggle = (userId) => {
             const currentIds = task.assignees ? task.assignees.map(Number) : [];
             let newIds = [];
-            if (currentIds.includes(userId)) {
-                newIds = currentIds.filter(id => id !== userId);
-            } else {
-                newIds = [userId]; 
-            }
+            if (currentIds.includes(userId)) { newIds = currentIds.filter(id => id !== userId); } else { newIds = [userId]; }
             onUpdateTask(task.id, { assignees: newIds });
         };
 
         if (isEditing) {
-            // Editöre geçişte tarihi korumak için due_date formatını kontrol edip hazırlıyoruz
-            const editData = {
-                ...task,
-                // Tarih varsa ve editörün anlayacağı formattaysa (YYYY-MM-DD) veya null
-                dueDate: task.due_date ? task.due_date.split(' ')[0] : '' 
-            };
-
-            return el('div', { style: { marginLeft: 28, marginBottom: 10 } },
-                el(TaskEditor, {
-                    mode: 'edit', 
-                    initialData: editData, 
-                    users, projects, sections, 
-                    onSave: (updatedData) => { onUpdateTask(task.id, updatedData); setIsEditing(false); },
-                    onCancel: () => setIsEditing(false)
-                })
-            );
+            const editData = { ...task, dueDate: task.due_date ? task.due_date.split(' ')[0] : '' };
+            return el('div', { style: { marginLeft: 28, marginBottom: 10 } }, el(TaskEditor, { mode: 'edit', initialData: editData, users, projects, sections, onSave: (updatedData) => { onUpdateTask(task.id, updatedData); setIsEditing(false); }, onCancel: () => setIsEditing(false) }));
         }
         
         const renderStatusMenu = () => {
             if (!TASK_STATUSES) return null;
-            return el('div', { 
-                className: 'h2l-status-hover-menu', onMouseEnter: handleMouseEnter, onMouseLeave: handleMouseLeave
-            }, Object.entries(TASK_STATUSES).map(([key, val]) => {
-                    const isActive = task.status === key;
-                    return el('div', {
-                        key: key, className: `h2l-status-menu-item ${isActive ? 'active' : ''}`,
-                        onClick: (e) => { e.stopPropagation(); onUpdateTask(task.id, { status: key }); setIsStatusHovered(false); }
-                    }, el(Icon, { name: val.icon, style: { color: val.color, width: 16, marginRight: 8 } }), val.label);
-                })
-            );
+            return el('div', { className: 'h2l-status-hover-menu', onMouseEnter: handleMouseEnter, onMouseLeave: handleMouseLeave }, Object.entries(TASK_STATUSES).map(([key, val]) => {
+                const isActive = task.status === key;
+                return el('div', { key: key, className: `h2l-status-menu-item ${isActive ? 'active' : ''}`, onClick: (e) => { e.stopPropagation(); onUpdateTask(task.id, { status: key }); setIsStatusHovered(false); } }, el(Icon, { name: val.icon, style: { color: val.color, width: 16, marginRight: 8 } }), val.label);
+            }));
         };
 
         const renderAssigneeMenu = () => {
             const sortedUsers = [...users].sort((a, b) => {
                 const isA = task.assignees && task.assignees.map(Number).includes(Number(a.id));
                 const isB = task.assignees && task.assignees.map(Number).includes(Number(b.id));
-                if (isA && !isB) return -1;
-                if (!isA && isB) return 1;
-                return a.name.localeCompare(b.name);
+                if (isA && !isB) return -1; if (!isA && isB) return 1; return a.name.localeCompare(b.name);
             });
-
             const filteredUsers = sortedUsers.filter(u => u.name.toLowerCase().includes(assigneeSearch.toLowerCase()));
-            
             return el('div', { className: 'h2l-popover-menu assignee-menu', style: { width: 260 }, onClick: e => e.stopPropagation() },
-                el('div', { style: { padding: '8px 12px 4px' } },
-                    el('input', { 
-                        type: 'text', placeholder: 'Kişi ara...', value: assigneeSearch, 
-                        autoFocus: true, onChange: e => setAssigneeSearch(e.target.value), 
-                        onClick: e => e.stopPropagation(), className: 'h2l-input'
-                    })
-                ),
+                el('div', { style: { padding: '8px 12px 4px' } }, el('input', { type: 'text', placeholder: 'Kişi ara...', value: assigneeSearch, autoFocus: true, onChange: e => setAssigneeSearch(e.target.value), onClick: e => e.stopPropagation(), className: 'h2l-input' })),
                 el('div', { style: { maxHeight: '200px', overflowY: 'auto' } },
-                    el('div', { className: 'h2l-menu-item', onClick: () => onUpdateTask(task.id, { assignees: [] }) }, 
-                        el(Icon, { name: 'user-xmark', style: { marginRight: 8, color: '#888' } }), 'Atanmamış',
-                        (!task.assignees || task.assignees.length === 0) && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } })
-                    ),
-                    filteredUsers.map(u => {
-                        const isSelected = task.assignees && task.assignees.map(Number).includes(Number(u.id));
-                        return el('div', { 
-                            key: u.id, className: 'h2l-menu-item', 
-                            onClick: () => handleAssigneeToggle(u.id) 
-                        },
-                            el(Avatar, { userId: u.id, users, size: 20, style: { marginRight: 8 } }), u.name,
-                            isSelected && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } })
-                        );
-                    }),
+                    el('div', { className: 'h2l-menu-item', onClick: () => onUpdateTask(task.id, { assignees: [] }) }, el(Icon, { name: 'user-xmark', style: { marginRight: 8, color: '#888' } }), 'Atanmamış', (!task.assignees || task.assignees.length === 0) && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } })),
+                    filteredUsers.map(u => { const isSelected = task.assignees && task.assignees.map(Number).includes(Number(u.id)); return el('div', { key: u.id, className: 'h2l-menu-item', onClick: () => handleAssigneeToggle(u.id) }, el(Avatar, { userId: u.id, users, size: 20, style: { marginRight: 8 } }), u.name, isSelected && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } })); }),
                     filteredUsers.length === 0 && el('div', { style: { padding: '10px', fontSize: '12px', color: '#999', textAlign: 'center' } }, 'Kullanıcı bulunamadı')
                 )
             );
@@ -338,11 +320,8 @@
 
         const renderMoreMenu = () => {
             return el('div', { className: 'h2l-popover-menu top-right', style: { width: 250, paddingBottom: 8 }, onClick: e => e.stopPropagation() },
-                el('div', { className: 'h2l-menu-item', onClick: () => { setIsMenuOpen(false); }, title: 'Bu göreve bir alt görev ekle' }, 
-                    el(Icon, { name: 'arrow-turn-down-right', style:{marginRight:10, color:'#666', fontSize:14} }), 'Alt görev ekle'
-                ),
+                el('div', { className: 'h2l-menu-item', onClick: () => { setIsMenuOpen(false); }, title: 'Bu göreve bir alt görev ekle' }, el(Icon, { name: 'arrow-turn-down-right', style:{marginRight:10, color:'#666', fontSize:14} }), 'Alt görev ekle'),
                 el('div', { className: 'h2l-menu-separator' }),
-                // Tarih
                 el('span', { className: 'h2l-menu-label' }, 'Tarih'),
                 el('div', { className: 'h2l-menu-row' },
                     el('div', { className: 'h2l-menu-icon-btn', title: 'Bugün', onClick: () => { setIsMenuOpen(false); } }, el(Icon, {name:'calendar-day', style:{color:'#058527'}})),
@@ -351,7 +330,6 @@
                     el('div', { className: 'h2l-menu-icon-btn', title: 'Gelecek Hafta', onClick: () => { setIsMenuOpen(false); } }, el(Icon, {name:'calendar-week', style:{color:'#692fc2'}})),
                     el('div', { className: 'h2l-menu-icon-btn', title: 'Tarih Yok', onClick: () => { setIsMenuOpen(false); } }, el(Icon, {name:'ban', style:{color:'#808080'}}))
                 ),
-                // Öncelik
                 el('span', { className: 'h2l-menu-label' }, 'Öncelik'),
                 el('div', { className: 'h2l-menu-row' },
                     el('div', { className: 'h2l-menu-icon-btn p1', title: 'Öncelik 1', onClick: () => { onUpdateTask(task.id, {priority:1}); setIsMenuOpen(false); } }, el(Icon, {name:'flag'})),
@@ -360,7 +338,6 @@
                     el('div', { className: 'h2l-menu-icon-btn p4', title: 'Öncelik 4', onClick: () => { onUpdateTask(task.id, {priority:4}); setIsMenuOpen(false); } }, el(Icon, {name:'flag'}))
                 ),
                 el('div', { className: 'h2l-menu-separator' }),
-                // Diğer
                 el('div', { className: 'h2l-menu-item', title: 'Hatırlatıcı ekle' }, el(Icon, { name: 'bell', style:{marginRight:10, color:'#666', fontSize:14} }), 'Hatırlatıcı'),
                 el('div', { className: 'h2l-menu-item', title: 'Etiketleri yönet' }, el(Icon, { name: 'tag', style:{marginRight:10, color:'#666', fontSize:14} }), 'Etiketler'),
                 el('div', { className: 'h2l-menu-item', title: 'Konum ekle' }, el(Icon, { name: 'location-dot', style:{marginRight:10, color:'#666', fontSize:14} }), 'Konum'),
@@ -374,77 +351,46 @@
         const isDoneLike = ['completed', 'cancelled'].includes(task.status);
         const checkClass = task.status === 'cancelled' ? 'cancelled' : (task.status === 'completed' ? 'completed' : '');
         const checkIcon = task.status === 'cancelled' ? 'ban' : 'check';
-        const rowClass = `h2l-task-row ${highlightClass} ${isMenuOpen || isAssigneeMenuOpen ? 'menu-open' : ''}`;
+        
+        let rowClassName = `h2l-task-row ${highlightClass} ${isMenuOpen || isAssigneeMenuOpen ? 'menu-open' : ''}`;
+        if (dragOverState === 'top') rowClassName += ' h2l-drag-over-top';
+        if (dragOverState === 'bottom') rowClassName += ' h2l-drag-over-bottom';
 
-        return el('div', { className: rowClass, onClick: () => onTaskClick(task) },
+        return el('div', { 
+            className: rowClassName, 
+            onClick: () => onTaskClick(task),
+            draggable: true,
+            onDragStart: handleDragStart,
+            onDragEnd: handleDragEnd,
+            onDragOver: handleDragOver,
+            onDragLeave: handleDragLeave,
+            onDrop: handleDrop
+        },
             showDeleteModal && el(DeleteTaskModal, { task, onClose: () => setShowDeleteModal(false), onConfirm: () => { onDeleteTask(task.id); setShowDeleteModal(false); } }),
             
             el('div', { className: 'h2l-task-left', onMouseEnter: handleMouseEnter, onMouseLeave: handleMouseLeave },
                 el('div', { className: 'h2l-status-wrapper' },
-                    el('div', { 
-                        className: `h2l-task-check p${task.priority} ${checkClass}`, 
-                        onClick: (e) => { 
-                            e.stopPropagation(); setIsStatusHovered(false);
-                            const newStatus = (task.status === 'completed' || task.status === 'cancelled') ? 'in_progress' : 'completed';
-                            onUpdateTask(task.id, { status: newStatus }); 
-                        } 
-                    }, el(Icon, { name: checkIcon })),
+                    el('div', { className: `h2l-task-check p${task.priority} ${checkClass}`, onClick: (e) => { e.stopPropagation(); setIsStatusHovered(false); const newStatus = (task.status === 'completed' || task.status === 'cancelled') ? 'in_progress' : 'completed'; onUpdateTask(task.id, { status: newStatus }); } }, el(Icon, { name: checkIcon })),
                     isStatusHovered && renderStatusMenu()
                 )
             ),
             el('div', { className: 'h2l-task-content' },
-                el('span', { 
-                    className: `h2l-task-title ${isDoneLike ? 'completed' : ''} ${task.status === 'cancelled' ? 'cancelled' : ''}`,
-                    dangerouslySetInnerHTML: { __html: task.title }
-                }),
+                el('span', { className: `h2l-task-title ${isDoneLike ? 'completed' : ''} ${task.status === 'cancelled' ? 'cancelled' : ''}`, dangerouslySetInnerHTML: { __html: task.title } }),
                 plainDesc && el('div', { className: 'h2l-task-desc' }, plainDesc),
                 el('div', { className: 'h2l-task-details' },
-                    // 1. TARIH
-                    smartDate && el('span', { className: 'h2l-detail-item date', style: { color: smartDate.color } }, 
-                        el(Icon, {name: smartDate.icon, style:{color: smartDate.color}}), 
-                        smartDate.text,
-                        smartDate.isRecurring && el(Icon, { name: 'arrows-rotate', style: { fontSize: 10, marginLeft: 4, color: smartDate.color }, title: 'Tekrarlı' })
-                    ),
-                    
-                    // 2. HATIRLATICI
-                    (task.reminder_enabled == 1) && el('span', { className: 'h2l-detail-item', title: 'Hatırlatıcı açık' }, 
-                        el(Icon, {name:'bell', style:{color:'#888', fontSize:12}})
-                    ),
-
-                    // 3. YORUM
-                    (parseInt(task.comment_count || 0) > 0) && el('span', { 
-                        className: 'h2l-detail-item comments', 
-                        style: { cursor: 'pointer', color: '#888' },
-                        onClick: (e) => { e.stopPropagation(); onTaskClick(task); } 
-                    }, el(Icon, {name:'comment', style:{fontSize:11}}), ' ', task.comment_count),
-
-                    // 4. ETİKETLER
-                    (task.labels && task.labels.length > 0) && task.labels.map(lbl => 
-                        el('span', { key: lbl.id || lbl, className: 'h2l-detail-item', style: { color: '#246fe0', fontSize: 11 } }, 
-                            el(Icon, {name:'hashtag', style:{fontSize:10, marginRight:1}}), 
-                            lbl.name || lbl
-                        )
-                    ),
-
-                    // 5. STATÜ BADGE
-                    (task.status !== 'open' && task.status !== 'in_progress' && TASK_STATUSES[task.status]) && 
-                        el('span', { className: 'h2l-detail-item status-badge', style: { color: TASK_STATUSES[task.status].color, fontSize: '11px', fontWeight: 600 } }, 
-                            task.status === 'completed' ? null : [el(Icon, {name: TASK_STATUSES[task.status].icon}), ' ', TASK_STATUSES[task.status].label]
-                        )
+                    smartDate && el('span', { className: 'h2l-detail-item date', style: { color: smartDate.color } }, el(Icon, {name: smartDate.icon, style:{color: smartDate.color}}), smartDate.text, smartDate.isRecurring && el(Icon, { name: 'arrows-rotate', style: { fontSize: 10, marginLeft: 4, color: smartDate.color }, title: 'Tekrarlı' })),
+                    (task.reminder_enabled == 1) && el('span', { className: 'h2l-detail-item', title: 'Hatırlatıcı açık' }, el(Icon, {name:'bell', style:{color:'#888', fontSize:12}})),
+                    (parseInt(task.comment_count || 0) > 0) && el('span', { className: 'h2l-detail-item comments', style: { cursor: 'pointer', color: '#888' }, onClick: (e) => { e.stopPropagation(); onTaskClick(task); } }, el(Icon, {name:'comment', style:{fontSize:11}}), ' ', task.comment_count),
+                    (task.labels && task.labels.length > 0) && task.labels.map(lbl => el('span', { key: lbl.id || lbl, className: 'h2l-detail-item', style: { color: '#246fe0', fontSize: 11 } }, el(Icon, {name:'hashtag', style:{fontSize:10, marginRight:1}}), lbl.name || lbl)),
+                    (task.status !== 'open' && task.status !== 'in_progress' && TASK_STATUSES[task.status]) && el('span', { className: 'h2l-detail-item status-badge', style: { color: TASK_STATUSES[task.status].color, fontSize: '11px', fontWeight: 600 } }, task.status === 'completed' ? null : [el(Icon, {name: TASK_STATUSES[task.status].icon}), ' ', TASK_STATUSES[task.status].label])
                 )
             ),
             
-            // --- SAĞ AKSİYONLAR ---
             el('div', { className: `h2l-task-right ${isMenuOpen || isAssigneeMenuOpen ? 'active' : ''}` },
                 el('button', { className: 'h2l-action-icon', title: 'Düzenle', onClick: (e) => { e.stopPropagation(); setIsEditing(true); } }, el(Icon, { name: 'pen' })),
-                el('button', { className: 'h2l-action-icon', title: 'Yorum yap', onClick: (e) => { e.stopPropagation(); onTaskClick(task); } }, 
-                    el(Icon, { name: 'comment' }),
-                    (task.comment_count > 0) && el('span', { className: 'h2l-comment-count' }, task.comment_count)
-                ),
+                el('button', { className: 'h2l-action-icon', title: 'Yorum yap', onClick: (e) => { e.stopPropagation(); onTaskClick(task); } }, el(Icon, { name: 'comment' }), (task.comment_count > 0) && el('span', { className: 'h2l-comment-count' }, task.comment_count)),
                 el('div', { className: 'h2l-action-menu-wrapper', ref: assigneeRef },
-                    el('button', { className: 'h2l-action-icon user', title: 'Atanan', onClick: (e) => { e.stopPropagation(); setIsAssigneeMenuOpen(!isAssigneeMenuOpen); setIsMenuOpen(false); } }, 
-                        assignee ? el(Avatar, { userId: assignee.id, users, size: 24 }) : el(Icon, { name: 'user' })
-                    ),
+                    el('button', { className: 'h2l-action-icon user', title: 'Atanan', onClick: (e) => { e.stopPropagation(); setIsAssigneeMenuOpen(!isAssigneeMenuOpen); setIsMenuOpen(false); } }, assignee ? el(Avatar, { userId: assignee.id, users, size: 24 }) : el(Icon, { name: 'user' })),
                     isAssigneeMenuOpen && renderAssigneeMenu()
                 ),
                 el('button', { className: 'h2l-action-icon delete', title: 'Sil', onClick: (e) => { e.stopPropagation(); setShowDeleteModal(true); } }, el(Icon, { name: 'trash' })),
@@ -469,13 +415,15 @@
         );
     };
 
-    // --- 4. SECTION GROUP ---
-    const SectionGroup = ({ section, tasks, users, projects, sections, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, highlightToday, onUpdateSection, onDeleteSection }) => {
+    // --- 4. SECTION GROUP (DRAGGABLE) ---
+    const SectionGroup = ({ section, tasks, users, projects, sections, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, highlightToday, onUpdateSection, onDeleteSection, onMoveTask, onMoveSection }) => {
         const [isOpen, setIsOpen] = useState(true);
         const [isEditing, setIsEditing] = useState(false);
         const [secName, setSecName] = useState(section.name);
         const [isMenuOpen, setIsMenuOpen] = useState(false);
         const [showDeleteModal, setShowDeleteModal] = useState(false); 
+        const [dragOver, setDragOver] = useState(false);
+        const [sectionDragOverState, setSectionDragOverState] = useState(null); // For section reordering
         const menuRef = useRef(null);
 
         useEffect(() => {
@@ -486,6 +434,63 @@
 
         const handleSaveName = () => { if (secName.trim() && secName !== section.name) { onUpdateSection(section.id, { name: secName, projectId: section.project_id }); } else { setSecName(section.name); } setIsEditing(false); };
 
+        // SECTION DRAG EVENTS
+        const handleSectionDragStart = (e) => {
+            // Eğer editör açıksa sürüklemeyi engelle
+            if (isEditing) {
+                e.preventDefault();
+                return;
+            }
+            // Sadece section-header'dan sürüklendiğinde
+            currentDraggedId = section.id;
+            currentDraggedType = 'section';
+            e.dataTransfer.effectAllowed = 'move';
+            setTimeout(() => e.target.closest('.h2l-section-container').classList.add('h2l-section-is-dragging'), 0);
+        };
+
+        const handleSectionDragEnd = (e) => {
+            currentDraggedId = null;
+            currentDraggedType = null;
+            e.target.closest('.h2l-section-container').classList.remove('h2l-section-is-dragging');
+            setSectionDragOverState(null);
+        };
+
+        const handleContainerDragOver = (e) => {
+            e.preventDefault();
+            
+            if (currentDraggedType === 'section') {
+                // Section Reordering Logic
+                if (currentDraggedId === section.id) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                setSectionDragOverState(e.clientY < midY ? 'top' : 'bottom');
+                e.stopPropagation();
+            } else if (currentDraggedType === 'task') {
+                // Task Dropping Logic (Empty Section)
+                if (tasks.length === 0 && !dragOver) setDragOver(true);
+            }
+        };
+
+        const handleContainerDrop = (e) => {
+            e.preventDefault();
+            setDragOver(false);
+            
+            if (currentDraggedType === 'section' && currentDraggedId !== section.id && onMoveSection) {
+                e.stopPropagation();
+                setSectionDragOverState(null);
+                const position = sectionDragOverState === 'top' ? 'before' : 'after';
+                onMoveSection(currentDraggedId, section.id, position);
+            } else if (currentDraggedType === 'task' && tasks.length === 0 && currentDraggedId && onMoveTask) {
+                // Boş bölüme görev bırakma
+                onMoveTask(currentDraggedId, null, null, section.id);
+            }
+        };
+
+        const handleContainerDragLeave = () => {
+            setDragOver(false);
+            setSectionDragOverState(null);
+        };
+
         if (isEditing) {
             return el('div', { className: 'h2l-section-edit-mode' },
                 el('input', { className: 'h2l-section-edit-input', value: secName, autoFocus: true, onChange: e => setSecName(e.target.value), onKeyDown: e => { if(e.key==='Enter') handleSaveName(); if(e.key==='Escape') { setSecName(section.name); setIsEditing(false); } } }),
@@ -493,8 +498,23 @@
             );
         }
 
-        return el('div', { className: 'h2l-section-container' },
-            el('div', { className: 'h2l-section-header-row' },
+        let containerClass = `h2l-section-container ${dragOver ? 'h2l-drag-over' : ''}`;
+        if (sectionDragOverState === 'top') containerClass += ' h2l-section-drag-over-top';
+        if (sectionDragOverState === 'bottom') containerClass += ' h2l-section-drag-over-bottom';
+
+        return el('div', { 
+            className: containerClass,
+            onDragOver: handleContainerDragOver,
+            onDragLeave: handleContainerDragLeave,
+            onDrop: handleContainerDrop
+        },
+            // HEADER (Draggable Handle)
+            el('div', { 
+                className: 'h2l-section-header-row',
+                draggable: true,
+                onDragStart: handleSectionDragStart,
+                onDragEnd: handleSectionDragEnd
+            },
                 el('div', { className: 'h2l-section-left' },
                     el('div', { className: 'h2l-section-toggle-btn', onClick: () => setIsOpen(!isOpen) }, el(Icon, { name: isOpen ? 'chevron-down' : 'chevron-right' })),
                     el('span', { className: 'h2l-section-title', onClick: () => setIsEditing(true) }, section.name),
@@ -508,7 +528,7 @@
                     )
                 )
             ),
-            isOpen && tasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, highlightToday })),
+            isOpen && tasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask })),
             isOpen && el(QuickAddContainer, { sectionId: section.id, projectId: section.project_id, users, projects, sections, onAdd: onAddTask }),
             showDeleteModal && el(DeleteSectionModal, { section: section, taskCount: tasks.length, onClose: () => setShowDeleteModal(false), onConfirm: () => { onDeleteSection(section.id); setShowDeleteModal(false); } })
         );
@@ -537,9 +557,23 @@
 
     // --- 5. LIST VIEW ---
     const ListView = ({ project, tasks, sections, users, projects = [], onUpdateTask, onDeleteTask, onAddTask, onAddSection, onTaskClick, showCompleted, highlightToday, onUpdateSection, onDeleteSection }) => {
+        const [localTasks, setLocalTasks] = useState(tasks);
+        const [localSections, setLocalSections] = useState(sections);
+
+        useEffect(() => {
+            // Sort tasks by sort_order initially
+            const sorted = [...tasks].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+            setLocalTasks(sorted);
+        }, [tasks]);
+
+        useEffect(() => {
+            const sortedSecs = [...sections].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+            setLocalSections(sortedSecs);
+        }, [sections]);
+
         const isVirtualView = project.id === 0;
         
-        let visibleTasks = [...tasks]; 
+        let visibleTasks = [...localTasks]; 
 
         // 1. Parent Task Filtresi: Sadece ana görevleri göster (parent_task_id = 0 veya null)
         visibleTasks = visibleTasks.filter(t => !t.parent_task_id || t.parent_task_id == 0);
@@ -548,17 +582,110 @@
             visibleTasks = visibleTasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled'); 
         }
 
-        // Sıralama
+        // Sorting Logic for Render
         visibleTasks.sort((a, b) => {
             const isADone = a.status === 'completed' || a.status === 'cancelled';
             const isBDone = b.status === 'completed' || b.status === 'cancelled';
             if (isADone && !isBDone) return 1;
             if (!isADone && isBDone) return -1;
-            return 0; 
+            // Sort by sort_order
+            return (a.sort_order || 0) - (b.sort_order || 0); 
         });
 
         // Bölümsüz Görevler (Section ID = 0)
         const rootTasks = visibleTasks.filter(t => !t.section_id || t.section_id == 0);
+
+        const handleMoveTask = (draggedId, targetId, position, targetSectionId = null) => {
+            const draggedTaskIndex = localTasks.findIndex(t => t.id === draggedId);
+            if (draggedTaskIndex === -1) return;
+
+            const newTasks = [...localTasks];
+            const [draggedTask] = newTasks.splice(draggedTaskIndex, 1);
+
+            // Update Section ID if moved to empty section
+            if (targetSectionId !== null) {
+                draggedTask.section_id = targetSectionId;
+                // Add to end of section
+                newTasks.push(draggedTask);
+            } else if (targetId) {
+                // Find target index in the current visual list (not raw list)
+                const targetIndex = newTasks.findIndex(t => t.id === targetId);
+                if (targetIndex !== -1) {
+                    // Also update section_id to match target
+                    draggedTask.section_id = newTasks[targetIndex].section_id;
+                    
+                    if (position === 'before') {
+                        newTasks.splice(targetIndex, 0, draggedTask);
+                    } else {
+                        newTasks.splice(targetIndex + 1, 0, draggedTask);
+                    }
+                }
+            }
+
+            // Re-calculate sort_order for all tasks in the affected section(s)
+            newTasks.forEach((t, index) => {
+                t.sort_order = index;
+            });
+
+            // Optimistic Update
+            setLocalTasks(newTasks);
+
+            // Call API to save order
+            const itemsToUpdate = newTasks.map(t => ({
+                id: t.id,
+                order: t.sort_order,
+                section_id: t.section_id
+            }));
+
+            apiFetch({
+                path: '/h2l/v1/reorder',
+                method: 'POST',
+                data: { type: 'task', items: itemsToUpdate }
+            }).catch(err => {
+                console.error("Reorder failed:", err);
+                setLocalTasks(tasks); 
+            });
+        };
+
+        const handleMoveSection = (draggedId, targetId, position) => {
+            const draggedIndex = localSections.findIndex(s => s.id === draggedId);
+            const targetIndex = localSections.findIndex(s => s.id === targetId);
+            if (draggedIndex === -1 || targetIndex === -1) return;
+
+            const newSections = [...localSections];
+            const [draggedSection] = newSections.splice(draggedIndex, 1);
+            
+            // Insert at new position
+            // Since we spliced, indices might shift. But targetIndex refers to old array.
+            // Simple way: if moving down, we need to adjust target index.
+            // Let's re-find target index in modified array? No, splice messes it up.
+            // Better approach: swap or insert logic.
+            
+            // Re-calculate insertion index based on current state
+            let insertIndex = newSections.findIndex(s => s.id === targetId);
+            if (position === 'after') insertIndex++;
+            
+            newSections.splice(insertIndex, 0, draggedSection);
+
+            // Re-index sort_order
+            newSections.forEach((s, index) => {
+                s.sort_order = index;
+            });
+
+            setLocalSections(newSections);
+
+            // API Call
+            const itemsToUpdate = newSections.map(s => ({
+                id: s.id,
+                order: s.sort_order
+            }));
+
+            apiFetch({
+                path: '/h2l/v1/reorder',
+                method: 'POST',
+                data: { type: 'section', items: itemsToUpdate }
+            }).catch(err => console.error(err));
+        };
 
         return el('div', { className: 'h2l-list-view' },
             el('div', { className: 'h2l-project-content-header' },
@@ -566,12 +693,23 @@
                 el('span', { className: 'h2l-project-badge', style: { backgroundColor: project.color, color: '#fff' } }, tasks.length)
             ),
             el('div', { className: 'h2l-section-container' }, 
-                rootTasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, highlightToday })), 
+                rootTasks.map(t => el(TaskRow, { 
+                    key: t.id, task: t, users, projects, sections, 
+                    onUpdateTask, onDeleteTask, onTaskClick, highlightToday, 
+                    onMoveTask: handleMoveTask, onAddTask 
+                })), 
                 el(QuickAddContainer, { sectionId: 0, projectId: project.id, users, projects: projects.length ? projects : [project], sections, onAdd: onAddTask })
             ),
-            !isVirtualView && sections.map(s => {
+            !isVirtualView && localSections.map(s => {
+                // Filter tasks based on LOCAL state to reflect DnD immediately
                 const sTasks = visibleTasks.filter(t => parseInt(t.section_id) === parseInt(s.id));
-                return el(SectionGroup, { key: s.id, section: s, tasks: sTasks, users, projects, sections, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, highlightToday, onUpdateSection, onDeleteSection });
+                return el(SectionGroup, { 
+                    key: s.id, section: s, tasks: sTasks, users, projects, sections, 
+                    onUpdateTask, onDeleteTask, onAddTask, onTaskClick, highlightToday, 
+                    onUpdateSection, onDeleteSection, 
+                    onMoveTask: handleMoveTask,
+                    onMoveSection: handleMoveSection 
+                });
             }),
             !isVirtualView && el(SectionAdd, { onAdd: onAddSection })
         );
