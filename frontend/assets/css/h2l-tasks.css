@@ -11,15 +11,21 @@
     transition: background 0.1s; 
     background-color: #fff; 
     margin: 5px 0px 5px 28px;
-    /* Varsayılan z-index düşük */
     z-index: 1;
+    border-radius: 5px;
+    min-height: 42px; /* Satır yüksekliğini sabitlemek hover stabilitesi sağlar */
 }
 
-/* HOVER DURUMUNDA Z-INDEX ARTIR - MENÜ ÜSTTE KALSIN */
+/* HOVER VE MENÜ AÇIKKEN Z-INDEX ARTIR */
 .h2l-task-row:hover { 
     background: #fafafa;
-    border-radius: 8px; 
-    z-index: 100; /* Diğer satırların üzerine çıkar */
+    z-index: 100; 
+}
+
+/* Menü açıkken z-index'i en üstte tut */
+.h2l-task-row.menu-open {
+    z-index: 1000 !important;
+    background: #fafafa;
 }
 
 .h2l-task-row::before { content: '\f58e'; font-family: "Font Awesome 6 Free"; font-weight: 900; position: absolute; left: -24px; top: 12px; color: #ccc; cursor: grab; opacity: 0; transition: opacity 0.2s; font-size: 12px; }
@@ -32,7 +38,6 @@
     flex-shrink: 0; 
     padding-top: 3px; 
     position: relative; 
-    /* z-index kaldırıldı, row seviyesinde yönetiliyor */
 }
 
 .h2l-status-wrapper {
@@ -42,114 +47,46 @@
 
 /* --- TASK CHECKBOX STYLES --- */
 .h2l-task-check { 
-    width: 18px; 
-    height: 18px; 
-    border: 1px solid #808080; 
-    border-radius: 50%; 
-    display: flex; 
-    justify-content: center; 
-    align-items: center; 
-    color: transparent; 
-    transition: all 0.2s; 
-    background: #fff; 
-    position: relative;
+    width: 18px; height: 18px; border: 1px solid #808080; border-radius: 50%; 
+    display: flex; justify-content: center; align-items: center; 
+    color: transparent; transition: all 0.2s; background: #fff; 
+    position: relative; cursor: pointer;
 }
-
-.h2l-task-check:hover { 
-    background: rgba(0,0,0,0.05); 
-    color: #ccc; 
-}
-
+.h2l-task-check:hover { background: rgba(0,0,0,0.05); color: #ccc; }
 .h2l-task-check.p1 { border-color: #db4c3f; background: rgba(219,76,63,0.05); }
 .h2l-task-check.p2 { border-color: #eb8909; background: rgba(235,137,9,0.05); }
 .h2l-task-check.p3 { border-color: #246fe0; background: rgba(36,111,224,0.05); }
-
-/* COMPLETED STATE */
-.h2l-task-check.completed { 
-    background: #ccc; 
-    border-color: #ccc; 
-    color: #fff !important; 
-}
-
-/* CANCELLED STATE (YENİ) */
-.h2l-task-check.cancelled {
-    background: transparent;
-    border-color: #c0392b; /* Koyu kırmızı çerçeve */
-    color: #c0392b !important; /* İkon rengi */
-    opacity: 0.7; /* Hafif soluk */
-}
-
-/* İptal ikonunu biraz küçültelim */
-.h2l-task-check.cancelled i { font-size: 10px; }
-
+.h2l-task-check.completed { background: #ccc; border-color: #ccc; color: #fff !important; }
+.h2l-task-check.cancelled { background: transparent; border-color: #c0392b; color: #c0392b !important; opacity: 0.7; }
+.h2l-task-check.large { width: 24px; height: 24px; border-width: 2px; }
+.h2l-task-check.large i { font-size: 12px; }
 .h2l-task-check i { font-size: 10px; }
 
-/* --- YENİ STATUS HOVER MENU --- */
+/* --- STATUS HOVER MENU --- */
 .h2l-status-hover-menu {
-    position: absolute;
-    top: 22px; 
-    left: -6px;
-    width: 160px;
-    background: #fff;
-    border: 1px solid #eee;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.2); /* Gölge güçlendirildi */
-    border-radius: 6px;
-    padding: 4px 0;
-    display: flex;
-    flex-direction: column;
-    animation: fadeInMenu 0.15s ease-out;
-    /* Menünün satır içinde en üstte kalması garanti olsun */
-    z-index: 10000; 
+    position: absolute; top: 22px; left: -6px; width: 160px; background: #fff; 
+    border: 1px solid #eee; box-shadow: 0 4px 20px rgba(0,0,0,0.2); border-radius: 6px; 
+    padding: 4px 0; display: flex; flex-direction: column; animation: fadeInMenu 0.15s ease-out; z-index: 10000; 
 }
-
-/* GÖRÜNMEZ KÖPRÜ */
-.h2l-status-hover-menu::before {
-    content: '';
-    position: absolute;
-    top: -10px; 
-    left: 0;
-    width: 100%;
-    height: 10px;
-    background: transparent;
-}
-
-@keyframes fadeInMenu {
-    from { opacity: 0; transform: translateY(-5px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.h2l-status-menu-item {
-    padding: 8px 12px;
-    font-size: 12px;
-    color: #333;
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    transition: background 0.1s;
-}
-
+.h2l-status-hover-menu::before { content: ''; position: absolute; top: -10px; left: 0; width: 100%; height: 10px; background: transparent; }
+@keyframes fadeInMenu { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+.h2l-status-menu-item { padding: 8px 12px; font-size: 12px; color: #333; display: flex; align-items: center; cursor: pointer; transition: background 0.1s; }
 .h2l-status-menu-item:hover { background: #f5f5f5; }
 .h2l-status-menu-item.active { background: #f0f7ff; color: #246fe0; font-weight: 600; }
 
-.h2l-task-content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-
-.h2l-task-title { font-size: 14px; color: #202020; line-height: 1.4; word-wrap: break-word; }
-
-/* Completed: Üstü çizili, gri */
-.h2l-task-title.completed { text-decoration: line-through; color: #888; }
-
-/* Cancelled: Üstü çizili, soluk, hafif kırmızımsı gri */
-.h2l-task-title.cancelled { 
-    text-decoration: line-through; 
-    color: #aaa; 
-    text-decoration-color: #c0392b; /* Çizgi rengi kırmızı */
+/* --- TASK CONTENT --- */
+.h2l-task-content { 
+    flex: 1; 
+    min-width: 0; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 3px;
+    padding-right: 10px; /* Sağdan biraz boşluk */
 }
-
+.h2l-task-title { font-size: 14px; color: #202020; line-height: 1.4; word-wrap: break-word; }
+.h2l-task-title.completed { text-decoration: line-through; color: #888; }
+.h2l-task-title.cancelled { text-decoration: line-through; color: #aaa; text-decoration-color: #c0392b; }
 .h2l-task-desc { font-size: 12px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; margin-top: 2px; line-height: 1.4; }
-
-/* İptal edilen görevin açıklaması da soluk olsun */
-.h2l-task-title.cancelled + .h2l-task-desc { opacity: 0.6; text-decoration: line-through; }
-
 .h2l-task-details { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .h2l-detail-item { font-size: 12px; color: #808080; display: flex; align-items: center; gap: 4px; }
 .h2l-detail-item i { font-size: 12px; color: #808080; }
@@ -157,10 +94,86 @@
 .h2l-detail-item.date i { color: #db4c3f; }
 .h2l-detail-item.date.today { color: #058527; font-weight: 500; }
 .h2l-detail-item.date.today i { color: #058527; }
-.h2l-task-right { display: flex; align-items: center; gap: 4px; margin-left: 8px; justify-content: flex-end; opacity: 0; transition: opacity 0.2s; padding-right: 5px; }
-.h2l-task-row:hover .h2l-task-right { opacity: 1; }
-.h2l-icon-btn { width: 28px; height: 28px; color: #666; border-radius: 4px; display: flex; align-items: center; justify-content: center; border: none; background: transparent; cursor: pointer; font-size: 14px; }
-.h2l-icon-btn:hover { background: #eee; color: #202020; }
+
+/* --- SAĞ AKSİYON BUTONLARI (OVERLAY / TODOIST STYLE) --- */
+.h2l-task-right { 
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex; 
+    align-items: center; 
+    gap: 4px; 
+    padding-right: 10px; 
+    padding-left: 30px; /* Gradient geçişi için alan */
+    opacity: 0; 
+    transition: opacity 0.15s ease-in-out; 
+    z-index: 20;
+    background: linear-gradient(to right, transparent, #fff 30%); /* Varsayılan (beyaz) arka plan geçişi */
+    border-top-right-radius: 5px;
+    border-bottom-right-radius: 5px;
+    pointer-events: none; /* Görünmezken tıklamayı engelle */
+}
+
+/* Görünür olduğunda tıklanabilir yap */
+.h2l-task-row:hover .h2l-task-right, 
+.h2l-task-right.active { 
+    opacity: 1; 
+    pointer-events: auto;
+}
+
+/* Hover olduğunda satır rengine uyumlu gradient */
+.h2l-task-row:hover .h2l-task-right,
+.h2l-task-row.menu-open .h2l-task-right {
+    background: linear-gradient(to right, transparent, #fafafa 30%);
+}
+
+/* Vurgulu satır (Bugün) için gradient */
+.h2l-task-row.h2l-highlight-today:hover .h2l-task-right {
+    background: linear-gradient(to right, transparent, #fffcf9 30%);
+}
+
+.h2l-action-icon {
+    width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; color: #666; cursor: pointer; transition: all 0.2s;
+    background: transparent; border: none; font-size: 14px; flex-shrink: 0;
+}
+.h2l-action-icon:hover { background-color: rgba(0,0,0,0.05); color: #333; }
+.h2l-action-icon.delete:hover { background-color: #fff1f0; color: #d1453b; }
+.h2l-action-icon.user { padding: 0; width: auto; min-width: 28px; }
+.h2l-comment-count { font-size: 10px; margin-left: 3px; color: #888; font-weight: 600; }
+.h2l-action-menu-wrapper { position: relative; }
+
+/* POPOVER MENUS */
+.h2l-popover-menu.top-right {
+    top: 100%; right: 0; margin-top: 4px; transform-origin: top right; animation: menuScale 0.1s ease-out;
+    min-width: 220px; padding: 6px 0;
+    /* Menü z-index satırdan yüksek olmalı ama task-right içinde relative olduğu için sorun yok */
+}
+.h2l-popover-menu.assignee-menu {
+    top: 100%; right: 0; margin-top: 4px; width: 200px;
+}
+@keyframes menuScale { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+.h2l-menu-separator { height: 1px; background: #eee; margin: 4px 0; }
+.h2l-menu-label { font-size: 11px; color: #999; font-weight: 700; padding: 4px 12px; display: block; margin-top: 4px; }
+
+/* Zengin Menü Satırları */
+.h2l-menu-row { display: flex; padding: 0 8px; gap: 4px; margin-bottom: 6px; }
+.h2l-menu-icon-btn { 
+    flex: 1; height: 32px; display: flex; align-items: center; justify-content: center; 
+    border-radius: 4px; cursor: pointer; color: #666; transition: background 0.1s; 
+    border: 1px solid transparent;
+}
+.h2l-menu-icon-btn:hover { background: #f5f5f5; border-color: #eee; color: #333; }
+.h2l-menu-icon-btn i { font-size: 14px; }
+
+.h2l-menu-icon-btn.p1 { color: #d1453b; }
+.h2l-menu-icon-btn.p2 { color: #eb8909; }
+.h2l-menu-icon-btn.p3 { color: #246fe0; }
+.h2l-menu-icon-btn.p4 { color: #808080; }
+
+/* --- SECTION STYLES --- */
 .h2l-section-container { margin-bottom: 15px; position: relative; }
 .h2l-section-header-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; margin-bottom: 0; cursor: default; border-bottom: 1px solid #f0f0f0; height: 30px; position: relative; }
 .h2l-section-header-row::before { content: '\f58e'; font-family: "Font Awesome 6 Free"; font-weight: 900; position: absolute; left: -20px; color: #ccc; cursor: grab; opacity: 0; transition: opacity 0.2s; font-size: 12px; }
@@ -183,6 +196,8 @@
 .h2l-section-add-form { margin-top: 20px; border: 1px solid #ddd; border-radius: 5px; padding: 10px; background: #fff; }
 .h2l-section-input { width: 100%; border: none; outline: none; font-weight: 600; font-size: 14px; margin-bottom: 10px; }
 .h2l-form-actions { display: flex; gap: 8px; }
+
+/* --- HEADER & MISC --- */
 .h2l-project-content-header { display: flex; align-items: center; gap: 10px; margin-bottom: 25px; padding-left: 0; }
 .h2l-project-content-header h1 { font-size: 26px; font-weight: 700; color: #202020; margin: 0; line-height: 1.2; display: flex; align-items: center; }
 .h2l-hash { margin-right: 10px; font-size: 24px; color: #808080; }
@@ -211,27 +226,8 @@
 .h2l-toggle-switch .knob { width: 14px; height: 14px; background: #fff; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: 0.3s; }
 .h2l-toggle-switch.on { background: #db4c3f; }
 .h2l-toggle-switch.on .knob { transform: translateX(14px); }
-.h2l-comments-section { margin-top: 30px; padding-top: 20px; border-top: 1px solid #f0f0f0; }
-.h2l-comment-list { margin-bottom: 20px; display: flex; flex-direction: column; gap: 15px; }
-.h2l-comment-item { display: flex; gap: 12px; }
-.h2l-comment-content-box { flex: 1; }
-.h2l-comment-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.h2l-comment-author { font-size: 13px; font-weight: 600; color: #202020; }
-.h2l-comment-date { font-size: 11px; color: #999; }
-.h2l-comment-text { font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; }
-.h2l-comment-actions { margin-top: 4px; font-size: 11px; display: flex; gap: 10px; opacity: 0; transition: opacity 0.2s; }
-.h2l-comment-item:hover .h2l-comment-actions { opacity: 1; }
-.h2l-action-link { color: #888; cursor: pointer; }
-.h2l-action-link:hover { color: #333; }
-.h2l-action-link.delete:hover { color: #d1453b; }
-.h2l-comment-form { display: flex; gap: 12px; margin-top: 20px; }
-.h2l-comment-input-box { flex: 1; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; transition: border 0.2s; background: #fff; }
-.h2l-comment-input-box:focus-within { border-color: #888; }
-.h2l-comment-textarea { width: 100%; border: none; outline: none; padding: 10px; font-size: 14px; min-height: 40px; resize: vertical; max-height: 200px; background: transparent; display: block; }
-.h2l-comment-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 5px 10px; background: #f9f9f9; border-top: 1px solid #f0f0f0; }
-.h2l-comment-tools { display: flex; gap: 10px; color: #666; }
-.h2l-tool-btn { cursor: pointer; font-size: 14px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
-.h2l-tool-btn:hover { background: #eee; color: #333; }
+
+/* --- TASK EDITOR --- */
 .h2l-todoist-editor-wrapper { border: 1px solid #e5e5e5 !important; border-radius: 10px !important; background: #fff !important; margin-top: 10px !important; margin-bottom: 15px !important; box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important; display: flex !important; flex-direction: column !important; padding: 0 !important; direction: ltr !important; text-align: left !important; }
 .h2l-todoist-editor-body { padding: 12px 12px 4px 12px !important; display: flex; flex-direction: column; gap: 8px; }
 .h2l-content-editable { width: 100%; border: none; outline: none; background: transparent; color: #202020; cursor: text; white-space: pre-wrap; word-wrap: break-word; padding: 0; margin: 0; display: block; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; direction: ltr !important; text-align: left !important; unicode-bidi: normal !important; writing-mode: horizontal-tb !important; }
@@ -275,6 +271,8 @@ button.h2l-todoist-btn-cancel:hover { background-color: #e5e5e5 !important; colo
 .h2l-todoist-btn-content { display: flex; align-items: center; gap: 8px; width: 100%; font-size: 14px; }
 .plus-icon { width: 20px; height: 20px; border-radius: 50%; color: #db4c3f; display: flex; justify-content: center; align-items: center; font-size: 14px; flex-shrink: 0; transition: all 0.2s; }
 .h2l-todoist-add-trigger:hover .plus-icon { background: #db4c3f; color: #fff; }
+
+/* Tooltip & Modal Helper */
 .h2l-tooltip-popover { position: fixed; background: #333; border-radius: 6px; padding: 4px; display: flex; gap: 2px; z-index: 99999; box-shadow: 0 4px 12px rgba(0,0,0,0.3); animation: h2l-fade-in 0.15s ease-out; }
 .h2l-tooltip-btn { color: #fff; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; background: transparent; border: none; }
 .h2l-tooltip-btn:hover { background: rgba(255,255,255,0.2); }
@@ -299,17 +297,61 @@ button.h2l-todoist-btn-cancel:hover { background-color: #e5e5e5 !important; colo
 .h2l-paste-checkbox { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #333; cursor: pointer; font-weight: 500; }
 .h2l-paste-actions { display: flex; gap: 10px; }
 .h2l-limit-warning { color: #d1453b; font-size: 12px; margin-top: 5px; font-weight: 500; padding-left: 2px; }
-.h2l-content-editable.desc-mode { font-size: 13px; font-weight: 400; line-height: 1.5; color: #555; min-height: 30px; max-height: 150px; overflow-y: auto; margin-bottom: 10px; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
-.h2l-content-editable.desc-mode:focus { border-bottom-color: #eee; }
-.h2l-content-editable h1 { font-size: 18px; font-weight: 700; margin: 10px 0 5px; color: #202020; }
-.h2l-content-editable h2 { font-size: 16px; font-weight: 600; margin: 10px 0 5px; color: #333; }
-.h2l-content-editable h3 { font-size: 14px; font-weight: 600; margin: 8px 0 4px; color: #444; }
-.h2l-content-editable blockquote { border-left: 3px solid #db4c3f; padding-left: 10px; color: #666; font-style: italic; margin: 10px 0; }
-.h2l-content-editable pre { background: #f5f5f5; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #d63384; margin: 10px 0; white-space: pre-wrap; }
-.h2l-content-editable ul { list-style: disc; padding-left: 20px; margin: 5px 0; }
-.h2l-content-editable ol { list-style: decimal; padding-left: 20px; margin: 5px 0; }
-.h2l-content-editable li { margin-bottom: 2px; }
-.h2l-task-desc { font-size: 12px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; margin-top: 2px; line-height: 1.4; }
+
+/* --- YENİ: TASK DETAIL MODAL (POPUP) --- */
+.h2l-task-modal { background: #fff; width: 850px; max-width: 95%; height: 90vh; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,0.25); display: flex; flex-direction: column; overflow: hidden; animation: modalSlideUp 0.2s ease-out; }
+@keyframes modalSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.h2l-tm-header { padding: 15px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; background: #fff; z-index: 10; }
+.h2l-tm-project-info { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #555; font-weight: 500; }
+.h2l-tm-section-sep { color: #ccc; font-size: 12px; }
+.h2l-tm-body { display: flex; flex: 1; overflow: hidden; }
+.h2l-tm-main { flex: 1; padding: 25px 30px; overflow-y: auto; border-right: 1px solid #f5f5f5; }
+.h2l-tm-title-row { display: flex; gap: 15px; align-items: flex-start; margin-bottom: 20px; }
+.h2l-tm-title { font-size: 20px; font-weight: 700; color: #202020; margin: 0; line-height: 1.3; flex: 1; cursor: text; }
+.h2l-tm-title:hover { background: #f9f9f9; border-radius: 4px; }
+.h2l-tm-title.completed { text-decoration: line-through; color: #888; }
+.h2l-tm-title-input { font-size: 20px; font-weight: 700; width: 100%; border: 1px solid #ddd; padding: 5px; border-radius: 4px; outline: none; }
+.h2l-tm-desc-box { display: flex; gap: 15px; margin-bottom: 30px; }
+.h2l-tm-icon { color: #999; margin-top: 6px; width: 24px; text-align: center; }
+.h2l-tm-desc-input { flex: 1; border: 1px solid transparent; resize: none; font-size: 14px; color: #555; line-height: 1.5; padding: 8px; border-radius: 6px; min-height: 60px; outline: none; transition: all 0.2s; }
+.h2l-tm-desc-input:focus, .h2l-tm-desc-input:hover { background: #fcfcfc; border-color: #eee; }
+.h2l-tm-section-title { font-size: 12px; font-weight: 700; color: #202020; margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+.h2l-tm-sidebar { width: 280px; padding: 25px 20px; background: #fafafa; overflow-y: auto; }
+.h2l-tm-meta-group { margin-bottom: 20px; }
+.h2l-tm-meta-group label { display: block; font-size: 11px; font-weight: 700; color: #888; margin-bottom: 6px; text-transform: uppercase; }
+.h2l-tm-meta-val { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #333; padding: 6px 8px; border-radius: 6px; border: 1px solid transparent; }
+.h2l-tm-meta-val.clickable:hover { background: #fff; border-color: #ddd; cursor: pointer; }
+.h2l-tm-separator { height: 1px; background: #eee; margin: 20px 0; }
+.h2l-btn-text-icon { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #666; font-weight: 500; cursor: pointer; padding: 8px; border-radius: 6px; width: 100%; text-align: left; }
+.h2l-btn-text-icon:hover { background: #eee; color: #333; }
+.h2l-btn-text-icon.danger:hover { background: #fff5f5; color: #d1453b; }
+.h2l-comment-list { margin-bottom: 20px; display: flex; flex-direction: column; gap: 15px; }
+.h2l-comment-item { display: flex; gap: 12px; }
+.h2l-comment-content-box { flex: 1; }
+.h2l-comment-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.h2l-comment-author { font-size: 13px; font-weight: 600; color: #202020; }
+.h2l-comment-date { font-size: 11px; color: #999; }
+.h2l-comment-text { font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; }
+.h2l-comment-form { display: flex; gap: 12px; margin-top: 20px; }
+.h2l-comment-input-box { flex: 1; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; transition: border 0.2s; background: #fff; }
+.h2l-comment-input-box:focus-within { border-color: #888; }
+.h2l-comment-textarea { width: 100%; border: none; outline: none; padding: 10px; font-size: 14px; min-height: 40px; resize: vertical; max-height: 200px; background: transparent; display: block; }
+.h2l-comment-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 5px 10px; background: #f9f9f9; border-top: 1px solid #f0f0f0; }
+.h2l-comment-tools { display: flex; gap: 10px; color: #666; }
+.h2l-btn.small { padding: 6px 12px; font-size: 12px; }
+.h2l-spinner { padding: 20px; text-align: center; color: #999; font-size: 13px; }
+.h2l-board-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 100px 0; color: #999; }
+/* --- ETİKET BADGE (Pill Style) --- */
+.h2l-label-pill { 
+    display: inline-flex; 
+    align-items: center; 
+    background: rgba(0,0,0,0.05); 
+    padding: 2px 6px; 
+    border-radius: 4px; 
+    font-size: 11px; 
+    color: #666;
+}
+
 /* --- YENİ STATÜ RENKLERİ --- */
 .h2l-highlight-tag.status { color: #27ae60; background: rgba(39, 174, 96, 0.1); } /* Default */
 .h2l-highlight-tag.status-in_progress { color: #246fe0; background: rgba(36, 111, 224, 0.1); }

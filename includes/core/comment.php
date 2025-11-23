@@ -45,6 +45,15 @@ class H2L_Comment {
         return $wpdb->get_results( $wpdb->prepare( $sql, $task_id ) );
     }
 
+    /**
+     * Görev bazlı yorum sayısını getir (YENİ)
+     */
+    public function count_by_task( $task_id ) {
+        global $wpdb;
+        $sql = "SELECT COUNT(*) FROM {$this->table} WHERE task_id = %d";
+        return $wpdb->get_var( $wpdb->prepare( $sql, $task_id ) );
+    }
+
     public function get( $id ) {
         global $wpdb;
         return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->table} WHERE id = %d", $id ) );

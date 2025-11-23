@@ -94,17 +94,61 @@ function h2l_api_get_init_data( $request ) {
         }
     }
 
-    // 3. GÖREVLER
+    // 3. GÖREVLER (YORUM COUNT VE LABEL'LAR İLE)
     $tasks = [];
     if (!empty($visible_project_ids)) {
         $ids_placeholder = implode(',', array_fill(0, count($visible_project_ids), '%d'));
+        
+        // Yorum sayısını (comment_count) subquery ile alıyoruz
         $tasks = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}h2l_tasks 
+            "SELECT t.*, 
+            (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_comments c WHERE c.task_id = t.id) as comment_count
+            FROM {$wpdb->prefix}h2l_tasks t 
             WHERE status != 'trash' 
             AND project_id IN ($ids_placeholder) 
             ORDER BY created_at ASC",
             $visible_project_ids
         ));
+        
+        // Label'ları alalım ve tasklara eşleştirelim (Performans için toplu sorgu)
+        // Basitlik için şimdilik her task için ayrı sorgu yapmayacağız,
+        // Veya tüm task_label ilişkisini çekip PHP'de birleştirebiliriz.
+        
+        // Task ID'lerini topla
+        $task_ids = array_column($tasks, 'id');
+        $task_labels_map = [];
+        
+        if (!empty($task_ids)) {
+            $t_ids_placeholder = implode(',', array_fill(0, count($task_ids), '%d'));
+            $labels_query = $wpdb->prepare("
+                SELECT tl.task_id, l.* FROM {$wpdb->prefix}h2l_task_labels tl
+                JOIN {$wpdb->prefix}h2l_labels l ON tl.label_id = l.id
+                WHERE tl.task_id IN ($t_ids_placeholder)
+            ", $task_ids);
+            
+            $labels_results = $wpdb->get_results($labels_query);
+            
+            foreach ($labels_results as $lr) {
+                $task_labels_map[$lr->task_id][] = [
+                    'id' => $lr->id,
+                    'name' => $lr->name,
+                    'color' => $lr->color,
+                    'slug' => $lr->slug
+                ];
+            }
+        }
+        
+        // Task verilerini işle
+        $tasks = array_map(function($t) use ($task_labels_map) {
+            $t->assignees = !empty($t->assignee_ids) ? json_decode((string)$t->assignee_ids) : [];
+            $t->labels = isset($task_labels_map[$t->id]) ? $task_labels_map[$t->id] : [];
+            
+            if($t->due_date) {
+                $ts = strtotime($t->due_date);
+                $t->date_display = (date('Y-m-d') == date('Y-m-d', $ts)) ? 'Bugün' : date_i18n('j M', $ts);
+            } else { $t->date_display = ''; }
+            return $t;
+        }, $tasks);
     }
 
     // 4. BÖLÜMLER
@@ -128,16 +172,6 @@ function h2l_api_get_init_data( $request ) {
         ];
     }, get_users());
 
-    // Task verilerini işle
-    $tasks = array_map(function($t) {
-        $t->assignees = !empty($t->assignee_ids) ? json_decode((string)$t->assignee_ids) : [];
-        if($t->due_date) {
-            $ts = strtotime($t->due_date);
-            $t->date_display = (date('Y-m-d') == date('Y-m-d', $ts)) ? 'Bugün' : date_i18n('j M', $ts);
-        } else { $t->date_display = ''; }
-        return $t;
-    }, $tasks);
-
     return rest_ensure_response( array(
         'folders' => $folders, 
         'projects' => $visible_projects, 
@@ -149,19 +183,19 @@ function h2l_api_get_init_data( $request ) {
 }
 
 function h2l_api_manage_task($request) {
-    global $wpdb; $table = $wpdb->prefix . 'h2l_tasks';
-    $method = $request->get_method(); $id = $request->get_param('id'); $params = $request->get_json_params();
+    global $wpdb; 
+    $table = $wpdb->prefix . 'h2l_tasks';
+    $method = $request->get_method(); 
+    $id = $request->get_param('id'); 
+    $params = $request->get_json_params();
     
     if ($method === 'DELETE') { 
         $wpdb->update($table, ['status' => 'trash'], ['id' => $id]); 
         return ['success' => true]; 
     }
     
-    // DÜZELTME: Veri güncelleme mantığı "Partial Update" (Kısmi Güncelleme) olarak değiştirildi.
-    // Eğer sadece status gelirse, diğer alanlar (title, project_id vb.) silinmeyecek.
-    
     if ($id) {
-        // UPDATE MODU: Sadece gelen alanları güncelle
+        // UPDATE MODU
         $data = [];
         if (isset($params['title'])) $data['title'] = wp_kses_post($params['title']);
         if (isset($params['content'])) $data['content'] = wp_kses_post($params['content']);
@@ -169,12 +203,9 @@ function h2l_api_manage_task($request) {
         if (isset($params['sectionId'])) $data['section_id'] = intval($params['sectionId']);
         if (isset($params['priority'])) $data['priority'] = intval($params['priority']);
         if (isset($params['status'])) $data['status'] = sanitize_text_field($params['status']);
-        
-        // Tarih kontrolü: null gönderilirse tarihi silmeli
         if (array_key_exists('dueDate', $params)) {
             $data['due_date'] = !empty($params['dueDate']) ? sanitize_text_field($params['dueDate']) : null;
         }
-        
         if (isset($params['assignees'])) $data['assignee_ids'] = json_encode($params['assignees']);
         
         if (!empty($data)) {
@@ -183,7 +214,7 @@ function h2l_api_manage_task($request) {
         $new_id = $id;
 
     } else {
-        // INSERT MODU: Varsayılan değerlerle oluştur
+        // INSERT MODU
         $data = [
             'title' => wp_kses_post($params['title'] ?? ''), 
             'content' => wp_kses_post($params['content'] ?? ''),
@@ -200,7 +231,32 @@ function h2l_api_manage_task($request) {
         $new_id = $wpdb->insert_id; 
     }
     
-    return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id=%d", $new_id));
+    // Görevi döndürürken comment_count ve etiketleri de döndürelim
+    $task = $wpdb->get_row($wpdb->prepare(
+        "SELECT t.*, 
+        (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_comments c WHERE c.task_id = t.id) as comment_count 
+        FROM $table t WHERE id=%d", 
+        $new_id
+    ));
+
+    // Etiketleri de ekleyelim (Basitlik için şimdilik boş array veya sorgu eklenebilir)
+    // Tekil işlemde performans sorunu olmaz
+    $task->labels = $wpdb->get_results($wpdb->prepare("
+        SELECT l.* FROM {$wpdb->prefix}h2l_task_labels tl
+        JOIN {$wpdb->prefix}h2l_labels l ON tl.label_id = l.id
+        WHERE tl.task_id = %d
+    ", $new_id));
+
+    $task->assignees = !empty($task->assignee_ids) ? json_decode((string)$task->assignee_ids) : [];
+    
+    if($task->due_date) {
+        $ts = strtotime($task->due_date);
+        $task->date_display = (date('Y-m-d') == date('Y-m-d', $ts)) ? 'Bugün' : date_i18n('j M', $ts);
+    } else { 
+        $task->date_display = ''; 
+    }
+
+    return $task;
 }
 
 function h2l_api_manage_comments($request) {
@@ -217,6 +273,8 @@ function h2l_api_manage_comments($request) {
         $params = $request->get_json_params();
         if(empty($params['task_id']) || empty($params['content'])) return new WP_Error('invalid_data', 'Missing data', ['status'=>400]);
         $comment = $comment_cls->add($params['task_id'], $params['content']);
+        
+        // Return comment count as well optionally, but frontend handles increment
         return rest_ensure_response($comment);
     }
 
@@ -253,13 +311,11 @@ function h2l_api_manage_project($request) {
         // UPDATE: Kısmi güncelleme
         $data = [];
         if (isset($params['title'])) $data['title'] = sanitize_text_field($params['title']);
-        if (isset($params['folderId'])) $data['folder_id'] = intval($params['folderId']); // Buraya private folder kontrolü eklenebilir
+        if (isset($params['folderId'])) $data['folder_id'] = intval($params['folderId']);
         if (isset($params['color'])) $data['color'] = sanitize_hex_color($params['color']);
         if (isset($params['viewType'])) $data['view_type'] = sanitize_text_field($params['viewType']);
         if (isset($params['managers'])) {
             $managers = $params['managers'];
-            
-            // Eğer folderId gönderildiyse ve private ise managerları temizle
             if (isset($params['folderId'])) {
                 $folder = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_folders WHERE id = %d", $params['folderId']));
                 if ($folder && $folder->access_type === 'private') {
@@ -277,7 +333,6 @@ function h2l_api_manage_project($request) {
         $new_id = $id; 
     } else { 
         // INSERT
-        // Private folder kontrolü
         $folder_id = intval($params['folderId'] ?? 0);
         $managers = $params['managers'] ?? [];
         if ($folder_id > 0) {
