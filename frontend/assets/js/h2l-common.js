@@ -12,7 +12,6 @@
         { name: 'Nane', code: '#6accbc' }, { name: 'Turkuaz', code: '#158fad' }, { name: 'Koyu Gri', code: '#2c3e50' }
     ];
 
-    // --- ERROR BOUNDARY ---
     class ErrorBoundary extends Component {
         constructor(props) { super(props); this.state = { hasError: false }; }
         static getDerivedStateFromError(error) { return { hasError: true }; }
@@ -20,7 +19,6 @@
         render() { return this.state.hasError ? el('div', {className:'h2l-error-box'}, 'Beklenmedik bir hata oluştu. Lütfen sayfayı yenileyiniz.') : this.props.children; }
     }
 
-    // --- BASIC HELPERS ---
     const Icon = ({ name, className = "", style = {}, onClick, title }) => 
         el('i', { className: `fa-solid fa-${name} ${className}`, style: style, onClick, title });
     
@@ -34,35 +32,79 @@
 
     const getFolderId = (p) => p.folderId || p.folder_id || 0;
 
-    // --- MULTI SELECT ---
-    const MultiSelect = ({ users, selected, onChange }) => {
+    // --- MULTI SELECT (Owner Korumalı & Kilitli) ---
+    const MultiSelect = ({ users, selected, onChange, ownerId = null }) => {
         const [isOpen, setIsOpen] = useState(false);
         const [searchTerm, setSearchTerm] = useState('');
         const wrapperRef = useRef(null);
+        
         useEffect(() => {
             const handleClickOutside = (event) => { if (wrapperRef.current && !wrapperRef.current.contains(event.target)) setIsOpen(false); };
             document.addEventListener("mousedown", handleClickOutside);
             return () => document.removeEventListener("mousedown", handleClickOutside);
         }, [wrapperRef]);
-        const toggleSelection = (id) => onChange(selected.includes(id) ? selected.filter(i => i !== id) : [...selected, id]);
+
+        const isSelected = (id) => {
+            if (ownerId && parseInt(id) === parseInt(ownerId)) return true;
+            if (!selected) return false;
+            return selected.some(sid => parseInt(sid) === parseInt(id));
+        };
+
+        const toggleSelection = (id) => {
+            if (ownerId && parseInt(id) === parseInt(ownerId)) return; // Owner koruması
+
+            let newSelected;
+            if (isSelected(id)) {
+                newSelected = selected.filter(i => parseInt(i) !== parseInt(id));
+            } else {
+                newSelected = [...(selected || []), id];
+            }
+            onChange(newSelected);
+        };
+
         const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()));
         
+        let displayCount = (selected ? selected.length : 0);
+
         return el('div', { className: 'h2l-multi-select', ref: wrapperRef },
             el('div', { className: 'h2l-multi-trigger', onClick: () => setIsOpen(!isOpen) }, 
-                el('span', { style: { color: selected.length ? '#333' : '#999' } }, selected.length > 0 ? `${selected.length} kişi` : 'Seç...'), el(Icon, { name: 'angle-down' })),
+                el('span', { style: { color: (displayCount > 0) ? '#333' : '#999' } }, displayCount > 0 ? `${displayCount} yönetici` : 'Seç...'), 
+                el(Icon, { name: 'angle-down' })
+            ),
             isOpen && el('div', { className: 'h2l-multi-dropdown' },
                 el('div', { className: 'h2l-multi-search' }, el('input', { type: 'text', placeholder: 'Ara...', value: searchTerm, onChange: e => setSearchTerm(e.target.value) })),
                 el('div', { className: 'h2l-multi-list' },
-                    filteredUsers.map(u => el('div', { key: u.id, className: `h2l-multi-item ${selected.includes(u.id)?'selected':''}`, onClick: () => toggleSelection(u.id) },
-                        el(Avatar, { userId: u.id, users: users, size: 24 }), 
-                        el('span', { style: { flex:1 } }, u.name), 
-                        selected.includes(u.id) && el(Icon, { name: 'check', style: { color: '#db4c3f' } })))
+                    filteredUsers.map(u => {
+                        const uid = parseInt(u.id);
+                        const isOwner = ownerId && uid === parseInt(ownerId);
+                        const selectedState = isSelected(uid);
+
+                        return el('div', { 
+                            key: u.id, 
+                            className: `h2l-multi-item ${selectedState ? 'selected' : ''}`, 
+                            onClick: () => toggleSelection(uid),
+                            style: { 
+                                cursor: isOwner ? 'default' : 'pointer',
+                                opacity: isOwner ? 0.7 : 1,
+                                backgroundColor: isOwner ? '#f9f9f9' : (selectedState ? '#fff5f5' : '#fff')
+                            }
+                        },
+                            el(Avatar, { userId: u.id, users: users, size: 24 }), 
+                            el('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' } },
+                                el('span', null, u.name),
+                                isOwner && el('span', { style: { fontSize: '10px', color: '#888', fontWeight: 600 } }, 'Proje Sahibi')
+                            ),
+                            // Owner ise Kilit, değilse Tık
+                            isOwner 
+                                ? el(Icon, { name: 'lock', style: { color: '#999', fontSize: '12px' } })
+                                : (selectedState && el(Icon, { name: 'check', style: { color: '#db4c3f' } }))
+                        );
+                    })
                 )
             )
         );
     };
 
-    // EXPORT TO GLOBAL
     window.H2L.Common = {
         ErrorBoundary,
         Icon,
@@ -71,5 +113,4 @@
         getFolderId,
         PROJECT_COLORS
     };
-
 })(window.wp);

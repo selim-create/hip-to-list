@@ -1,7 +1,7 @@
 /* --- Hip to List: Tasks & Sections --- */
 .h2l-task-list { padding-top: 0; }
-.h2l-task-row { display: flex; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #f9f9f9; position: relative; cursor: pointer; transition: background 0.1s; background-color: #fff; margin-left: 28px; padding-left: 0; }
-.h2l-task-row:hover { background: #fafafa; }
+.h2l-task-row { display: flex; align-items: flex-start; padding: 10px 10px; border-bottom: 1px solid #f9f9f9; position: relative; cursor: pointer; transition: background 0.1s; background-color: #fff; margin: 5px 0px 5px 28px;}
+.h2l-task-row:hover { background: #fafafa;border-radius: 8px; }
 .h2l-task-row::before { content: '\f58e'; font-family: "Font Awesome 6 Free"; font-weight: 900; position: absolute; left: -24px; top: 12px; color: #ccc; cursor: grab; opacity: 0; transition: opacity 0.2s; font-size: 12px; }
 .h2l-task-row:hover::before { opacity: 1; }
 .h2l-task-row.h2l-highlight-today { background-color: #fffcf9; }

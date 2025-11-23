@@ -15,7 +15,7 @@
     window.H2L = window.H2L || {};
     window.H2L.TaskInput = window.H2L.TaskInput || {};
 
-    // --- 1. TODOIST DATEPICKER CLASS (Modern & Entegre & Düzeltilmiş) ---
+    // --- 1. TODOIST DATEPICKER CLASS ---
     class TodoistDatepicker {
         constructor(wrapperElement, options = {}) {
             this.wrapper = typeof wrapperElement === 'string' ? document.getElementById(wrapperElement) : wrapperElement;
@@ -51,7 +51,6 @@
         }
 
         renderBaseHTML() {
-            // DÜZELTME: Buton yüksekliği diğer çiplerle eşitlendi (height: 30px)
             this.wrapper.innerHTML = `
                 <input type="hidden" name="date" id="h_date">
                 <input type="hidden" name="time" id="h_time">
@@ -169,12 +168,10 @@
             this.activeMenu = menu;
             const rect = triggerEl.getBoundingClientRect();
             
-            // DÜZELTME: Menü artık butonun ÜZERİNDE açılıyor (Fixed positioning)
             menu.style.position = 'fixed';
             menu.style.left = rect.left + 'px';
-            // Butonun üstüne, biraz boşlukla (8px) yerleştir
             menu.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
-            menu.style.top = 'auto'; // Top'ı iptal et
+            menu.style.top = 'auto';
             
             return menu;
         }
@@ -326,7 +323,7 @@
     }
 
     const PLACEHOLDERS = [
-        "Kampanya kurulumu ekleyin… ör. yarın 10:00 #DV360 p1",
+         "Kampanya kurulumu ekleyin… ör. yarın 10:00 #DV360 p1",
         "Müşteri onayı iste… @selim bugün 15:00",
         "Günlük optimizasyon görevi… her gün 09:30 #MetaAds",
         "Teklif hazırlama… 2 gün sonra >Satış @berkay",
@@ -490,7 +487,7 @@
             }
         }, [date, time, repeat]);
 
-        return el('div', { ref: wrapperRef, className: 'td-popup-wrapper', style: { marginRight: 8 } });
+        return el('div', { ref: wrapperRef, className: 'td-popup-wrapper', style: { marginRight: 0 } });
     };
 
     const PasteModal = ({ lines, onConfirm, onCancel }) => {
@@ -557,7 +554,6 @@
         });
     };
 
-    // --- TEXT TOOLTIP (GÜNCELLENDİ: Eksik Butonlar Eklendi) ---
     const TextTooltip = ({ position, onFormat, showLinkInput, onLinkSubmit, onClose, type = 'basic' }) => {
         const [linkUrl, setLinkUrl] = useState('');
         const inputRef = useRef(null);
@@ -582,7 +578,6 @@
                 el('button', { key:'b', className: 'h2l-tooltip-btn', title:'Kalın', onClick: () => onFormat('bold') }, el(Icon, {name:'bold'})), 
                 el('button', { key:'i', className: 'h2l-tooltip-btn', title:'İtalik', onClick: () => onFormat('italic') }, el(Icon, {name:'italic'})), 
                 el('button', { key:'u', className: 'h2l-tooltip-btn', title:'Altı Çizili', onClick: () => onFormat('underline') }, el(Icon, {name:'underline'})), 
-                // Eksikler Eklendi
                 el('button', { key:'s', className: 'h2l-tooltip-btn', title:'Üstü Çizili', onClick: () => onFormat('strikethrough') }, el(Icon, {name:'strikethrough'})), 
                 el('button', { key:'code', className: 'h2l-tooltip-btn', title:'Kod', onClick: () => onFormat('code') }, el(Icon, {name:'code'}))
             ];
@@ -612,7 +607,7 @@
         const [description, setDescription] = useState(initialData.content || '');
         const [currentPlaceholder, setCurrentPlaceholder] = useState(mode === 'add' ? getRandomPlaceholder() : 'Görev adı');
         const [priority, setPriority] = useState(initialData.priority || 4);
-        const [assigneeId, setAssigneeId] = useState(initialData.assignees && initialData.assignees.length > 0 ? initialData.assignees[0] : null);
+        const [assigneeIds, setAssigneeIds] = useState(initialData.assignees || []);
         const [dueDate, setDueDate] = useState(initialData.due_date ? initialData.due_date.split(' ')[0] : '');
         const [dueTime, setDueTime] = useState(initialData.due_date && initialData.due_date.includes(' ') ? initialData.due_date.split(' ')[1].substring(0, 5) : '');
         const [repeat, setRepeat] = useState(initialData.repeat || null);
@@ -622,6 +617,8 @@
         const [activePopup, setActivePopup] = useState(null);
         const [tooltipState, setTooltipState] = useState(null);
         const [pasteLines, setPasteLines] = useState(null);
+        const [assigneeSearch, setAssigneeSearch] = useState(''); 
+        
         const savedSelectionRange = useRef(null);
         const wrapperRef = useRef(null);
         const MAX_CHARS = 500;
@@ -664,14 +661,43 @@
             }
         };
 
+        // Smart Parser (Düzeltilmiş: Tüm Mentionları Yakala)
         useEffect(() => {
             if (!title || title.replace(/<[^>]*>/g, '').trim().length < 2) return;
             const plainText = title.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ');
             const { SmartParser } = getReminders();
+            
             if (SmartParser && SmartParser.parse) {
-                const result = SmartParser.parse(plainText, projects, users, sections);
+                // Proje Üyelerini Filtrele
+                let eligibleUsers = users;
+                if (projectId) {
+                    const currentProj = projects.find(p => parseInt(p.id) === parseInt(projectId));
+                    if (currentProj) {
+                        let mgrs = currentProj.managers || [];
+                        if (typeof mgrs === 'string') mgrs = JSON.parse(mgrs);
+                        const pMembers = [parseInt(currentProj.owner_id), ...mgrs.map(id => parseInt(id))].filter(Boolean);
+                        eligibleUsers = users.filter(u => pMembers.includes(parseInt(u.id)));
+                    }
+                }
+
+                const result = SmartParser.parse(plainText, projects, eligibleUsers, sections);
+                
                 if (result.priority) setPriority(result.priority);
-                if (result.assigneeId) setAssigneeId(result.assigneeId);
+                
+                // ÇOKLU MENTION YAKALAMA
+                const mentionRegex = /(?:^|\s)@([\w\u00C0-\u017F]{2,})/gi;
+                const foundIds = [];
+                let m;
+                while ((m = mentionRegex.exec(plainText)) !== null) {
+                    const search = m[1].toLowerCase();
+                    const user = eligibleUsers.find(u => u.name.toLowerCase().includes(search));
+                    if (user) foundIds.push(user.id);
+                }
+                // Tekrarları önle ve state'i güncelle
+                if (foundIds.length > 0) {
+                    setAssigneeIds([...new Set(foundIds)]);
+                }
+
                 if (result.dueDate) {
                     const parts = result.dueDate.split(' ');
                     setDueDate(parts[0]);
@@ -680,7 +706,7 @@
                 if (result.projectId) setProjectId(result.projectId);
                 if (result.sectionId) setSectionId(result.sectionId);
             }
-        }, [title, users, projects, sections]);
+        }, [title, users, projects, sections, projectId]);
 
         useEffect(() => { 
             const handleClickOutside = (event) => { 
@@ -728,10 +754,10 @@
             const finalPlainTitle = title.replace(/<[^>]*>/g, '').trim();
             if(finalPlainTitle && finalPlainTitle.length <= MAX_CHARS) {
                 let finalDueDate = dueDate; if(dueDate && dueTime) finalDueDate = `${dueDate} ${dueTime}:00`;
-                const taskData = { id: initialData.id, title, content: description, priority, assignees: assigneeId ? [assigneeId] : [], dueDate: finalDueDate, repeat, status, projectId, sectionId };
+                const taskData = { id: initialData.id, title, content: description, priority, assignees: assigneeIds, dueDate: finalDueDate, repeat, status, projectId, sectionId };
                 onSave(taskData);
                 if(mode === 'add') { 
-                    setTitle(''); setDescription(''); setPriority(4); setAssigneeId(null); setDueDate(''); setDueTime(''); setRepeat(null);
+                    setTitle(''); setDescription(''); setPriority(4); setAssigneeIds([]); setDueDate(''); setDueTime(''); setRepeat(null);
                     setCurrentPlaceholder(getRandomPlaceholder());
                     const titleEl = wrapperRef.current.querySelector('.h2l-content-editable.title-mode'); if(titleEl) titleEl.innerHTML = ''; 
                 }
@@ -743,7 +769,6 @@
                 const selection = window.getSelection(); if (selection.rangeCount > 0) savedSelectionRange.current = selection.getRangeAt(0); 
                 setTooltipState(prev => ({ ...prev, showLinkInput: true })); 
             } else if (type === 'code') {
-                // Inline code için
                 const selection = window.getSelection();
                 if (selection.rangeCount > 0) {
                     const range = selection.getRangeAt(0);
@@ -772,13 +797,47 @@
         };
 
         const { getPriorityColor } = getReminders();
-        const selectedUser = assigneeId ? users.find(u => parseInt(u.id) === parseInt(assigneeId)) : null;
         const selectedProject = projects.find(p => parseInt(p.id) === parseInt(projectId));
+
+        const renderAssigneeLabel = () => {
+            if (assigneeIds.length === 0) return [el(Icon, {name:'user'}), 'Atanan'];
+            const firstUser = users.find(u => u.id == assigneeIds[0]);
+            if (!firstUser) return [el(Icon, {name:'user'}), 'Bilinmeyen'];
+            const elements = [el(Avatar, { userId: firstUser.id, users, size: 16, style: { marginRight: 6, verticalAlign:'middle' } }), firstUser.name];
+            if (assigneeIds.length > 1) elements.push(el('span', { style: { marginLeft: 4, fontWeight: 'bold', color: '#777' } }, `+${assigneeIds.length - 1}`));
+            return elements;
+        };
 
         const renderPopup = () => {
             if (!activePopup) return null;
             const popupStyle = { top: '100%', left: 0, marginTop: 5 };
-            if (activePopup === 'assignee') return el('div', { className: 'h2l-popover-menu', style: popupStyle }, el('div', { className: 'h2l-menu-item', onClick: () => { setAssigneeId(null); setActivePopup(null); } }, el(Icon, { name: 'user-xmark', style: { marginRight: 8 } }), 'Atamayı kaldır'), users.map(u => el('div', { key: u.id, className: 'h2l-menu-item', onClick: () => { setAssigneeId(u.id); setActivePopup(null); } }, el(Avatar, { userId: u.id, users, size: 20, style: { marginRight: 8 } }), u.name, assigneeId === u.id && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } }))));
+            
+            if (activePopup === 'assignee') {
+                let eligibleUsers = users;
+                if (selectedProject) {
+                    let mgrs = selectedProject.managers || [];
+                    if (typeof mgrs === 'string') mgrs = JSON.parse(mgrs);
+                    const pMembers = [parseInt(selectedProject.owner_id), ...mgrs.map(id => parseInt(id))].filter(Boolean);
+                    eligibleUsers = users.filter(u => pMembers.includes(parseInt(u.id)));
+                }
+                const filteredUsers = eligibleUsers.filter(u => u.name.toLowerCase().includes(assigneeSearch.toLowerCase()));
+                const displayUsers = filteredUsers.slice(0, 5);
+
+                return el('div', { className: 'h2l-popover-menu', style: { ...popupStyle, width: 260 } }, 
+                    el('div', { style: { padding: '8px 12px 4px' } },
+                        el('input', { type: 'text', placeholder: 'Kişi ara...', value: assigneeSearch, autoFocus: true, onChange: e => setAssigneeSearch(e.target.value), onClick: e => e.stopPropagation(), style: { width: '100%', padding: '6px', fontSize: '13px', border: '1px solid #ddd', borderRadius: '4px', outline: 'none' } })
+                    ),
+                    el('div', { className: 'h2l-menu-item', onClick: () => { setAssigneeIds([]); } }, el(Icon, { name: 'user-xmark', style: { marginRight: 8, color: '#888' } }), 'Atanmamış', assigneeIds.length === 0 && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } })),
+                    displayUsers.map(u => {
+                        const isSelected = assigneeIds.some(id => parseInt(id) === parseInt(u.id));
+                        return el('div', { key: u.id, className: 'h2l-menu-item', onClick: (e) => { e.stopPropagation(); const newIds = isSelected ? assigneeIds.filter(id => parseInt(id) !== parseInt(u.id)) : [...assigneeIds, u.id]; setAssigneeIds(newIds); } }, el(Avatar, { userId: u.id, users, size: 20, style: { marginRight: 8 } }), u.name, isSelected && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } }));
+                    }),
+                    displayUsers.length === 0 && el('div', { style: { padding: '10px', fontSize: '12px', color: '#999', textAlign: 'center' } }, 'Kullanıcı bulunamadı'),
+                    el('div', { style: { height: 1, background: '#f0f0f0', margin: '4px 0' } }),
+                    el('div', { className: 'h2l-menu-item', onClick: () => document.dispatchEvent(new CustomEvent('h2l_open_share_menu')) }, el(Icon, { name: 'user-plus', style: { marginRight: 8, color: '#888' } }), 'Projeye davet et')
+                );
+            }
+
             if (activePopup === 'priority') return el('div', { className: 'h2l-popover-menu', style: popupStyle }, [1, 2, 3, 4].map(p => el('div', { key: p, className: 'h2l-menu-item', onClick: () => { setPriority(p); setActivePopup(null); } }, el(Icon, { name: 'flag', style: { color: getPriorityColor(p), marginRight: 8 } }), `Öncelik ${p}`, priority === p && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } }))));
             if (activePopup === 'status') return el('div', { className: 'h2l-popover-menu', style: popupStyle }, Object.keys({'open':'Açık','in_progress':'Devam Ediyor','completed':'Tamamlandı'}).map(k => el('div', { key: k, className: 'h2l-menu-item', onClick: () => { setStatus(k); setActivePopup(null); } }, el(Icon, { name: k === 'completed' ? 'check-circle' : 'circle', style: { marginRight: 8, color: '#888' } }), {'open':'Açık','in_progress':'Devam Ediyor','completed':'Tamamlandı'}[k], status === k && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } }))));
             if (activePopup === 'project') return el('div', { className: 'h2l-popover-menu', style: { bottom: '100%', top: 'auto', marginBottom: 5, left: 0 } }, el('div', { className: 'h2l-menu-title' }, 'Proje Seç'), projects.map(p => el('div', { key: p.id, className: 'h2l-menu-item', onClick: () => { setProjectId(p.id); setActivePopup(null); } }, el('span', { style: { color: p.color, marginRight: 8, fontSize: 14 } }, '#'), p.title, parseInt(projectId) === parseInt(p.id) && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } }))));
@@ -799,10 +858,13 @@
                 el('div', { className: 'h2l-todoist-chips-area' },
                     el(DatePickerWrapper, { date: dueDate, time: dueTime, repeat: repeat, onChange: handleDateChange }),
                     
-                    el('div', { className: 'h2l-chip-wrapper' }, el('button', { className: `h2l-todoist-chip ${assigneeId ? 'active' : ''}`, onClick: () => setActivePopup(activePopup === 'assignee' ? null : 'assignee') }, selectedUser ? [el(Avatar, { userId: assigneeId, users, size: 16, style: { marginRight: 6, verticalAlign:'middle' } }), selectedUser.name] : [el(Icon, {name:'user'}), 'Atanan']), activePopup === 'assignee' && renderPopup()),
+                    el('div', { className: 'h2l-chip-wrapper' }, 
+                        el('button', { className: `h2l-todoist-chip ${assigneeIds.length > 0 ? 'active' : ''}`, onClick: () => setActivePopup(activePopup === 'assignee' ? null : 'assignee') }, renderAssigneeLabel()), 
+                        activePopup === 'assignee' && renderPopup()
+                    ),
+                    
                     el('div', { className: 'h2l-chip-wrapper' }, el('button', { className: 'h2l-todoist-chip', onClick: () => setActivePopup(activePopup === 'priority' ? null : 'priority'), style: priority !== 4 ? { color: getPriorityColor(priority), borderColor: getPriorityColor(priority) } : {} }, el(Icon, {name:'flag'}), ` Öncelik ${priority !== 4 ? priority : ''}`), activePopup === 'priority' && renderPopup()),
                     
-                    // Geri Eklenen Butonlar
                     el('div', { className: 'h2l-chip-wrapper' }, el('button', { className: 'h2l-todoist-chip disabled' }, el(Icon, {name:'clock'}), ' Hatırlatıcılar')),
                     el('div', { className: 'h2l-chip-wrapper' }, el('button', { className: 'h2l-todoist-chip', onClick: () => setActivePopup(activePopup === 'status' ? null : 'status') }, el(Icon, {name:'spinner'}), status === 'open' ? ' Status' : ` ${status}`), activePopup === 'status' && renderPopup()),
                     

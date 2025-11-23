@@ -18,6 +18,39 @@
             managers: initialData?.managers || []
         });
         const MAX_CHAR = 120;
+        
+        const ownerId = initialData ? parseInt(initialData.owner_id) : (window.h2lFrontendSettings ? parseInt(window.h2lFrontendSettings.currentUser.ID) : 0);
+        const currentManagerIds = Array.isArray(form.managers) ? form.managers.map(id => parseInt(id)) : [];
+        
+        // --- ÖZEL KLASÖR KONTROLÜ ---
+        const selectedFolder = folders ? folders.find(f => parseInt(f.id) === parseInt(form.folderId)) : null;
+        const isPrivateFolder = selectedFolder && selectedFolder.access_type === 'private';
+
+        // --- KULLANICI SIRALAMA MANTIĞI ---
+        const sortedUsers = [...users].sort((a, b) => {
+            const aid = parseInt(a.id);
+            const bid = parseInt(b.id);
+
+            if (aid === ownerId) return -1;
+            if (bid === ownerId) return 1;
+
+            const aIsMgr = currentManagerIds.includes(aid);
+            const bIsMgr = currentManagerIds.includes(bid);
+            
+            if (aIsMgr && !bIsMgr) return -1;
+            if (!aIsMgr && bIsMgr) return 1;
+
+            return a.name.localeCompare(b.name);
+        });
+
+        const handleSave = () => {
+            // Eğer özel klasör seçildiyse, yönetici listesini temizle
+            const dataToSave = { ...form };
+            if (isPrivateFolder) {
+                dataToSave.managers = [];
+            }
+            onSave(dataToSave);
+        };
 
         return el('div', { className: 'h2l-overlay', onClick: onClose },
             el('div', { className: 'h2l-modal medium', onClick: e => e.stopPropagation() },
@@ -42,13 +75,22 @@
                         el('div', { style:{flex:1, marginLeft:10} },
                              el('select', { className: 'h2l-select', value: form.folderId, onChange: e => setForm({...form, folderId:e.target.value}) },
                                 el('option', {value:0}, 'Klasörsüz'),
-                                (folders||[]).map(f => el('option', {key:f.id, value:f.id}, f.name))
+                                (folders||[]).map(f => el('option', {key:f.id, value:f.id}, f.name + (f.access_type === 'private' ? ' (Özel)' : '')))
                             )
                         )
                     ),
                     el('div', { className: 'h2l-form-group' }, 
                         el('label', {className:'h2l-label'}, 'Yöneticiler'),
-                        el(MultiSelect, { users: users || [], selected: Array.isArray(form.managers) ? form.managers : [], onChange: (ids) => setForm({...form, managers: ids}) })
+                        // ÖZEL KLASÖR KONTROLÜ: Eğer özelse MultiSelect yerine uyarı göster
+                        isPrivateFolder 
+                            ? el('div', { className: 'h2l-info-box', style: { padding: '10px', background: '#fff3cd', color: '#856404', borderRadius: '4px', fontSize: '13px', display:'flex', alignItems:'center', gap:'8px' } }, 
+                                el(Icon, {name:'lock'}), 'Bu proje özel bir klasörde olduğu için üye eklenemez.')
+                            : el(MultiSelect, { 
+                                users: sortedUsers, 
+                                selected: Array.isArray(form.managers) ? form.managers : [], 
+                                onChange: (ids) => setForm({...form, managers: ids}),
+                                ownerId: ownerId 
+                            })
                     ),
                     el('div', { className: 'h2l-form-group switch-row' },
                         el('label', { className: 'h2l-switch' },
@@ -72,7 +114,7 @@
                     initialData ? el('button', { className: 'h2l-btn text-danger', onClick: () => { if(confirm('Sil?')) onDelete(form.id); } }, 'Projeyi Sil') : el('div'),
                     el('div', { className: 'h2l-footer-right' },
                         el('button', { className: 'h2l-btn', onClick: onClose }, 'İptal'),
-                        el('button', { className: 'h2l-btn primary', onClick: () => onSave(form), disabled: !form.title.trim() }, initialData ? 'Kaydet' : 'Ekle')
+                        el('button', { className: 'h2l-btn primary', onClick: handleSave, disabled: !form.title.trim() }, initialData ? 'Kaydet' : 'Ekle')
                     )
                 )
             )

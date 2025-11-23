@@ -75,6 +75,10 @@
         const handleAction = (act, item) => { 
             if(act === 'add_project' || act === 'edit_project') setModal({ type: 'project', data: item });
             if(act === 'add_folder' || act === 'edit_folder') setModal({ type: 'folder', data: item });
+            if (act === 'update_project_members') {
+            // Proje güncelleme API'sini çağır
+            handleSaveProject(item); 
+             }
         };
 
         const handleSaveProject = (f) => apiFetch({ path: '/h2l/v1/projects'+(f.id?`/${f.id}`:''), method: 'POST', data: f }).then(() => { loadData(); setModal(null); });

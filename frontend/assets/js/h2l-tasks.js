@@ -20,8 +20,6 @@
         }
         const isToday = task.date_display === 'Bugün';
         const highlightClass = (highlightToday && isToday) ? 'h2l-highlight-today' : '';
-
-        // Açıklamadan HTML'i temizle (Liste görünümü için)
         const plainDesc = task.content ? task.content.replace(/<[^>]*>/g, ' ').trim() : '';
 
         if (isEditing) {
@@ -45,7 +43,11 @@
             el('div', { className: 'h2l-task-left' },
                 el('div', { 
                     className: `h2l-task-check p${task.priority} ${task.status==='completed'?'completed':''}`, 
-                    onClick: (e) => { e.stopPropagation(); onUpdateTask(task.id, { status: task.status==='completed'?'open':'completed' }); } 
+                    // YUVARLAĞA TIKLAMA İŞLEMİ:
+                    onClick: (e) => { 
+                        e.stopPropagation(); 
+                        onUpdateTask(task.id, { status: task.status==='completed'?'open':'completed' }); 
+                    } 
                 }, el(Icon, { name: 'check' }))
             ),
             el('div', { className: 'h2l-task-content' },
@@ -53,9 +55,7 @@
                     className: `h2l-task-title ${task.status==='completed'?'completed':''}`,
                     dangerouslySetInnerHTML: { __html: task.title } 
                 }),
-                // Açıklama Satırı (EKLENDİ)
                 plainDesc && el('div', { className: 'h2l-task-desc' }, plainDesc),
-
                 el('div', { className: 'h2l-task-details' },
                     task.date_display && el('span', { className: `h2l-detail-item date ${isToday ? 'today' : ''}` }, el(Icon, {name:'calendar'}), task.date_display),
                     assignee && el('span', { className: 'h2l-detail-item' }, assignee.name)
@@ -72,13 +72,7 @@
     // --- 2. QUICK ADD CONTAINER ---
     const QuickAddContainer = ({ sectionId, projectId, users, projects, sections, onAdd }) => {
         const [isOpen, setIsOpen] = useState(false);
-
-        if (!isOpen) {
-            return el('div', { style: { marginLeft: 28 } },
-                el(QuickAddTrigger, { onOpen: () => setIsOpen(true) })
-            );
-        }
-
+        if (!isOpen) return el('div', { style: { marginLeft: 28 } }, el(QuickAddTrigger, { onOpen: () => setIsOpen(true) }));
         return el('div', { style: { marginLeft: 28 } },
             el(TaskEditor, {
                 mode: 'add',
@@ -86,9 +80,7 @@
                 projects: projects,
                 sections: sections, 
                 activeProjectId: projectId,
-                onSave: (data) => {
-                    onAdd({ ...data, sectionId, projectId }); 
-                },
+                onSave: (data) => { onAdd({ ...data, sectionId, projectId }); },
                 onCancel: () => setIsOpen(false)
             })
         );
@@ -163,9 +155,29 @@
     // --- 4. LIST VIEW ---
     const ListView = ({ project, tasks, sections, users, projects = [], onUpdateTask, onDeleteTask, onAddTask, onAddSection, onTaskClick, showCompleted, highlightToday, onUpdateSection, onDeleteSection }) => {
         const isVirtualView = project.id === 0;
-        let visibleTasks = tasks;
-        if (!showCompleted) { visibleTasks = tasks.filter(t => t.status !== 'completed'); }
-        const rootTasks = isVirtualView ? visibleTasks : visibleTasks.filter(t => !t.section_id || t.section_id == 0);
+        
+        // FILTER & SORT LOGIC
+        let visibleTasks = [...tasks]; // Copy array
+
+        if (!showCompleted) { 
+            visibleTasks = visibleTasks.filter(t => t.status !== 'completed'); 
+        }
+
+        // Sort: Open tasks top, Completed tasks bottom
+        visibleTasks.sort((a, b) => {
+            const isADone = a.status === 'completed';
+            const isBDone = b.status === 'completed';
+            
+            // If 'a' is done and 'b' is not, 'a' goes after 'b' (return 1)
+            if (isADone && !isBDone) return 1;
+            
+            // If 'a' is not done and 'b' is done, 'a' goes before 'b' (return -1)
+            if (!isADone && isBDone) return -1;
+            
+            return 0; // Keep existing order otherwise
+        });
+
+        const rootTasks = visibleTasks.filter(t => !t.section_id || t.section_id == 0);
 
         return el('div', { className: 'h2l-list-view' },
             el('div', { className: 'h2l-project-content-header' },

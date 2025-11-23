@@ -5,30 +5,164 @@
 
     window.H2L = window.H2L || {};
 
+    // --- ÜYE SEÇİM MENÜSÜ ---
+    const MemberSelectMenu = ({ users, project, onUpdateMembers }) => {
+        const [searchTerm, setSearchTerm] = useState('');
+        
+        let currentMemberIds = [];
+        if (project && project.managers) {
+            currentMemberIds = typeof project.managers === 'string' ? JSON.parse(project.managers) : project.managers;
+            currentMemberIds = currentMemberIds.map(id => parseInt(id));
+        }
+        const ownerId = parseInt(project.owner_id);
+
+        if (!currentMemberIds.includes(ownerId)) {
+            currentMemberIds.push(ownerId);
+        }
+
+        const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()))
+            .sort((a, b) => {
+                const aid = parseInt(a.id);
+                const bid = parseInt(b.id);
+                if (aid === ownerId) return -1;
+                if (bid === ownerId) return 1;
+                const aIsMember = currentMemberIds.includes(aid);
+                const bIsMember = currentMemberIds.includes(bid);
+                if (aIsMember && !bIsMember) return -1;
+                if (!aIsMember && bIsMember) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+        const handleToggle = (userId) => {
+            const uid = parseInt(userId);
+            if (uid === ownerId) return; 
+            let newMembers = [...currentMemberIds];
+            if (newMembers.includes(uid)) {
+                newMembers = newMembers.filter(id => id !== uid);
+            } else {
+                newMembers.push(uid);
+            }
+            onUpdateMembers(newMembers);
+        };
+
+        return el('div', { className: 'h2l-popover-menu right-aligned', style: { width: '280px', padding: '0', marginTop: '5px' } },
+            el('div', { style: { padding: '10px', borderBottom: '1px solid #f0f0f0' } },
+                el('input', {
+                    className: 'h2l-input',
+                    style: { padding: '6px 10px', fontSize: '13px', width: '100%', boxSizing: 'border-box' },
+                    placeholder: 'Kişi ara...',
+                    value: searchTerm,
+                    onChange: (e) => setSearchTerm(e.target.value),
+                    autoFocus: true,
+                    onClick: e => e.stopPropagation()
+                })
+            ),
+            el('div', { style: { maxHeight: '250px', overflowY: 'auto' } },
+                filteredUsers.map(u => {
+                    const uid = parseInt(u.id);
+                    const isMember = currentMemberIds.includes(uid);
+                    const isOwner = uid === ownerId;
+                    return el('div', {
+                        key: u.id,
+                        className: 'h2l-menu-item',
+                        onClick: (e) => { e.stopPropagation(); handleToggle(uid); },
+                        style: { 
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+                            cursor: isOwner ? 'default' : 'pointer', 
+                            opacity: isOwner ? 0.7 : 1, 
+                            backgroundColor: isOwner ? '#f9f9f9' : (isMember ? '#fffbfc' : 'transparent')
+                        }
+                    },
+                        el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
+                            el(Avatar, { userId: u.id, users, size: 24 }),
+                            el('div', { style: { display: 'flex', flexDirection: 'column' } },
+                                el('span', { style: { fontSize: '13px', fontWeight: 500 } }, u.name),
+                                isOwner && el('span', { style: { fontSize: '10px', color: '#888' } }, 'Proje Sahibi')
+                            )
+                        ),
+                        isOwner 
+                            ? el(Icon, { name: 'lock', style: { color: '#999', fontSize: '12px' } }) 
+                            : (isMember && el(Icon, { name: 'check', style: { color: '#db4c3f' } }))
+                    );
+                })
+            ),
+            filteredUsers.length === 0 && el('div', { style: { padding: '15px', textAlign: 'center', color: '#999', fontSize: '12px' } }, 'Kullanıcı bulunamadı')
+        );
+    };
+
     window.H2L.ProjectDetail = ({ project, folders, tasks, sections, users, navigate, onAddTask, onDeleteTask, onUpdateTask, onAddSection, onAction, onUpdateSection, onDeleteSection }) => {
         const [viewMode, setViewMode] = useState(project ? (project.view_type || 'list') : 'list');
         const [selectedTask, setSelectedTask] = useState(null);
         const [isViewMenuOpen, setIsViewMenuOpen] = useState(false);
-        const [showCompleted, setShowCompleted] = useState(true);
+        
+        // --- GÜNCELLEME: STATE BAŞLANGICI LOCALSTORAGE'DAN ---
+        // Varsayılan değer: true (Açık)
+        const [showCompleted, setShowCompleted] = useState(() => {
+            const saved = localStorage.getItem('h2l_show_completed');
+            return saved !== 'false'; 
+        });
+
         const [highlightToday, setHighlightToday] = useState(false);
         const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+        const [isShareMenuOpen, setIsShareMenuOpen] = useState(false); 
+        
         const viewMenuRef = useRef(null);
         const moreMenuRef = useRef(null);
+        const shareMenuRef = useRef(null);
+
+        // --- GÜNCELLEME: STATE DEĞİŞİNCE KAYDET ---
+        useEffect(() => {
+            localStorage.setItem('h2l_show_completed', showCompleted);
+        }, [showCompleted]);
+
+        useEffect(() => {
+            const handleOpenShare = () => {
+                setIsShareMenuOpen(true);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+            document.addEventListener('h2l_open_share_menu', handleOpenShare);
+            return () => document.removeEventListener('h2l_open_share_menu', handleOpenShare);
+        }, []);
 
         useEffect(() => {
             const handleClickOutside = (event) => { 
                 if (viewMenuRef.current && !viewMenuRef.current.contains(event.target)) setIsViewMenuOpen(false);
                 if (moreMenuRef.current && !moreMenuRef.current.contains(event.target)) setIsMoreMenuOpen(false);
+                if (shareMenuRef.current && !shareMenuRef.current.contains(event.target)) setIsShareMenuOpen(false);
             };
             document.addEventListener("mousedown", handleClickOutside);
-            return () => document.removeEventListener("mousedown", handleClickOutside);
-        }, [viewMenuRef, moreMenuRef]);
+            return () => document.removeEventListener("mousedown", handleClickOutside); 
+        }, [viewMenuRef, moreMenuRef, shareMenuRef]);
 
         if (!project) return el('div', null, 'Yükleniyor...');
+        
         const folderId = parseInt(project.folderId || project.folder_id || 0);
         const folder = folders ? folders.find(f => parseInt(f.id) === folderId) : null;
         const folderName = folder ? folder.name : 'Projelerim';
-        const managers = (project.managers || []).map(uid => users.find(u => parseInt(u.id) === parseInt(uid))).filter(Boolean);
+        const isPrivateFolder = folder && folder.access_type === 'private';
+
+        let managerIds = [];
+        if (project.managers) {
+            managerIds = typeof project.managers === 'string' ? JSON.parse(project.managers) : project.managers;
+        }
+        const ownerId = parseInt(project.owner_id);
+        if (!managerIds.map(id=>parseInt(id)).includes(ownerId)) {
+            managerIds.unshift(ownerId);
+        }
+        
+        const managers = managerIds.map(uid => users.find(u => parseInt(u.id) === parseInt(uid))).filter(Boolean);
+
+        const handleUpdateMembers = (newMemberIds) => {
+            const uniqueManagers = [...new Set(newMemberIds)].map(String);
+            const payload = { 
+                ...project, 
+                managers: uniqueManagers,
+                folderId: project.folderId || project.folder_id
+            };
+            if (onAction) {
+                onAction('update_project_members', payload);
+            }
+        };
 
         return el('div', { className: 'h2l-project-page' },
             el('div', { className: 'h2l-project-header-wrapper' },
@@ -38,8 +172,13 @@
                             el('span', { className: 'link', onClick: () => navigate('') }, folderName), el('span', { className: 'divider' }, '/'), el('span', null, project.title)
                         ),
                         el('div', { className: 'h2l-header-actions' },
-                            managers.length > 0 && el('div', { className: 'h2l-avatars-stack' }, managers.map((u, i) => el(Avatar, { key: u.id, userId: u.id, users, size: 26, style:{marginLeft: i===0?0:-8} }))),
-                            el('button', { className: 'h2l-action-btn', title: 'Üye Ekle' }, el(Icon, { name: 'user-plus' }), 'Paylaş'),
+                            managers.length > 0 && el('div', { className: 'h2l-avatars-stack' }, managers.slice(0, 5).map((u, i) => el(Avatar, { key: u.id, userId: u.id, users, size: 26, style:{marginLeft: i===0?0:-8} }))),
+                            
+                            !isPrivateFolder && el('div', { style: { position: 'relative' }, ref: shareMenuRef },
+                                el('button', { className: 'h2l-action-btn', title: 'Üye Ekle / Çıkar', onClick: () => setIsShareMenuOpen(!isShareMenuOpen) }, el(Icon, { name: 'user-plus' }), 'Paylaş'),
+                                isShareMenuOpen && el(MemberSelectMenu, { users, project, onUpdateMembers: handleUpdateMembers })
+                            ),
+
                             el('div', { style: { position: 'relative' }, ref: viewMenuRef },
                                 el('button', { className: 'h2l-action-btn', onClick: () => setIsViewMenuOpen(!isViewMenuOpen) }, el(Icon, { name: 'sliders' }), 'Görünüm'),
                                 isViewMenuOpen && el('div', { className: 'h2l-popover-menu right-aligned' },
@@ -67,5 +206,4 @@
             selectedTask && el(TaskDetailModal, { task: selectedTask, onClose: () => setSelectedTask(null), onUpdate: (id, d) => { onUpdateTask(id, d); setSelectedTask(prev => ({...prev, ...d})); }, users, projects: [project], sections })
         );
     };
-
 })(window.wp);
