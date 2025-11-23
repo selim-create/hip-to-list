@@ -214,7 +214,7 @@
     };
 
     // --- 3. TASK ROW (DRAGGABLE) ---
-    const TaskRow = ({ task, users, projects = [], sections = [], onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask }) => {
+    const TaskRow = ({ task, users, projects = [], sections = [], onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask, labels }) => {
         const [isEditing, setIsEditing] = useState(false);
         const [isStatusHovered, setIsStatusHovered] = useState(false);
         const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -290,7 +290,8 @@
 
         if (isEditing) {
             const editData = { ...task, dueDate: task.due_date ? task.due_date.split(' ')[0] : '' };
-            return el('div', { style: { marginLeft: 28, marginBottom: 10 } }, el(TaskEditor, { mode: 'edit', initialData: editData, users, projects, sections, onSave: (updatedData) => { onUpdateTask(task.id, updatedData); setIsEditing(false); }, onCancel: () => setIsEditing(false) }));
+            // TaskEditor'e 'labels' verisini geçirin
+            return el('div', { style: { marginLeft: 28, marginBottom: 10 } }, el(TaskEditor, { mode: 'edit', initialData: editData, users, projects, sections, onSave: (updatedData) => { onUpdateTask(task.id, updatedData); setIsEditing(false); }, onCancel: () => setIsEditing(false), labels })); 
         }
         
         const renderStatusMenu = () => {
@@ -403,20 +404,22 @@
     };
 
     // --- 3. QUICK ADD CONTAINER ---
-    const QuickAddContainer = ({ sectionId, projectId, users, projects, sections, onAdd }) => {
+    const QuickAddContainer = ({ sectionId, projectId, users, projects, sections, onAdd, labels }) => {
         const [isOpen, setIsOpen] = useState(false);
         if (!isOpen) return el('div', { style: { marginLeft: 28 } }, el(QuickAddTrigger, { onOpen: () => setIsOpen(true) }));
         return el('div', { style: { marginLeft: 28 } },
+            // TaskEditor'e 'labels' verisini geçirin
             el(TaskEditor, {
                 mode: 'add', users, projects, sections, activeProjectId: projectId,
                 onSave: (data) => { onAdd({ ...data, sectionId, projectId }); },
-                onCancel: () => setIsOpen(false)
+                onCancel: () => setIsOpen(false),
+                labels
             })
         );
     };
 
     // --- 4. SECTION GROUP (DRAGGABLE) ---
-    const SectionGroup = ({ section, tasks, users, projects, sections, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, highlightToday, onUpdateSection, onDeleteSection, onMoveTask, onMoveSection }) => {
+    const SectionGroup = ({ section, tasks, users, projects, sections, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, highlightToday, onUpdateSection, onDeleteSection, onMoveTask, onMoveSection, labels }) => {
         const [isOpen, setIsOpen] = useState(true);
         const [isEditing, setIsEditing] = useState(false);
         const [secName, setSecName] = useState(section.name);
@@ -528,8 +531,8 @@
                     )
                 )
             ),
-            isOpen && tasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask })),
-            isOpen && el(QuickAddContainer, { sectionId: section.id, projectId: section.project_id, users, projects, sections, onAdd: onAddTask }),
+            isOpen && tasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask, labels })),
+            isOpen && el(QuickAddContainer, { sectionId: section.id, projectId: section.project_id, users, projects, sections, onAdd: onAddTask, labels }),
             showDeleteModal && el(DeleteSectionModal, { section: section, taskCount: tasks.length, onClose: () => setShowDeleteModal(false), onConfirm: () => { onDeleteSection(section.id); setShowDeleteModal(false); } })
         );
     };
@@ -556,7 +559,7 @@
     };
 
     // --- 5. LIST VIEW ---
-    const ListView = ({ project, tasks, sections, users, projects = [], onUpdateTask, onDeleteTask, onAddTask, onAddSection, onTaskClick, showCompleted, highlightToday, onUpdateSection, onDeleteSection }) => {
+    const ListView = ({ project, tasks, sections, users, projects = [], onUpdateTask, onDeleteTask, onAddTask, onAddSection, onTaskClick, showCompleted, highlightToday, onUpdateSection, onDeleteSection, labels }) => {
         const [localTasks, setLocalTasks] = useState(tasks);
         const [localSections, setLocalSections] = useState(sections);
 
@@ -696,19 +699,20 @@
                 rootTasks.map(t => el(TaskRow, { 
                     key: t.id, task: t, users, projects, sections, 
                     onUpdateTask, onDeleteTask, onTaskClick, highlightToday, 
-                    onMoveTask: handleMoveTask, onAddTask 
+                    onMoveTask: handleMoveTask, onAddTask,
+                    labels // <-- EKLENDİ
                 })), 
-                el(QuickAddContainer, { sectionId: 0, projectId: project.id, users, projects: projects.length ? projects : [project], sections, onAdd: onAddTask })
+                el(QuickAddContainer, { sectionId: 0, projectId: project.id, users, projects: projects.length ? projects : [project], sections, onAdd: onAddTask, labels }) // <-- EKLENDİ
             ),
             !isVirtualView && localSections.map(s => {
-                // Filter tasks based on LOCAL state to reflect DnD immediately
                 const sTasks = visibleTasks.filter(t => parseInt(t.section_id) === parseInt(s.id));
                 return el(SectionGroup, { 
                     key: s.id, section: s, tasks: sTasks, users, projects, sections, 
                     onUpdateTask, onDeleteTask, onAddTask, onTaskClick, highlightToday, 
                     onUpdateSection, onDeleteSection, 
                     onMoveTask: handleMoveTask,
-                    onMoveSection: handleMoveSection 
+                    onMoveSection: handleMoveSection,
+                    labels // <-- EKLENDİ
                 });
             }),
             !isVirtualView && el(SectionAdd, { onAdd: onAddSection })

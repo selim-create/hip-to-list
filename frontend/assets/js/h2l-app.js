@@ -110,7 +110,8 @@
                 content = el(ProjectDetail, { 
                     project: activeProject, folders: data.folders, tasks: activeTasks, sections: activeSections, users: data.users,
                     navigate, onAddTask: handleAddTask, onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask,
-                    onAddSection: handleAddSection, onUpdateSection: handleUpdateSection, onDeleteSection: handleDeleteSection, onAction: handleAction
+                    onAddSection: handleAddSection, onUpdateSection: handleUpdateSection, onDeleteSection: handleDeleteSection, onAction: handleAction, 
+                    labels: data.labels || [] 
                 });
             } else {
                 content = el('div', {className: 'h2l-error'}, 'Proje bulunamadı.');
@@ -148,7 +149,8 @@
                 onTaskClick: () => {}, 
                 showCompleted: true,
                 highlightToday: true,
-                onUpdateSection: ()=>{}, onDeleteSection: ()=>{}
+                onUpdateSection: ()=>{}, onDeleteSection: ()=>{},
+                labels: data.labels || [] // <-- BURASI EKLENDİ
             });
         }
 

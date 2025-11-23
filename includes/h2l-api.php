@@ -15,11 +15,18 @@ add_action( 'rest_api_init', function () {
         'permission_callback' => function () { return is_user_logged_in(); }
     ) );
 
-    // Görevler
+    // Görevler (GET, POST, DELETE)
     register_rest_route( 'h2l/v1', '/tasks(?:/(?P<id>\d+))?', array(
-        'methods' => ['POST', 'DELETE'],
-        'callback' => 'h2l_api_manage_task',
-        'permission_callback' => function () { return is_user_logged_in(); }
+        array(
+            'methods' => ['POST', 'DELETE'],
+            'callback' => 'h2l_api_manage_task',
+            'permission_callback' => function () { return is_user_logged_in(); }
+        ),
+        array(
+            'methods' => 'GET', // Bu kısım yeni eklendi
+            'callback' => 'h2l_api_get_tasks',
+            'permission_callback' => function () { return is_user_logged_in(); }
+        )
     ) );
 
     // Yorumlar
@@ -64,6 +71,76 @@ function h2l_get_user_profile_picture_url( $user_id ) {
         return html_entity_decode( $matches[1] );
     }
     return get_avatar_url( $user_id );
+}
+
+// --- BU FONKSİYONU GÜNCELLEYİN ---
+function h2l_api_get_tasks($request) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'h2l_tasks';
+    $params = $request->get_params();
+    
+    $where = "WHERE status != 'trash'"; 
+    
+    if (isset($params['status'])) {
+        $where .= $wpdb->prepare(" AND status = %s", sanitize_text_field($params['status']));
+    }
+    
+    if (isset($params['project_id'])) {
+        $where .= $wpdb->prepare(" AND project_id = %d", intval($params['project_id']));
+    }
+
+    // 1. Görevleri Çek
+    $sql = "SELECT t.*, 
+            (SELECT title FROM {$wpdb->prefix}h2l_projects WHERE id = t.project_id) as project_name,
+            (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_comments c WHERE c.task_id = t.id) as comment_count
+            FROM $table t $where ORDER BY t.created_at DESC";
+            
+    $tasks = $wpdb->get_results($sql);
+
+    // 2. Etiketleri ve Diğer Detayları Eşleştir
+    if (!empty($tasks)) {
+        $task_ids = array_column($tasks, 'id');
+        $task_labels_map = [];
+        
+        if (!empty($task_ids)) {
+            $ids_placeholder = implode(',', array_fill(0, count($task_ids), '%d'));
+            $labels_query = $wpdb->prepare("
+                SELECT tl.task_id, l.* FROM {$wpdb->prefix}h2l_task_labels tl
+                JOIN {$wpdb->prefix}h2l_labels l ON tl.label_id = l.id
+                WHERE tl.task_id IN ($ids_placeholder)
+            ", $task_ids);
+            
+            $labels_results = $wpdb->get_results($labels_query);
+            
+            foreach ($labels_results as $lr) {
+                $task_labels_map[$lr->task_id][] = [
+                    'id' => $lr->id,
+                    'name' => $lr->name,
+                    'color' => $lr->color,
+                    'slug' => $lr->slug
+                ];
+            }
+        }
+
+        // Detayları görev objesine ekle
+        foreach ($tasks as $task) {
+            // Etiketleri ekle
+            $task->labels = isset($task_labels_map[$task->id]) ? $task_labels_map[$task->id] : [];
+            
+            // Atananları JSON'dan diziye çevir
+            $task->assignees = !empty($task->assignee_ids) ? json_decode((string)$task->assignee_ids) : [];
+            
+            // Tarihi formatla (Frontend gösterimi için)
+            if($task->due_date) {
+                $ts = strtotime($task->due_date);
+                $task->date_display = (date('Y-m-d') == date('Y-m-d', $ts)) ? 'Bugün' : date_i18n('j M', $ts);
+            } else { 
+                $task->date_display = ''; 
+            }
+        }
+    }
+    
+    return rest_ensure_response($tasks);
 }
 
 function h2l_api_get_init_data( $request ) {
@@ -163,7 +240,9 @@ function h2l_api_get_init_data( $request ) {
             $visible_project_ids
         ));
     }
-    
+    // 5. ETİKETLER (YENİ)
+    $labels = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_labels ORDER BY name ASC");
+
     // Kullanıcı Listesi
     $users = array_map(function($u) {
         return [
@@ -179,6 +258,7 @@ function h2l_api_get_init_data( $request ) {
         'sections' => $sections, 
         'tasks' => $tasks, 
         'users' => $users, 
+        'labels' => $labels, // <-- BURAYA EKLENDİ
         'uid' => $uid
     ) );
 }
@@ -232,6 +312,7 @@ function h2l_api_manage_task($request) {
         if (isset($params['sectionId'])) $data['section_id'] = intval($params['sectionId']);
         if (isset($params['priority'])) $data['priority'] = intval($params['priority']);
         if (isset($params['status'])) $data['status'] = sanitize_text_field($params['status']);
+        if (isset($params['location'])) $data['location'] = sanitize_text_field($params['location']); // YENİ EKLENDİ
         if (array_key_exists('dueDate', $params)) {
             $data['due_date'] = !empty($params['dueDate']) ? sanitize_text_field($params['dueDate']) : null;
         }
@@ -265,7 +346,21 @@ function h2l_api_manage_task($request) {
         $wpdb->insert($table, $data); 
         $new_id = $wpdb->insert_id; 
     }
-    
+        if (isset($params['labels']) && is_array($params['labels'])) {
+        // Önce mevcut etiket bağlarını temizle
+        $wpdb->delete($table_task_labels, ['task_id' => $new_id]);
+
+        foreach ($params['labels'] as $label_name) {
+            $label_name = sanitize_text_field($label_name);
+            // Etiket var mı kontrol et, yoksa oluştur
+            $label_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_labels WHERE name = %s", $label_name));
+            if (!$label_id) {
+                $wpdb->insert($table_labels, ['name' => $label_name, 'slug' => sanitize_title($label_name), 'color' => '#808080']);
+                $label_id = $wpdb->insert_id;
+            }
+            $wpdb->insert($table_task_labels, ['task_id' => $new_id, 'label_id' => $label_id]);
+        }
+    }
     $task = $wpdb->get_row($wpdb->prepare(
         "SELECT t.*, 
         (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_comments c WHERE c.task_id = t.id) as comment_count 

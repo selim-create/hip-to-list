@@ -90,7 +90,7 @@
         );
     };
 
-    window.H2L.ProjectDetail = ({ project, folders, tasks, sections, users, navigate, onAddTask, onDeleteTask, onUpdateTask, onAddSection, onAction, onUpdateSection, onDeleteSection }) => {
+    window.H2L.ProjectDetail = ({ project, folders, tasks, sections, users, navigate, onAddTask, onDeleteTask, onUpdateTask, onAddSection, onAction, onUpdateSection, onDeleteSection, labels }) => {
         const [viewMode, setViewMode] = useState(project ? (project.view_type || 'list') : 'list');
         const [selectedTask, setSelectedTask] = useState(null);
         const [isViewMenuOpen, setIsViewMenuOpen] = useState(false);
@@ -200,10 +200,10 @@
             ),
             el('div', { className: 'h2l-project-content-wrapper' },
                 viewMode === 'list' 
-                    ? el(ListView, { project, tasks, sections, users, onUpdateTask, onDeleteTask, onAddTask: (opts) => onAddTask({ projectId: project.id, ...opts }), onAddSection: (data) => onAddSection({ projectId: project.id, ...data }), onTaskClick: setSelectedTask, showCompleted, highlightToday, onUpdateSection, onDeleteSection })
+                    ? el(ListView, { project, tasks, sections, users, onUpdateTask, onDeleteTask, onAddTask: (opts) => onAddTask({ projectId: project.id, ...opts }), onAddSection: (data) => onAddSection({ projectId: project.id, ...data }), onTaskClick: setSelectedTask, showCompleted, highlightToday, onUpdateSection, onDeleteSection, labels }) // <-- 'labels' EKLENDİ
                     : el(BoardView, { tasks, sections, onUpdateTask })
             ),
-            selectedTask && el(TaskDetailModal, { task: selectedTask, onClose: () => setSelectedTask(null), onUpdate: (id, d) => { onUpdateTask(id, d); setSelectedTask(prev => ({...prev, ...d})); }, users, projects: [project], sections })
+            selectedTask && el(TaskDetailModal, { task: selectedTask, onClose: () => setSelectedTask(null), onUpdate: (id, d) => { onUpdateTask(id, d); setSelectedTask(prev => ({...prev, ...d})); }, users, projects: [project], sections, labels }) // <-- 'labels' EKLENDİ
         );
     };
 })(window.wp);
