@@ -5,8 +5,9 @@
 
     window.H2L = window.H2L || {};
 
-    // --- ÜYE SEÇİM MENÜSÜ ---
+    // ... (MemberSelectMenu bileşeni aynı kalıyor) ...
     const MemberSelectMenu = ({ users, project, onUpdateMembers }) => {
+        // ... (İçerik aynı) ...
         const [searchTerm, setSearchTerm] = useState('');
         
         let currentMemberIds = [];
@@ -90,13 +91,12 @@
         );
     };
 
-    window.H2L.ProjectDetail = ({ project, folders, tasks, sections, users, navigate, onAddTask, onDeleteTask, onUpdateTask, onAddSection, onAction, onUpdateSection, onDeleteSection, labels }) => {
+    // GÜNCELLEME: navigate prop'u parametrelere eklendi
+    window.H2L.ProjectDetail = ({ project, projects, folders, tasks, sections, users, navigate, onAddTask, onDeleteTask, onUpdateTask, onAddSection, onAction, onUpdateSection, onDeleteSection, labels }) => {
         const [viewMode, setViewMode] = useState(project ? (project.view_type || 'list') : 'list');
         const [selectedTask, setSelectedTask] = useState(null);
         const [isViewMenuOpen, setIsViewMenuOpen] = useState(false);
         
-        // --- GÜNCELLEME: STATE BAŞLANGICI LOCALSTORAGE'DAN ---
-        // Varsayılan değer: true (Açık)
         const [showCompleted, setShowCompleted] = useState(() => {
             const saved = localStorage.getItem('h2l_show_completed');
             return saved !== 'false'; 
@@ -110,7 +110,6 @@
         const moreMenuRef = useRef(null);
         const shareMenuRef = useRef(null);
 
-        // --- GÜNCELLEME: STATE DEĞİŞİNCE KAYDET ---
         useEffect(() => {
             localStorage.setItem('h2l_show_completed', showCompleted);
         }, [showCompleted]);
@@ -164,6 +163,8 @@
             }
         };
 
+        const availableProjects = (projects && projects.length > 0) ? projects : [project];
+
         return el('div', { className: 'h2l-project-page' },
             el('div', { className: 'h2l-project-header-wrapper' },
                 el('div', { className: 'h2l-detail-header' },
@@ -200,10 +201,19 @@
             ),
             el('div', { className: 'h2l-project-content-wrapper' },
                 viewMode === 'list' 
-                    ? el(ListView, { project, tasks, sections, users, onUpdateTask, onDeleteTask, onAddTask: (opts) => onAddTask({ projectId: project.id, ...opts }), onAddSection: (data) => onAddSection({ projectId: project.id, ...data }), onTaskClick: setSelectedTask, showCompleted, highlightToday, onUpdateSection, onDeleteSection, labels }) // <-- 'labels' EKLENDİ
+                    ? el(ListView, { 
+                        project, tasks, sections, users, projects: availableProjects, 
+                        navigate, // <-- NAVIGATE BURADA İLETİLİYOR
+                        onUpdateTask, onDeleteTask, onAddTask: (opts) => onAddTask({ projectId: project.id, ...opts }), onAddSection: (data) => onAddSection({ projectId: project.id, ...data }), onTaskClick: setSelectedTask, showCompleted, highlightToday, onUpdateSection, onDeleteSection, labels 
+                    }) 
                     : el(BoardView, { tasks, sections, onUpdateTask })
             ),
-            selectedTask && el(TaskDetailModal, { task: selectedTask, onClose: () => setSelectedTask(null), onUpdate: (id, d) => { onUpdateTask(id, d); setSelectedTask(prev => ({...prev, ...d})); }, users, projects: [project], sections, labels }) // <-- 'labels' EKLENDİ
+            selectedTask && el(TaskDetailModal, { 
+                task: selectedTask, onClose: () => setSelectedTask(null), 
+                onUpdate: (id, d) => { onUpdateTask(id, d); setSelectedTask(prev => ({...prev, ...d})); }, 
+                users, projects: availableProjects, sections, labels,
+                navigate // <-- NAVIGATE BURADA İLETİLİYOR
+            }) 
         );
     };
 })(window.wp);

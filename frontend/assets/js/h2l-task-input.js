@@ -19,27 +19,29 @@
     // --- 1. TODOIST DATEPICKER CLASS ---
     class TodoistDatepicker {
         constructor(wrapperElement, options = {}) {
+            // Wrapper ID yerine doğrudan element alabilir (React ref uyumu için)
             this.wrapper = typeof wrapperElement === 'string' ? document.getElementById(wrapperElement) : wrapperElement;
             if (!this.wrapper) return;
 
             this.options = options;
             this.onChange = options.onChange || function() {};
 
+            // HTML Yapısını Oluştur
             this.renderBaseHTML();
 
+            // Element Referansları
             this.trigger = this.wrapper.querySelector('.td-trigger-btn');
             this.label = this.wrapper.querySelector('.td-label');
             this.iconHolder = this.wrapper.querySelector('.td-icon-holder');
             
-            this.hDate = this.wrapper.querySelector('#h_date');
-            
+            // State
             this.today = new Date();
             this.today.setHours(0,0,0,0);
+            
             this.currentViewDate = new Date(this.today);
             
-            const defDate = options.defaultDate ? new Date(options.defaultDate) : null;
-            this.selectedDate = (defDate && !isNaN(defDate.getTime())) ? defDate : null;
-            
+            // Başlangıç Değerleri (Varsa)
+            this.selectedDate = options.defaultDate ? new Date(options.defaultDate) : null;
             this.selectedTime = options.defaultTime || null;
             this.selectedRepeat = options.defaultRepeat || null;
 
@@ -48,13 +50,16 @@
             this.daysLong = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 
             this.activeMenu = null;
+
             this.init();
         }
 
         renderBaseHTML() {
+            // Wrapper içine gerekli HTML'i basıyoruz
+            // React tarafında sadece <div class="h2l-datepicker-wrapper"></div> olacak.
             this.wrapper.innerHTML = `
-                <input type="hidden" name="date" id="h_date">
-                <div class="td-trigger-btn" id="td-trigger" style="height: 30px; box-sizing: border-box;">
+                <!-- TETİKLEYİCİ -->
+                <div class="td-trigger-btn">
                     <span class="td-icon-holder">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z"/></svg>
                     </span>
@@ -72,41 +77,76 @@
         createPopup() {
             this.popup = document.createElement('div');
             this.popup.className = 'td-popup';
+            // HTML içeriği demo dosyasındaki ile aynı, sadece SVG'leri inline tutuyoruz
             this.popup.innerHTML = `
                 <ul class="td-shortcuts">
                     <li class="td-shortcut-item" data-action="today">
-                        <div class="td-sc-left"><div class="td-icon-box color-today" id="icon-today-dynamic"></div><span>Bugün</span></div>
+                        <div class="td-sc-left">
+                            <div class="td-icon-box color-today" id="icon-today-dynamic"></div>
+                            <span>Bugün</span>
+                        </div>
                         <span class="td-sc-right">${this.getDayNameShort(this.today)}</span>
                     </li>
                     <li class="td-shortcut-item" data-action="tomorrow">
-                        <div class="td-sc-left"><div class="td-icon-box color-tomorrow"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-13h-2v6l5.25 3.15.75-1.23-4-2.37V7z" opacity="0"/><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg></div><span>Yarın</span></div>
+                        <div class="td-sc-left">
+                            <div class="td-icon-box color-tomorrow">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-13h-2v6l5.25 3.15.75-1.23-4-2.37V7z" opacity="0"/><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                            </div>
+                            <span>Yarın</span>
+                        </div>
                         <span class="td-sc-right">${this.getDayNameShort(this.addDays(this.today, 1))}</span>
                     </li>
                     <li class="td-shortcut-item" data-action="next-week">
-                        <div class="td-sc-left"><div class="td-icon-box color-next"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm0 16H5V8h14v11z"/><path d="M12.02 17.64l3.96-3.96-1.41-1.42-1.55 1.56V10h-2v3.82l-1.55-1.56-1.42 1.42 3.97 3.96z"/></svg></div><span>Gelecek hafta</span></div>
+                        <div class="td-sc-left">
+                            <div class="td-icon-box color-next">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm0 16H5V8h14v11z"/><path d="M12.02 17.64l3.96-3.96-1.41-1.42-1.55 1.56V10h-2v3.82l-1.55-1.56-1.42 1.42 3.97 3.96z"/></svg>
+                            </div>
+                            <span>Gelecek hafta</span>
+                        </div>
                         <span class="td-sc-right">${this.formatDateShort(this.getNextDay(1))}</span>
                     </li>
                     <li class="td-shortcut-item" data-action="no-date" id="shortcut-no-date" style="display:none;">
-                        <div class="td-sc-left"><div class="td-icon-box color-none"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.59-13L12 10.59 8.41 7 7 8.41 10.59 12 7 15.59 8.41 17 12 13.41 15.59 17 17 15.59 13.41 12 17 8.41z"/></svg></div><span>Tarih yok</span></div>
+                        <div class="td-sc-left">
+                            <div class="td-icon-box color-none">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.59-13L12 10.59 8.41 7 7 8.41 10.59 12 7 15.59 8.41 17 12 13.41 15.59 17 17 15.59 13.41 12 17 8.41z"/></svg>
+                            </div>
+                            <span>Tarih yok</span>
+                        </div>
                     </li>
                 </ul>
+
                 <div class="td-calendar">
                     <div class="td-cal-header">
                         <span class="td-month-label" id="cal-title"></span>
                         <div class="td-header-actions">
                             <div class="td-nav-btn" data-nav="-1" title="Önceki Ay"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></div>
-                            <div class="td-nav-btn today-reset" title="Bugüne Dön"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5" stroke-width="3" /></svg></div>
+                            <div class="td-nav-btn today-reset" title="Bugüne Dön">
+                                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5" stroke-width="3" /></svg>
+                            </div>
                             <div class="td-nav-btn" data-nav="1" title="Sonraki Ay"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></div>
                         </div>
                     </div>
-                    <div class="td-grid">${this.daysShort.map(d => `<div class="td-day-head">${d}</div>`).join('')}</div>
+                    <div class="td-grid">
+                        ${this.daysShort.map(d => `<div class="td-day-head">${d}</div>`).join('')}
+                    </div>
                     <div class="td-grid" id="cal-body"></div>
                 </div>
+
                 <div class="td-footer">
-                    <button class="td-footer-btn" id="btn-time"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span class="lbl">Zaman</span></button>
-                    <button class="td-footer-btn" id="btn-repeat"><svg viewBox="0 0 24 24"><path d="M17 4v6l-2-2"/><path d="M7 20v-6l2 2"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 8l-2.74-2.74A9.75 9.75 0 0 1 12 3a9 9 0 0 1 9 9"/></svg><span class="lbl">Tekrar</span></button>
+                    <button class="td-footer-btn" id="btn-time">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        <span class="lbl">Zaman</span>
+                    </button>
+                    <button class="td-footer-btn" id="btn-repeat">
+                        <svg viewBox="0 0 24 24"><path d="M17 4v6l-2-2"/><path d="M7 20v-6l2 2"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 8l-2.74-2.74A9.75 9.75 0 0 1 12 3a9 9 0 0 1 9 9"/></svg>
+                        <span class="lbl">Tekrar</span>
+                    </button>
                 </div>
             `;
+            
+            // Popup'ı wrapper'a değil document.body'ye ekleyip pozisyonlayacağız (Z-index sorunları için)
+            // Ancak demo'da wrapper içine eklemiştik. React entegrasyonunda wrapper içine eklemek daha kolay yönetim sağlar.
+            // Şimdilik wrapper içine ekliyoruz.
             this.wrapper.appendChild(this.popup);
             
             this.calBody = this.popup.querySelector('#cal-body');
@@ -114,6 +154,7 @@
             this.noDateShortcut = this.popup.querySelector('#shortcut-no-date');
             this.btnTime = this.popup.querySelector('#btn-time');
             this.btnRepeat = this.popup.querySelector('#btn-repeat');
+
             this.popup.querySelector('#icon-today-dynamic').innerHTML = this.getDynamicCalendarIcon(this.today.getDate());
         }
 
@@ -121,9 +162,15 @@
             this.trigger.addEventListener('click', (e) => { e.stopPropagation(); this.toggle(); });
             this.popup.addEventListener('click', (e) => e.stopPropagation());
             
+            // Document click listener'ı dışarıdan yönetmek daha sağlıklı olabilir ama burada basit tutalım
+            // React tarafında useEffect içinde cleanup yapılmalı.
             this.outsideClickHandler = (e) => {
-                if(this.activeMenu && !this.activeMenu.contains(e.target)) this.closeMenu();
-                if(this.wrapper && !this.wrapper.contains(e.target) && !e.target.closest('.td-floating-menu')) this.close();
+                if(this.activeMenu && !this.activeMenu.contains(e.target)) {
+                    this.closeMenu();
+                }
+                if(this.wrapper && !this.wrapper.contains(e.target) && !e.target.closest('.td-floating-menu')) {
+                    this.close();
+                }
             };
             document.addEventListener('click', this.outsideClickHandler);
 
@@ -133,32 +180,54 @@
                     this.renderCalendar();
                 });
             });
+
             this.popup.querySelector('.today-reset').addEventListener('click', () => {
                 this.currentViewDate = new Date(this.today);
                 this.renderCalendar();
             });
+
             this.popup.querySelectorAll('.td-shortcut-item').forEach(item => {
                 item.addEventListener('click', () => this.handleShortcut(item.dataset.action));
             });
-            this.btnTime.addEventListener('click', (e) => { e.stopPropagation(); this.openTimeMenu(); });
-            this.btnRepeat.addEventListener('click', (e) => { e.stopPropagation(); this.openRepeatMenu(); });
+
+            this.btnTime.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.openTimeMenu();
+            });
+
+            this.btnRepeat.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.openRepeatMenu();
+            });
         }
 
         destroy() {
+            // React component unmount olduğunda temizlik
             document.removeEventListener('click', this.outsideClickHandler);
-            if(this.popup) this.popup.remove();
-            if(this.activeMenu) this.activeMenu.remove();
+            if (this.popup) this.popup.remove();
+            if (this.activeMenu) this.activeMenu.remove();
         }
 
+        // ... (Diğer metodlar: toggle, open, close, createMenu, openTimeMenu, openRepeatMenu, vb. demo dosyasındaki ile aynı)
+        // ... KODUN GERİ KALANI (renderCalendar, updateUI, getSmartDateLabel, getDynamicCalendarIcon, vb.) DEMO DOSYASINDAN KOPYALANACAK ...
+        
+        // --- EKSİK METODLARI BURAYA EKLEYELİM (Demo'dan) ---
         toggle() { this.popup.classList.contains('active') ? this.close() : this.open(); }
         open() {
             this.popup.classList.add('active');
             this.renderCalendar();
             this.noDateShortcut.style.display = this.selectedDate ? 'flex' : 'none';
         }
-        close() { this.popup.classList.remove('active'); this.closeMenu(); }
-        closeMenu() { if(this.activeMenu) { this.activeMenu.remove(); this.activeMenu = null; } }
-
+        close() {
+            this.popup.classList.remove('active');
+            this.closeMenu();
+        }
+        closeMenu() {
+            if(this.activeMenu) {
+                this.activeMenu.remove();
+                this.activeMenu = null;
+            }
+        }
         createMenu(triggerEl) {
             this.closeMenu();
             const menu = document.createElement('div');
@@ -166,14 +235,12 @@
             document.body.appendChild(menu);
             this.activeMenu = menu;
             const rect = triggerEl.getBoundingClientRect();
-            menu.style.position = 'fixed';
+            menu.style.position = 'absolute';
             menu.style.left = rect.left + 'px';
             menu.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
-            menu.style.top = 'auto';
             return menu;
         }
-
-        openTimeMenu() {
+        openTimeMenu() { 
             const menu = this.createMenu(this.btnTime);
             menu.innerHTML = `
                 <div class="td-time-input-wrapper"><input type="time" class="td-time-inp" value="${this.selectedTime || ''}"></div>
@@ -190,8 +257,7 @@
                 });
             });
         }
-
-        openRepeatMenu() {
+        openRepeatMenu() { 
             const menu = this.createMenu(this.btnRepeat);
             menu.innerHTML = `
                 <div class="td-menu-header">Tekrar Seçenekleri</div>
@@ -207,18 +273,15 @@
                 });
             });
         }
-
-        handleShortcut(action) {
+        handleShortcut(action) { 
             if (action === 'no-date') { this.selectedDate = null; this.selectedTime = null; this.selectedRepeat = null; }
             else if (action === 'today') { this.selectedDate = new Date(this.today); }
             else if (action === 'tomorrow') { this.selectedDate = this.addDays(this.today, 1); }
             else if (action === 'next-week') { this.selectedDate = this.getNextDay(1); }
             this.updateUI(); this.close();
         }
-
         selectDate(date) { this.selectedDate = date; this.updateUI(); }
-
-        renderCalendar() {
+        renderCalendar() { 
             this.calBody.innerHTML = '';
             let startDate;
             const isCurrentMonth = this.currentViewDate.getFullYear() === this.today.getFullYear() && this.currentViewDate.getMonth() === this.today.getMonth();
@@ -250,7 +313,7 @@
                 d.setDate(d.getDate() + 1);
             }
         }
-
+        // NOT: updateUI içinde this.onChange çağrılmalı
         updateUI() {
             this.trigger.classList.remove('is-today', 'is-tomorrow', 'is-next-week', 'is-date');
             
@@ -654,6 +717,8 @@
         const [selectedLabels, setSelectedLabels] = useState(initialData.labels ? initialData.labels.map(l => l.name) : []);
         const [location, setLocation] = useState(initialData.location || '');
         const [labelSearch, setLabelSearch] = useState('');
+        const [limitWarning, setLimitWarning] = useState(null); // UYARI STATE'İ
+        const [projectSearch, setProjectSearch] = useState(''); // PROJE ARAMA STATE'İ
         
         const savedSelectionRange = useRef(null);
         const wrapperRef = useRef(null);
@@ -738,18 +803,52 @@
                 if (result.projectId) setProjectId(result.projectId);
                 if (result.sectionId) setSectionId(result.sectionId);
                 if (result.status) setStatus(result.status);
+
+                // YENİ: Akıllı ayrıştırıcıdan gelen etiketleri işle KISMI KALDIRILDI
+                /*
+                if (result.labels && result.labels.length > 0) {
+                    const currentLabels = [...selectedLabels];
+                    let changed = false;
+                    let hitLimit = false;
+
+                    result.labels.forEach(l => {
+                        // Büyük/küçük harf duyarsız kontrol ile tekrarı önle (Türkçe destekli)
+                        if (!currentLabels.some(cl => cl.toLocaleLowerCase('tr') === l.toLocaleLowerCase('tr'))) {
+                            if (currentLabels.length < 3) {
+                                currentLabels.push(l);
+                                changed = true;
+                            } else {
+                                hitLimit = true;
+                            }
+                        }
+                    });
+
+                    if (changed) setSelectedLabels(currentLabels);
+                    
+                    if (hitLimit && !limitWarning) {
+                        setLimitWarning('En fazla 3 etiket ekleyebilirsiniz.');
+                        setTimeout(() => setLimitWarning(null), 3000);
+                    }
+                }
+                */
             }
-        }, [title, users, projects, sections, projectId]);
+        }, [title, users, projects, sections, projectId, selectedLabels]); // selectedLabels eklendi
 
         useEffect(() => { 
             const handleClickOutside = (event) => { 
-                if (wrapperRef.current && !wrapperRef.current.contains(event.target)) { 
-                    if(!event.target.closest('.h2l-tooltip-popover') && !event.target.closest('.td-floating-menu')) setActivePopup(null); 
-                } 
+                // Menü açıkken ve tıklanan yer menü içinde değilse ve datepicker tetikleyicisi değilse kapat.
+                // .td-popup ve .td-trigger-btn kontrolleri datepicker çakışmasını önler.
+                if (activePopup) {
+                    if (!event.target.closest('.h2l-popover-menu') && 
+                        !event.target.closest('.td-popup') && 
+                        !event.target.closest('.td-trigger-btn')) {
+                        setActivePopup(null);
+                    }
+                }
             }; 
             document.addEventListener("mousedown", handleClickOutside); 
             return () => document.removeEventListener("mousedown", handleClickOutside); 
-        }, [wrapperRef]);
+        }, [activePopup]);
         
         useEffect(() => { 
             const handleSelection = () => { 
@@ -830,6 +929,15 @@
             if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); handleFormat('bold'); } 
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); } 
             if (e.key === 'Escape') onCancel(); 
+            
+            // YENİ: # tuşuna basınca etiket menüsünü aç (AMA YAZIYI ENGELLEME)
+            if (e.key === '#') {
+                // Timeout ile geciktirerek önce karakterin yazılmasını, sonra menünün açılmasını sağlıyoruz
+                setTimeout(() => {
+                    setActivePopup('labels_menu');
+                    setLabelSearch(''); // Aramayı sıfırla
+                }, 10);
+            }
         };
 
         const { getPriorityColor } = getReminders();
@@ -890,8 +998,34 @@
                 );
             }
 
-            // PROJECT MENU
-            if (activePopup === 'project') return el('div', { className: 'h2l-popover-menu', style: { bottom: '100%', top: 'auto', marginBottom: 5, left: 0 } }, el('div', { className: 'h2l-menu-title' }, 'Proje Seç'), projects.map(p => el('div', { key: p.id, className: 'h2l-menu-item', onClick: () => { setProjectId(p.id); setActivePopup(null); } }, el('span', { style: { color: p.color, marginRight: 8, fontSize: 14 } }, '#'), p.title, parseInt(projectId) === parseInt(p.id) && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } }))));
+            // PROJECT MENU - GÜNCELLENMİŞ VE ÇALIŞAN HALİ
+            if (activePopup === 'project') {
+                // YENİ: Türkçe Karakter Destekli Arama
+                const filteredProjects = projects.filter(p => p.title.toLocaleLowerCase('tr').includes(projectSearch.toLocaleLowerCase('tr')));
+                
+                return el('div', { className: 'h2l-popover-menu', style: { bottom: '100%', top: 'auto', marginBottom: 5, left: 0, width: 250 } }, 
+                    el('div', { className: 'h2l-popover-header' },
+                        el('input', { 
+                            className: 'h2l-search-input', 
+                            placeholder: 'Proje ara...', 
+                            value: projectSearch, 
+                            onChange: e => setProjectSearch(e.target.value), 
+                            autoFocus: true, 
+                            onClick: e => e.stopPropagation() 
+                        })
+                    ),
+                    el('div', { className: 'h2l-popover-list', style: { maxHeight: 200 } },
+                        filteredProjects.map(p => 
+                            el('div', { key: p.id, className: 'h2l-menu-item', onClick: () => { setProjectId(p.id); setSectionId(null); setActivePopup(null); setProjectSearch(''); } }, 
+                                el('span', { style: { color: p.color, marginRight: 8, fontSize: 14 } }, '#'), 
+                                p.title, 
+                                parseInt(projectId) === parseInt(p.id) && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } })
+                            )
+                        ),
+                        filteredProjects.length === 0 && el('div', { style: { padding: '10px', textAlign: 'center', color: '#999', fontSize: '12px' } }, 'Proje bulunamadı')
+                    )
+                );
+            }
 
             // MORE MENU (Root)
             if (activePopup === 'more') {
@@ -911,13 +1045,35 @@
                     el('div', { className: 'h2l-popover-list' },
                         filteredLabels.map(l => {
                             const isSelected = selectedLabels.includes(l.name);
-                            return el('div', { key: l.id, className: 'h2l-menu-item', onClick: (e) => { e.stopPropagation(); const newLabels = isSelected ? selectedLabels.filter(sl => sl !== l.name) : [...selectedLabels, l.name]; setSelectedLabels(newLabels); } },
+                            return el('div', { key: l.id, className: 'h2l-menu-item', onClick: (e) => { 
+                                e.stopPropagation(); 
+                                if (isSelected) {
+                                    setSelectedLabels(selectedLabels.filter(sl => sl !== l.name));
+                                } else {
+                                    // Sınır Kontrolü (UYARI İLE)
+                                    if (selectedLabels.length >= 3) {
+                                        setLimitWarning('En fazla 3 etiket ekleyebilirsiniz.');
+                                        setTimeout(() => setLimitWarning(null), 3000);
+                                        return;
+                                    }
+                                    setSelectedLabels([...selectedLabels, l.name]);
+                                }
+                            } },
                                 el(Icon, { name: 'tag', style: { color: l.color || '#808080', marginRight: 8, fontSize: 12 } }),
                                 l.name,
                                 isSelected && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f', fontSize: 12 } })
                             );
                         }),
-                        filteredLabels.length === 0 && labelSearch.trim() !== '' && el('div', { className: 'h2l-menu-item', onClick: (e) => { e.stopPropagation(); setSelectedLabels([...selectedLabels, labelSearch]); setLabelSearch(''); } }, el(Icon, { name: 'plus', style: { marginRight: 8 } }), `"${labelSearch}" oluştur`)
+                        filteredLabels.length === 0 && labelSearch.trim() !== '' && el('div', { className: 'h2l-menu-item', onClick: (e) => { 
+                            e.stopPropagation(); 
+                            if (selectedLabels.length >= 3) {
+                                setLimitWarning('En fazla 3 etiket ekleyebilirsiniz.');
+                                setTimeout(() => setLimitWarning(null), 3000);
+                                return;
+                            }
+                            setSelectedLabels([...selectedLabels, labelSearch]); 
+                            setLabelSearch(''); 
+                        } }, el(Icon, { name: 'plus', style: { marginRight: 8 } }), `"${labelSearch}" oluştur`)
                     )
                 );
             }
@@ -952,34 +1108,37 @@
                 el(ContentEditable, { html: title, onChange: setTitle, placeholder: currentPlaceholder, className: 'title-mode', autoFocus: true, onKeyDown: handleKeyDown, onPasteIntent: (lines) => setPasteLines(lines), onInputHighlight: handleHighlight }),
                 el(ContentEditable, { html: description, onChange: setDescription, placeholder: 'Açıklama', className: 'desc-mode', onPasteIntent: (lines, html) => document.execCommand('insertHTML', false, html || lines.join('\n')), onInputHighlight: null }),
                 isLimitExceeded && el('div', { className: 'h2l-limit-warning' }, `Görev ismi karakter limiti: ${plainTitle.length} / ${MAX_CHARS}`),
+                // YENİ: LİMİT UYARISI
+                limitWarning && el('div', { className: 'h2l-limit-warning', style: { color: '#e67e22' } }, limitWarning),
 
                 el('div', { className: 'h2l-todoist-chips-area' },
                     el(DatePickerWrapper, { date: dueDate, time: dueTime, repeat: repeat, onChange: handleDateChange }),
                     
                     el('div', { className: 'h2l-chip-wrapper' }, 
-                        el('button', { className: `h2l-todoist-chip ${assigneeIds.length > 0 ? 'active' : ''}`, onClick: () => setActivePopup(activePopup === 'assignee' ? null : 'assignee') }, renderAssigneeLabel()), 
+                        el('button', { className: `h2l-todoist-chip ${assigneeIds.length > 0 ? 'active' : ''}`, onClick: (e) => { e.stopPropagation(); setActivePopup(activePopup === 'assignee' ? null : 'assignee'); } }, renderAssigneeLabel()), 
                         activePopup === 'assignee' && renderPopup()
                     ),
                     
-                    el('div', { className: 'h2l-chip-wrapper' }, el('button', { className: 'h2l-todoist-chip', onClick: () => setActivePopup(activePopup === 'priority' ? null : 'priority'), style: priority !== 4 ? { color: getPriorityColor(priority), borderColor: getPriorityColor(priority) } : {} }, el(Icon, {name:'flag'}), ` Öncelik ${priority !== 4 ? priority : ''}`), activePopup === 'priority' && renderPopup()),
-                    // ETİKET CHIPLERİ (Seçilince burada belirir)
-                    selectedLabels.map(lbl => el('div', { key: lbl, className: 'h2l-chip-wrapper' }, 
-                        el('button', { className: 'h2l-todoist-chip active', onClick: () => { setSelectedLabels(selectedLabels.filter(l => l !== lbl)); } }, 
-                            el(Icon, {name: 'tag'}), lbl, el(Icon, {name: 'xmark', style:{fontSize:10, marginLeft:4}})
-                        )
-                    )),
-
-                    // KONUM CHIP (Varsa belirir)
-                    location && el('div', { className: 'h2l-chip-wrapper' }, 
-                        el('button', { className: 'h2l-todoist-chip active', onClick: () => setLocation('') }, 
-                            el(Icon, {name: 'location-dot'}), location, el(Icon, {name: 'xmark', style:{fontSize:10, marginLeft:4}})
-                        )
+                    el('div', { className: 'h2l-chip-wrapper' }, 
+                        el('button', { 
+                            className: 'h2l-todoist-chip', 
+                            onClick: (e) => { e.stopPropagation(); setActivePopup(activePopup === 'priority' ? null : 'priority'); }, 
+                            // İkon rengi artık her zaman görünecek şekilde ayarlandı
+                            style: { borderColor: priority !== 4 ? getPriorityColor(priority) : '#e5e5e5', color: priority !== 4 ? getPriorityColor(priority) : '#555' } 
+                        }, 
+                            el(Icon, {name:'flag', style: { color: getPriorityColor(priority) } }), // İkon rengi zorla ayarlandı
+                            ` Öncelik ${priority !== 4 ? priority : ''}`
+                        ), 
+                        activePopup === 'priority' && renderPopup()
                     ),
+                    
+                    // İPTAL EDİLDİ: ETİKET VE KONUM CHİPLERİ BURADA GÖRÜNMEYECEK (İSTEK ÜZERİNE)
+                    // selectedLabels.map(...) ve location && ... kaldırıldı.
 
                     el('div', { className: 'h2l-chip-wrapper' }, el('button', { className: 'h2l-todoist-chip disabled' }, el(Icon, {name:'clock'}), ' Hatırlatıcılar')),
                     
                     el('div', { className: 'h2l-chip-wrapper' }, 
-                        el('button', { className: 'h2l-todoist-chip', onClick: () => setActivePopup(activePopup === 'status' ? null : 'status') }, 
+                        el('button', { className: 'h2l-todoist-chip', onClick: (e) => { e.stopPropagation(); setActivePopup(activePopup === 'status' ? null : 'status'); } }, 
                             el(Icon, {name: currentStatusObj.icon, style: { color: currentStatusObj.color }}), 
                             ` ${currentStatusObj.label}`
                         ), 
@@ -988,13 +1147,13 @@
                     
                     // MORE MENU TRIGGER (Updated)
                     el('div', { className: 'h2l-chip-wrapper' }, 
-                        el('button', { className: 'h2l-todoist-chip icon-only', onClick: () => setActivePopup(activePopup === 'more' ? null : 'more') }, el(Icon, {name:'ellipsis'})),
+                        el('button', { className: 'h2l-todoist-chip icon-only', onClick: (e) => { e.stopPropagation(); setActivePopup(activePopup === 'more' ? null : 'more'); } }, el(Icon, {name:'ellipsis'})),
                         (activePopup === 'more' || activePopup === 'labels_menu' || activePopup === 'location_menu') && renderPopup()
                     )
                 )
             ),
             el('div', { className: 'h2l-todoist-footer' },
-                el('div', { className: 'h2l-chip-wrapper' }, el('div', { className: 'h2l-todoist-project-selector', onClick: () => setActivePopup(activePopup === 'project' ? null : 'project') }, selectedProject ? el('span', {style:{color:selectedProject.color}}, '#') : el(Icon, {name:'inbox'}), el('span', null, selectedProject ? selectedProject.title : 'Proje Seç'), el(Icon, {name:'angle-down', style:{fontSize:10, marginLeft:4}})), activePopup === 'project' && renderPopup()),
+                el('div', { className: 'h2l-chip-wrapper' }, el('div', { className: 'h2l-todoist-project-selector', onClick: (e) => { e.stopPropagation(); setActivePopup(activePopup === 'project' ? null : 'project'); } }, selectedProject ? el('span', {style:{color:selectedProject.color}}, '#') : el(Icon, {name:'inbox'}), el('span', null, selectedProject ? selectedProject.title : 'Proje Seç'), el(Icon, {name:'angle-down', style:{fontSize:10, marginLeft:4}})), activePopup === 'project' && renderPopup()),
                 el('div', { className: 'h2l-todoist-footer-actions' }, 
                     el('button', { className: 'h2l-todoist-btn-cancel', onClick: onCancel }, 'İptal'), 
                     el('button', { className: 'h2l-todoist-btn-add', onClick: handleSubmit, disabled: !plainTitle || isLimitExceeded }, mode === 'add' ? 'Görev ekle' : 'Kaydet')

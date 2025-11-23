@@ -94,7 +94,7 @@
     };
 
     // --- 2. TASK DETAIL MODAL ---
-    const TaskDetailModal = ({ task, onClose, onUpdate, users, projects, sections }) => {
+    const TaskDetailModal = ({ task, onClose, onUpdate, users, projects, sections, labels = [], navigate }) => {
         const [comments, setComments] = useState([]);
         const [newComment, setNewComment] = useState('');
         const [loadingComments, setLoadingComments] = useState(true);
@@ -104,6 +104,11 @@
         const [priority, setPriority] = useState(task.priority || 4);
         const [dueDate, setDueDate] = useState(task.due_date || '');
         const [status, setStatus] = useState(task.status || 'open');
+        
+        // Etiket Yönetimi için State
+        const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
+        const [labelSearch, setLabelSearch] = useState('');
+        const labelMenuRef = useRef(null);
 
         useEffect(() => {
             apiFetch({ path: `/h2l/v1/comments?task_id=${task.id}` }).then(data => {
@@ -111,6 +116,16 @@
                 setLoadingComments(false);
             });
         }, [task.id]);
+
+        useEffect(() => {
+            const handleClickOutside = (event) => {
+                if (labelMenuRef.current && !labelMenuRef.current.contains(event.target)) {
+                    setIsLabelMenuOpen(false);
+                }
+            };
+            document.addEventListener("mousedown", handleClickOutside);
+            return () => document.removeEventListener("mousedown", handleClickOutside);
+        }, [labelMenuRef]);
 
         const handleAddComment = () => {
             if(!newComment.trim()) return;
@@ -136,6 +151,51 @@
         const currentSection = sections.find(s => s.id == task.section_id);
 
         const smartDate = getSmartDateDisplay(dueDate, !!task.recurrence_rule);
+
+        // Etiket Menüsü
+        const renderLabelMenu = () => {
+            const taskLabelNames = task.labels ? task.labels.map(l => l.name || l) : [];
+            const filteredLabels = labels.filter(l => l.name.toLowerCase().includes(labelSearch.toLowerCase()));
+
+            return el('div', { className: 'h2l-popover-menu', style: { width: 220, zIndex: 100 }, ref: labelMenuRef },
+                el('div', { className: 'h2l-popover-header' }, 
+                    el('input', { className: 'h2l-search-input', placeholder: 'Etiket ara...', value: labelSearch, onChange: e => setLabelSearch(e.target.value), autoFocus: true, onClick: e => e.stopPropagation() })
+                ),
+                el('div', { className: 'h2l-popover-list' },
+                    filteredLabels.map(l => {
+                        const isSelected = taskLabelNames.includes(l.name);
+                        return el('div', { key: l.id, className: 'h2l-menu-item', onClick: (e) => { 
+                            e.stopPropagation(); 
+                            let newLabels;
+                            if (isSelected) {
+                                newLabels = taskLabelNames.filter(name => name !== l.name);
+                            } else {
+                                if (taskLabelNames.length >= 3) {
+                                    alert('Maksimum 3 etiket!');
+                                    return;
+                                }
+                                newLabels = [...taskLabelNames, l.name];
+                            }
+                            onUpdate(task.id, { labels: newLabels });
+                        } },
+                            el(Icon, { name: 'tag', style: { color: l.color || '#808080', marginRight: 8, fontSize: 12 } }),
+                            l.name,
+                            isSelected && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f', fontSize: 12 } })
+                        );
+                    }),
+                    filteredLabels.length === 0 && labelSearch.trim() !== '' && el('div', { className: 'h2l-menu-item', onClick: (e) => { 
+                        e.stopPropagation(); 
+                        if (taskLabelNames.length >= 3) {
+                            alert('Maksimum 3 etiket!');
+                            return;
+                        }
+                        const newLabels = [...taskLabelNames, labelSearch];
+                        onUpdate(task.id, { labels: newLabels });
+                        setLabelSearch('');
+                    } }, el(Icon, { name: 'plus', style: { marginRight: 8 } }), `"${labelSearch}" oluştur`)
+                )
+            );
+        };
 
         return el('div', { className: 'h2l-detail-overlay', onClick: onClose },
             el('div', { className: 'h2l-task-modal', onClick: e => e.stopPropagation() },
@@ -196,13 +256,36 @@
                         el('div', { className: 'h2l-tm-meta-group' }, el('label', null, 'Öncelik'), el('div', { className: 'h2l-tm-meta-val clickable', onClick: () => { const nextP = priority === 1 ? 4 : priority - 1; updateField('priority', nextP); } }, el(Icon, { name: 'flag', style: { color: getPriorityColor(priority) } }), `P${priority}`)),
                         el('div', { className: 'h2l-tm-meta-group' }, el('label', null, 'Atanan'), el('div', { className: 'h2l-tm-meta-val' }, task.assignees && task.assignees.length > 0 ? [el(Avatar, { userId: task.assignees[0], users, size: 20 }), users.find(u=>u.id==task.assignees[0])?.name] : 'Kimse atanmamış')),
                         
-                        el('div', { className: 'h2l-tm-meta-group' }, 
+                        el('div', { className: 'h2l-tm-meta-group', style: { position: 'relative' } }, 
                             el('label', null, 'Etiketler'), 
-                            el('div', { className: 'h2l-tm-meta-val', style: { flexWrap: 'wrap', height: 'auto', gap: '4px' } }, 
+                            el('div', { 
+                                className: 'h2l-tm-meta-val clickable', 
+                                style: { flexWrap: 'wrap', height: 'auto', gap: '4px' },
+                                onClick: (e) => { e.stopPropagation(); setIsLabelMenuOpen(!isLabelMenuOpen); }
+                            }, 
                                 (task.labels && task.labels.length > 0) 
-                                ? task.labels.map(lbl => el('span', { key: lbl.id || lbl, className: 'h2l-label-pill' }, el(Icon, {name:'hashtag', style:{fontSize:10, marginRight:2}}), lbl.name || lbl)) 
-                                : el('span', { style: { color: '#999', fontSize: 12 } }, 'Etiket yok')
-                            )
+                                ? task.labels.map(lbl => {
+                                    const isString = typeof lbl === 'string';
+                                    const labelName = isString ? lbl : lbl.name;
+                                    // Mevcut 'labels' listesinden slug'ı bulmaya çalış
+                                    const foundLabel = labels.find(l => l.name === labelName);
+                                    const labelSlug = foundLabel ? foundLabel.slug : (isString ? labelName.toLowerCase() : lbl.slug);
+
+                                    return el('span', { 
+                                        key: labelName, 
+                                        className: 'h2l-label-pill', 
+                                        style: { cursor: 'pointer' },
+                                        onClick: (e) => {
+                                            e.stopPropagation();
+                                            if (navigate) {
+                                                navigate('/etiket/' + labelSlug);
+                                            }
+                                        }
+                                    }, el(Icon, {name:'hashtag', style:{fontSize:10, marginRight:2}}), labelName);
+                                }) 
+                                : el('span', { style: { color: '#999', fontSize: 12 } }, 'Etiket ekle...')
+                            ),
+                            isLabelMenuOpen && renderLabelMenu()
                         ),
 
                         el('div', { className: 'h2l-tm-separator' }),
@@ -214,7 +297,7 @@
     };
 
     // --- 3. TASK ROW (DRAGGABLE) ---
-    const TaskRow = ({ task, users, projects = [], sections = [], onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask, labels }) => {
+    const TaskRow = ({ task, users, projects = [], sections = [], onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask, labels, navigate }) => {
         const [isEditing, setIsEditing] = useState(false);
         const [isStatusHovered, setIsStatusHovered] = useState(false);
         const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -382,7 +465,25 @@
                     smartDate && el('span', { className: 'h2l-detail-item date', style: { color: smartDate.color } }, el(Icon, {name: smartDate.icon, style:{color: smartDate.color}}), smartDate.text, smartDate.isRecurring && el(Icon, { name: 'arrows-rotate', style: { fontSize: 10, marginLeft: 4, color: smartDate.color }, title: 'Tekrarlı' })),
                     (task.reminder_enabled == 1) && el('span', { className: 'h2l-detail-item', title: 'Hatırlatıcı açık' }, el(Icon, {name:'bell', style:{color:'#888', fontSize:12}})),
                     (parseInt(task.comment_count || 0) > 0) && el('span', { className: 'h2l-detail-item comments', style: { cursor: 'pointer', color: '#888' }, onClick: (e) => { e.stopPropagation(); onTaskClick(task); } }, el(Icon, {name:'comment', style:{fontSize:11}}), ' ', task.comment_count),
-                    (task.labels && task.labels.length > 0) && task.labels.map(lbl => el('span', { key: lbl.id || lbl, className: 'h2l-detail-item', style: { color: '#246fe0', fontSize: 11 } }, el(Icon, {name:'hashtag', style:{fontSize:10, marginRight:1}}), lbl.name || lbl)),
+                    (task.labels && task.labels.length > 0) && task.labels.map(lbl => {
+                        const isString = typeof lbl === 'string';
+                        const labelName = isString ? lbl : lbl.name;
+                        // Mevcut 'labels' listesinden slug'ı bulmaya çalış
+                        const foundLabel = labels ? labels.find(l => l.name === labelName) : null;
+                        const labelSlug = foundLabel ? foundLabel.slug : (isString ? labelName.toLowerCase() : lbl.slug);
+
+                        return el('span', { 
+                            key: lbl.id || labelName, 
+                            className: 'h2l-detail-item', 
+                            style: { color: '#246fe0', fontSize: 11, cursor: 'pointer' },
+                            onClick: (e) => {
+                                e.stopPropagation();
+                                if (navigate) {
+                                    navigate('/etiket/' + labelSlug);
+                                }
+                            }
+                        }, el(Icon, {name:'hashtag', style:{fontSize:10, marginRight:1}}), labelName);
+                    }),
                     (task.status !== 'open' && task.status !== 'in_progress' && TASK_STATUSES[task.status]) && el('span', { className: 'h2l-detail-item status-badge', style: { color: TASK_STATUSES[task.status].color, fontSize: '11px', fontWeight: 600 } }, task.status === 'completed' ? null : [el(Icon, {name: TASK_STATUSES[task.status].icon}), ' ', TASK_STATUSES[task.status].label])
                 )
             ),
@@ -403,15 +504,24 @@
         );
     };
 
-    // --- 3. QUICK ADD CONTAINER ---
+    // --- 3. QUICK ADD CONTAINER (GÜNCELLENMİŞ) ---
     const QuickAddContainer = ({ sectionId, projectId, users, projects, sections, onAdd, labels }) => {
         const [isOpen, setIsOpen] = useState(false);
         if (!isOpen) return el('div', { style: { marginLeft: 28 } }, el(QuickAddTrigger, { onOpen: () => setIsOpen(true) }));
+        
+        // YENİ: Editöre başlangıç verisi olarak mevcut proje ve bölümü gönderiyoruz
+        const initData = { project_id: projectId, section_id: sectionId };
+
         return el('div', { style: { marginLeft: 28 } },
             // TaskEditor'e 'labels' verisini geçirin
             el(TaskEditor, {
                 mode: 'add', users, projects, sections, activeProjectId: projectId,
-                onSave: (data) => { onAdd({ ...data, sectionId, projectId }); },
+                initialData: initData, // <-- EKLENDİ
+                onSave: (data) => { 
+                    // DÜZELTME: Burada ...data, projectId sıralaması yerine sadece data gönderiyoruz.
+                    // Böylece editörde seçilen proje (data.projectId) geçerli olur.
+                    onAdd(data); 
+                },
                 onCancel: () => setIsOpen(false),
                 labels
             })
@@ -419,7 +529,7 @@
     };
 
     // --- 4. SECTION GROUP (DRAGGABLE) ---
-    const SectionGroup = ({ section, tasks, users, projects, sections, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, highlightToday, onUpdateSection, onDeleteSection, onMoveTask, onMoveSection, labels }) => {
+    const SectionGroup = ({ section, tasks, users, projects, sections, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, highlightToday, onUpdateSection, onDeleteSection, onMoveTask, onMoveSection, labels, navigate }) => {
         const [isOpen, setIsOpen] = useState(true);
         const [isEditing, setIsEditing] = useState(false);
         const [secName, setSecName] = useState(section.name);
@@ -531,12 +641,12 @@
                     )
                 )
             ),
-            isOpen && tasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask, labels })),
-            isOpen && el(QuickAddContainer, { sectionId: section.id, projectId: section.project_id, users, projects, sections, onAdd: onAddTask, labels }),
-            showDeleteModal && el(DeleteSectionModal, { section: section, taskCount: tasks.length, onClose: () => setShowDeleteModal(false), onConfirm: () => { onDeleteSection(section.id); setShowDeleteModal(false); } })
+            isOpen && tasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask, labels, navigate })), // <-- NAVIGATE BURADA İLETİLİYOR
+            isOpen && el(QuickAddContainer, { sectionId: section.id, projectId: section.project_id, users, projects, sections, onAdd: onAddTask, labels })
         );
     };
 
+    // --- SECTION ADD ---
     const SectionAdd = ({ onAdd }) => {
         const [isEditing, setIsEditing] = useState(false);
         const [name, setName] = useState('');
@@ -545,6 +655,7 @@
         return el('div', { className: 'h2l-section-add-form' }, el('form', { onSubmit: handleSubmit }, el('input', { className: 'h2l-section-input', autoFocus: true, placeholder: 'Bölüm adı', value: name, onChange: e => setName(e.target.value), onBlur: () => !name.trim() && setIsEditing(false) }), el('div', { className: 'h2l-form-actions' }, el('button', { type:'submit', className: 'h2l-btn primary', disabled:!name.trim() }, 'Bölüm ekle'), el('button', { type:'button', className: 'h2l-btn', onClick: () => setIsEditing(false) }, 'İptal'))));
     };
 
+    // --- DELETE SECTION MODAL ---
     const DeleteSectionModal = ({ section, taskCount, onClose, onConfirm }) => {
         return el('div', { className: 'h2l-detail-overlay', style: { zIndex: 20010 }, onClick: onClose },
             el('div', { className: 'h2l-confirm-modal', onClick: e => e.stopPropagation() },
@@ -559,7 +670,7 @@
     };
 
     // --- 5. LIST VIEW ---
-    const ListView = ({ project, tasks, sections, users, projects = [], onUpdateTask, onDeleteTask, onAddTask, onAddSection, onTaskClick, showCompleted, highlightToday, onUpdateSection, onDeleteSection, labels }) => {
+    const ListView = ({ project, tasks, sections, users, projects = [], onUpdateTask, onDeleteTask, onAddTask, onAddSection, onTaskClick, showCompleted, highlightToday, onUpdateSection, onDeleteSection, labels, navigate }) => {
         const [localTasks, setLocalTasks] = useState(tasks);
         const [localSections, setLocalSections] = useState(sections);
 
@@ -700,7 +811,7 @@
                     key: t.id, task: t, users, projects, sections, 
                     onUpdateTask, onDeleteTask, onTaskClick, highlightToday, 
                     onMoveTask: handleMoveTask, onAddTask,
-                    labels // <-- EKLENDİ
+                    labels, navigate // <-- NAVIGATE BURADA İLETİLİYOR
                 })), 
                 el(QuickAddContainer, { sectionId: 0, projectId: project.id, users, projects: projects.length ? projects : [project], sections, onAdd: onAddTask, labels }) // <-- EKLENDİ
             ),
@@ -712,7 +823,7 @@
                     onUpdateSection, onDeleteSection, 
                     onMoveTask: handleMoveTask,
                     onMoveSection: handleMoveSection,
-                    labels // <-- EKLENDİ
+                    labels, navigate // <-- NAVIGATE BURADA İLETİLİYOR
                 });
             }),
             !isVirtualView && el(SectionAdd, { onAdd: onAddSection })

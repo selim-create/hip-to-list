@@ -22,7 +22,7 @@
     const App = () => {
         const [data, setData] = useState({ folders: [], projects: [], tasks: [], users: [], sections: [] });
         const [loading, setLoading] = useState(true);
-        // View State: { type: 'projects' | 'project_detail' | 'today' | 'upcoming', id: null, isInbox: false }
+        // View State: { type: 'projects' | 'project_detail' | 'today' | 'upcoming' | 'label', id: null, slug: null }
         const [viewState, setViewState] = useState({ type: 'projects' });
         const [modal, setModal] = useState(null);
 
@@ -54,6 +54,9 @@
                 setViewState({ type: 'today' });
             } else if (path.includes('/yaklasan')) {
                 setViewState({ type: 'upcoming' });
+            } else if (path.includes('/etiket/')) { // YENİ: Etiket Rotası
+                const parts = path.split('/etiket/');
+                if (parts[1]) setViewState({ type: 'label', slug: parts[1] });
             }
         };
 
@@ -76,8 +79,7 @@
             if(act === 'add_project' || act === 'edit_project') setModal({ type: 'project', data: item });
             if(act === 'add_folder' || act === 'edit_folder') setModal({ type: 'folder', data: item });
             if (act === 'update_project_members') {
-            // Proje güncelleme API'sini çağır
-            handleSaveProject(item); 
+                handleSaveProject(item); 
              }
         };
 
@@ -107,9 +109,16 @@
             if (activeProject) {
                 const activeTasks = data.tasks.filter(t => parseInt(t.projectId || t.project_id) === viewState.id && t.status !== 'trash');
                 const activeSections = data.sections.filter(s => parseInt(s.projectId || s.project_id) === viewState.id);
+                
                 content = el(ProjectDetail, { 
-                    project: activeProject, folders: data.folders, tasks: activeTasks, sections: activeSections, users: data.users,
-                    navigate, onAddTask: handleAddTask, onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask,
+                    project: activeProject, 
+                    projects: data.projects,
+                    folders: data.folders, 
+                    tasks: activeTasks, 
+                    sections: activeSections, 
+                    users: data.users,
+                    navigate,
+                    onAddTask: handleAddTask, onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask,
                     onAddSection: handleAddSection, onUpdateSection: handleUpdateSection, onDeleteSection: handleDeleteSection, onAction: handleAction, 
                     labels: data.labels || [] 
                 });
@@ -140,9 +149,11 @@
 
             content = el(ListView, {
                 project: virtualProject,
+                projects: data.projects,
                 tasks: filteredTasks,
                 sections: [],
                 users: data.users,
+                navigate,
                 onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask,
                 onAddTask: (d) => handleAddTask({...d, dueDate: todayStr}),
                 onAddSection: () => alert('Bu görünümde bölüm eklenemez.'),
@@ -150,8 +161,51 @@
                 showCompleted: true,
                 highlightToday: true,
                 onUpdateSection: ()=>{}, onDeleteSection: ()=>{},
-                labels: data.labels || [] // <-- BURASI EKLENDİ
+                labels: data.labels || [] 
             });
+        }
+        // YENİ: ETİKET GÖRÜNÜMÜ
+        else if (viewState.type === 'label') {
+            const activeLabel = data.labels ? data.labels.find(l => l.slug === viewState.slug) : null;
+            
+            if (activeLabel) {
+                const filteredTasks = data.tasks.filter(t => {
+                    if (t.status === 'trash') return false;
+                    return t.labels && t.labels.some(l => l.slug === viewState.slug);
+                });
+
+                const virtualProject = { 
+                    id: 0, 
+                    title: activeLabel.name, 
+                    color: activeLabel.color || '#808080', 
+                    view_type: 'list'
+                };
+
+                content = el(ListView, {
+                    project: virtualProject,
+                    projects: data.projects,
+                    tasks: filteredTasks,
+                    sections: [],
+                    users: data.users,
+                    navigate,
+                    onUpdateTask: handleUpdateTask, 
+                    onDeleteTask: handleDeleteTask,
+                    // Bu görünümde eklenen göreve otomatik olarak etiketi ekle
+                    onAddTask: (d) => {
+                        const currentLabels = d.labels || [];
+                        if(!currentLabels.includes(activeLabel.name)) currentLabels.push(activeLabel.name);
+                        handleAddTask({...d, labels: currentLabels});
+                    },
+                    onAddSection: () => alert('Etiket görünümünde bölüm eklenemez.'),
+                    onTaskClick: () => {}, 
+                    showCompleted: true,
+                    highlightToday: true,
+                    onUpdateSection: ()=>{}, onDeleteSection: ()=>{},
+                    labels: data.labels || [] 
+                });
+            } else {
+                content = el('div', {className: 'h2l-error'}, 'Etiket bulunamadı: ' + viewState.slug);
+            }
         }
 
         return el('div', { id: 'h2l-app-container', className: 'h2l-flex-root' },

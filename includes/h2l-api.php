@@ -295,6 +295,11 @@ function h2l_api_reorder_items($request) {
 function h2l_api_manage_task($request) {
     global $wpdb; 
     $table = $wpdb->prefix . 'h2l_tasks';
+    
+    // EKSİK OLAN TANIMLAR EKLENDİ
+    $table_task_labels = $wpdb->prefix . 'h2l_task_labels';
+    $table_labels = $wpdb->prefix . 'h2l_labels';
+
     $method = $request->get_method(); 
     $id = $request->get_param('id'); 
     $params = $request->get_json_params();
@@ -347,6 +352,12 @@ function h2l_api_manage_task($request) {
         $new_id = $wpdb->insert_id; 
     }
         if (isset($params['labels']) && is_array($params['labels'])) {
+        
+        // YENİ: Etiket sayısını maksimum 3 ile sınırla
+        if (count($params['labels']) > 3) {
+            $params['labels'] = array_slice($params['labels'], 0, 3);
+        }
+
         // Önce mevcut etiket bağlarını temizle
         $wpdb->delete($table_task_labels, ['task_id' => $new_id]);
 
