@@ -489,7 +489,7 @@
         "Feed optimizasyonu… 3 gün sonra",
         "Etiket düzeni kontrol et… #GTM",
         "Yayın hatalarını tara… >Performans p1"
-    ];
+        ];
 
     const getRandomPlaceholder = () => {
         return PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)];
@@ -592,7 +592,8 @@
         );
     };
 
-    const ContentEditable = ({ html, onChange, placeholder, className, autoFocus, onKeyDown, onPasteIntent, onInputHighlight }) => {
+    // YENİ: ContentEditable Bileşeni
+    const ContentEditable = ({ html, onChange, placeholder, className, autoFocus, onKeyDown, onPasteIntent, onInputHighlight, onBlur }) => {
         const contentEditableRef = useRef(null);
         const lastHtml = useRef(null);
 
@@ -637,8 +638,14 @@
         return el('div', { 
             ref: contentEditableRef, 
             className: `h2l-content-editable ${className}`, 
-            contentEditable: true, onInput: handleInput, onKeyDown: handleKeyDownLocal, onKeyUp: handleKeyUp, onPaste: handlePasteLocal, 
-            'data-placeholder': placeholder, suppressContentEditableWarning: true, 
+            contentEditable: true, 
+            onInput: handleInput, 
+            onKeyDown: handleKeyDownLocal, 
+            onKeyUp: handleKeyUp, 
+            onPaste: handlePasteLocal,
+            onBlur: onBlur,
+            'data-placeholder': placeholder, 
+            suppressContentEditableWarning: true, 
             dir: "ltr", style: { direction: 'ltr', textAlign: 'left', unicodeBidi: 'normal', whiteSpace: 'pre-wrap', wordBreak: 'break-word' } 
         });
     };
@@ -803,34 +810,6 @@
                 if (result.projectId) setProjectId(result.projectId);
                 if (result.sectionId) setSectionId(result.sectionId);
                 if (result.status) setStatus(result.status);
-
-                // YENİ: Akıllı ayrıştırıcıdan gelen etiketleri işle KISMI KALDIRILDI
-                /*
-                if (result.labels && result.labels.length > 0) {
-                    const currentLabels = [...selectedLabels];
-                    let changed = false;
-                    let hitLimit = false;
-
-                    result.labels.forEach(l => {
-                        // Büyük/küçük harf duyarsız kontrol ile tekrarı önle (Türkçe destekli)
-                        if (!currentLabels.some(cl => cl.toLocaleLowerCase('tr') === l.toLocaleLowerCase('tr'))) {
-                            if (currentLabels.length < 3) {
-                                currentLabels.push(l);
-                                changed = true;
-                            } else {
-                                hitLimit = true;
-                            }
-                        }
-                    });
-
-                    if (changed) setSelectedLabels(currentLabels);
-                    
-                    if (hitLimit && !limitWarning) {
-                        setLimitWarning('En fazla 3 etiket ekleyebilirsiniz.');
-                        setTimeout(() => setLimitWarning(null), 3000);
-                    }
-                }
-                */
             }
         }, [title, users, projects, sections, projectId, selectedLabels]); // selectedLabels eklendi
 
@@ -979,8 +958,8 @@
                         return el('div', { key: u.id, className: 'h2l-menu-item', onClick: (e) => { e.stopPropagation(); const newIds = isSelected ? assigneeIds.filter(id => parseInt(id) !== parseInt(u.id)) : [...assigneeIds, u.id]; setAssigneeIds(newIds); } }, el(Avatar, { userId: u.id, users, size: 20, style: { marginRight: 8 } }), u.name, isSelected && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } }));
                     }),
                     displayUsers.length === 0 && el('div', { style: { padding: '10px', fontSize: '12px', color: '#999', textAlign: 'center' } }, 'Kullanıcı bulunamadı'),
-                    el('div', { style: { height: 1, background: '#f0f0f0', margin: '4px 0' } }),
-                    el('div', { className: 'h2l-menu-item', onClick: () => document.dispatchEvent(new CustomEvent('h2l_open_share_menu')) }, el(Icon, { name: 'user-plus', style: { marginRight: 8, color: '#888' } }), 'Projeye davet et')
+                    el('div', { style: { height: 1, background: '#f0f0f0', margin: '4px 0' } },
+                    el('div', { className: 'h2l-menu-item', onClick: () => document.dispatchEvent(new CustomEvent('h2l_open_share_menu')) }, el(Icon, { name: 'user-plus', style: { marginRight: 8, color: '#888' } }), 'Projeye davet et'))
                 );
             }
 
@@ -1166,6 +1145,7 @@
         return el('div', { className: 'h2l-todoist-add-trigger', onClick: onOpen }, el('div', { className: 'h2l-todoist-btn-content' }, el('span', { className: 'plus-icon' }, el(Icon, { name: 'plus' })), 'Görev ekle'));
     };
 
-    window.H2L.TaskInput = { TaskEditor, QuickAddTrigger };
+    // EXPORT
+    window.H2L.TaskInput = { TaskEditor, QuickAddTrigger, ContentEditable };
 
 })(window.wp);

@@ -7,7 +7,7 @@
     const { Sidebar } = window.H2L;
     const { ProjectsDashboard, ProjectModal, FolderModal } = window.H2L.Projects;
     const { ProjectDetail } = window.H2L;
-    const { ListView } = window.H2L.Tasks;
+    const { ListView, TaskDetailModal } = window.H2L.Tasks; // GÜNCELLEME: TaskDetailModal import edildi
 
     const BASE_URL = settings.base_url || '/gorevler';
 
@@ -25,6 +25,7 @@
         // View State: { type: 'projects' | 'project_detail' | 'today' | 'upcoming' | 'label', id: null, slug: null }
         const [viewState, setViewState] = useState({ type: 'projects' });
         const [modal, setModal] = useState(null);
+        const [activeTaskId, setActiveTaskId] = useState(null); // YENİ: Global Aktif Görev State'i
 
         const loadData = () => {
             apiFetch({ path: '/h2l/v1/init' }).then(res => { setData(res); setLoading(false); })
@@ -41,6 +42,25 @@
         };
         
         const parseRoute = (path) => {
+            // GÜNCELLEME: Görev Linki Kontrolü (/gorev/123)
+            if (path.includes('/gorev/')) {
+                const parts = path.split('/gorev/');
+                if (parts[1]) {
+                    const tid = parseInt(parts[1]);
+                    setActiveTaskId(tid);
+                    
+                    // Görevi bul ve arka planda projesini aç (Opsiyonel ama iyi UX)
+                    const task = data.tasks.find(t => t.id == tid);
+                    if (task && task.project_id) {
+                        setViewState({ type: 'project_detail', id: parseInt(task.project_id) });
+                        return; // Projeyi ayarlayıp çık
+                    }
+                }
+            } else {
+                // Görev linki değilse modalı kapat
+                setActiveTaskId(null);
+            }
+
             if(path === '' || path === '/') {
                 setViewState({ type: 'projects' });
             } else if(path.includes('/proje/')) {
@@ -65,14 +85,14 @@
                 const path = window.location.pathname.replace(BASE_URL, '');
                 parseRoute(path);
             }
-        }, [loading, data.projects]);
+        }, [loading, data.tasks]); // GÜNCELLEME: data.tasks değişince rotayı tekrar kontrol et (görev yüklenmiş olabilir)
 
         useEffect(() => {
             window.onpopstate = () => {
                 const path = window.location.pathname.replace(BASE_URL, '');
                 parseRoute(path);
             };
-        }, [data.projects]);
+        }, [data.projects, data.tasks]);
 
         // --- ACTIONS ---
         const handleAction = (act, item) => { 
@@ -90,7 +110,7 @@
         
         const handleAddTask = (d) => apiFetch({ path: '/h2l/v1/tasks', method: 'POST', data: d }).then(loadData);
         const handleUpdateTask = (id, d) => apiFetch({ path: `/h2l/v1/tasks/${id}`, method: 'POST', data: d }).then(res => { loadData(); });
-        const handleDeleteTask = (id) => apiFetch({ path: `/h2l/v1/tasks/${id}`, method: 'DELETE' }).then(() => { loadData(); });
+        const handleDeleteTask = (id) => apiFetch({ path: `/h2l/v1/tasks/${id}`, method: 'DELETE' }).then(() => { loadData(); if(activeTaskId === id) { setActiveTaskId(null); window.history.back(); } });
         
         const handleAddSection = (d) => apiFetch({ path: '/h2l/v1/sections', method: 'POST', data: d }).then(loadData);
         const handleUpdateSection = (id, data) => apiFetch({ path: `/h2l/v1/sections/${id}`, method: 'POST', data: data }).then(loadData);
@@ -100,6 +120,9 @@
 
         // --- CONTENT RENDERER ---
         let content = null;
+
+        // GÜNCELLEME: Navigasyon fonksiyonunu tüm listelere geçiriyoruz
+        const onTaskClick = (task) => navigate('/gorev/' + task.id);
 
         if (viewState.type === 'projects') {
             content = el(ProjectsDashboard, { data, navigate, onAction: handleAction });
@@ -120,7 +143,8 @@
                     navigate,
                     onAddTask: handleAddTask, onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask,
                     onAddSection: handleAddSection, onUpdateSection: handleUpdateSection, onDeleteSection: handleDeleteSection, onAction: handleAction, 
-                    labels: data.labels || [] 
+                    labels: data.labels || [],
+                    onTaskClick: onTaskClick // YENİ PROP
                 });
             } else {
                 content = el('div', {className: 'h2l-error'}, 'Proje bulunamadı.');
@@ -157,7 +181,7 @@
                 onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask,
                 onAddTask: (d) => handleAddTask({...d, dueDate: todayStr}),
                 onAddSection: () => alert('Bu görünümde bölüm eklenemez.'),
-                onTaskClick: () => {}, 
+                onTaskClick: onTaskClick, // YENİ PROP
                 showCompleted: true,
                 highlightToday: true,
                 onUpdateSection: ()=>{}, onDeleteSection: ()=>{},
@@ -197,7 +221,7 @@
                         handleAddTask({...d, labels: currentLabels});
                     },
                     onAddSection: () => alert('Etiket görünümünde bölüm eklenemez.'),
-                    onTaskClick: () => {}, 
+                    onTaskClick: onTaskClick, // YENİ PROP
                     showCompleted: true,
                     highlightToday: true,
                     onUpdateSection: ()=>{}, onDeleteSection: ()=>{},
@@ -208,11 +232,23 @@
             }
         }
 
+        // Aktif Görev Nesnesini Bul
+        const activeTask = activeTaskId ? data.tasks.find(t => t.id == activeTaskId) : null;
+
         return el('div', { id: 'h2l-app-container', className: 'h2l-flex-root' },
             el(Sidebar, { navigate, activeView: viewState }),
             el('div', { className: 'h2l-main-wrapper' }, content),
             modal?.type === 'project' && el(ProjectModal, { onClose:()=>setModal(null), onSave:handleSaveProject, onDelete:handleDeleteProject, folders:data.folders, users:data.users, initialData:modal.data }),
-            modal?.type === 'folder' && el(FolderModal, { onClose:()=>setModal(null), onSave:handleSaveFolder, onDelete:handleDeleteFolder, initialData:modal.data })
+            modal?.type === 'folder' && el(FolderModal, { onClose:()=>setModal(null), onSave:handleSaveFolder, onDelete:handleDeleteFolder, initialData:modal.data }),
+            
+            // YENİ: Global Görev Modalı
+            activeTask && el(TaskDetailModal, { 
+                task: activeTask, 
+                onClose: () => { setActiveTaskId(null); window.history.back(); }, // Geri tuşu etkisi
+                onUpdate: (id, d) => { handleUpdateTask(id, d); }, 
+                users: data.users, projects: data.projects, sections: data.sections, labels: data.labels,
+                navigate 
+            })
         );
     };
 

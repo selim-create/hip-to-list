@@ -5,8 +5,9 @@
     const Common = window.H2L && window.H2L.Common ? window.H2L.Common : { Icon: () => null, Avatar: () => null, TASK_STATUSES: {} };
     const { Icon, Avatar, TASK_STATUSES, MultiSelect } = Common;
     
-    const TaskInput = window.H2L && window.H2L.TaskInput ? window.H2L.TaskInput : { TaskEditor: () => null, QuickAddTrigger: () => null };
-    const { TaskEditor, QuickAddTrigger } = TaskInput;
+    // GÜNCELLEME: ContentEditable bileşenini import ediyoruz
+    const TaskInput = window.H2L && window.H2L.TaskInput ? window.H2L.TaskInput : { TaskEditor: () => null, QuickAddTrigger: () => null, ContentEditable: () => null };
+    const { TaskEditor, QuickAddTrigger, ContentEditable } = TaskInput;
 
     const Reminders = window.H2L && window.H2L.Reminders ? window.H2L.Reminders : { getPriorityColor: () => '#808080' };
     const { getPriorityColor } = Reminders;
@@ -82,7 +83,7 @@
                 ),
                 el('h3', { className: 'h2l-confirm-title', style: { textAlign: 'center' } }, 'Görevi sil?'),
                 el('p', { className: 'h2l-confirm-desc', style: { textAlign: 'center' } }, 
-                    el('strong', null, task.title), 
+                    el('strong', null, task.title.replace(/<[^>]*>/g, '')), 
                     ' görevi kalıcı olarak silinecek.'
                 ),
                 el('div', { className: 'h2l-confirm-footer', style: { justifyContent: 'center' } },
@@ -93,14 +94,13 @@
         );
     };
 
-    // --- 2. TASK DETAIL MODAL ---
+    // --- 2. TASK DETAIL MODAL (GÜNCELLENMİŞ - ContentEditable ile) ---
     const TaskDetailModal = ({ task, onClose, onUpdate, users, projects, sections, labels = [], navigate }) => {
         const [comments, setComments] = useState([]);
         const [newComment, setNewComment] = useState('');
         const [loadingComments, setLoadingComments] = useState(true);
         const [desc, setDesc] = useState(task.content || '');
         const [title, setTitle] = useState(task.title || '');
-        const [isEditingTitle, setIsEditingTitle] = useState(false);
         const [priority, setPriority] = useState(task.priority || 4);
         const [dueDate, setDueDate] = useState(task.due_date || '');
         const [status, setStatus] = useState(task.status || 'open');
@@ -145,8 +145,10 @@
             if(field === 'due_date') setDueDate(value);
         };
 
-        const handleTitleSave = () => { if(title !== task.title) updateField('title', title); setIsEditingTitle(false); };
+        // GÜNCELLEME: ContentEditable onBlur handler'ları
+        const handleTitleBlur = () => { if(title !== task.title) updateField('title', title); };
         const handleDescBlur = () => { if(desc !== task.content) updateField('content', desc); };
+
         const currentProject = projects.find(p => p.id == task.project_id) || {};
         const currentSection = sections.find(s => s.id == task.section_id);
 
@@ -212,13 +214,25 @@
                     el('div', { className: 'h2l-tm-main' },
                         el('div', { className: 'h2l-tm-title-row' },
                             el('div', { className: `h2l-task-check large p${priority} ${status === 'completed' ? 'completed' : ''}`, onClick: () => updateField('status', status === 'completed' ? 'in_progress' : 'completed') }, el(Icon, { name: 'check' })),
-                            isEditingTitle 
-                            ? el('input', { className: 'h2l-tm-title-input', value: title, onChange: e => setTitle(e.target.value), onBlur: handleTitleSave, onKeyDown: e => e.key === 'Enter' && handleTitleSave(), autoFocus: true })
-                            : el('h2', { className: `h2l-tm-title ${status === 'completed' ? 'completed' : ''}`, onClick: () => setIsEditingTitle(true) }, title)
+                            // GÜNCELLEME: Başlık için ContentEditable kullanımı
+                            el(ContentEditable, { 
+                                html: title, 
+                                onChange: setTitle, 
+                                onBlur: handleTitleBlur,
+                                className: 'title-mode h2l-tm-title-editor', 
+                                placeholder: 'Görev adı' 
+                            })
                         ),
                         el('div', { className: 'h2l-tm-desc-box' },
                             el(Icon, { name: 'align-left', className: 'h2l-tm-icon' }),
-                            el('textarea', { className: 'h2l-tm-desc-input', placeholder: 'Açıklama ekle...', value: desc, onChange: e => setDesc(e.target.value), onBlur: handleDescBlur })
+                            // GÜNCELLEME: Açıklama için ContentEditable kullanımı
+                            el(ContentEditable, { 
+                                html: desc, 
+                                onChange: setDesc, 
+                                onBlur: handleDescBlur,
+                                className: 'desc-mode h2l-tm-desc-editor', 
+                                placeholder: 'Açıklama ekle...' 
+                            })
                         ),
                         el('div', { className: 'h2l-tm-comments' },
                             el('div', { className: 'h2l-tm-section-title' }, 'Yorumlar'),
@@ -267,7 +281,6 @@
                                 ? task.labels.map(lbl => {
                                     const isString = typeof lbl === 'string';
                                     const labelName = isString ? lbl : lbl.name;
-                                    // Mevcut 'labels' listesinden slug'ı bulmaya çalış
                                     const foundLabel = labels.find(l => l.name === labelName);
                                     const labelSlug = foundLabel ? foundLabel.slug : (isString ? labelName.toLowerCase() : lbl.slug);
 
@@ -442,7 +455,8 @@
 
         return el('div', { 
             className: rowClassName, 
-            onClick: () => onTaskClick(task),
+            // GÜNCELLEME: Navigasyon fonksiyonunu çağır
+            onClick: () => onTaskClick ? onTaskClick(task) : null,
             draggable: true,
             onDragStart: handleDragStart,
             onDragEnd: handleDragEnd,
