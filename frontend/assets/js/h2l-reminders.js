@@ -2,37 +2,35 @@
     window.H2L = window.H2L || {};
     window.H2L.Reminders = window.H2L.Reminders || {};
 
-    // --- KAPSAMLI VE GÜVENLİ REGEX TANIMLARI ---
+    // --- REGEX TANIMLARI ---
     const PATTERNS = {
-        // --- ETİKETLER (Simple Mode için Group 1: Prefix, Group 2: Keyword) ---
+        // Etiketler (Basit Mod: Grup 1=Önek, Grup 2=Anahtar Kelime)
         priority: /(^|\s)(p[1-4])(?=\s|$)/i,
         user: /(^|\s)(@[\w\u00C0-\u017F]{2,})(?=\s|$)/,
         projectOrLabel: /(^|\s)(#[\w\u00C0-\u017F-]{2,})(?=\s|$)/,
         section: /(^|\s)(>[\w\u00C0-\u017F\s]{2,})(?=\s|$)/,
         status: /(^|\s)(\+[\w\u00C0-\u017F]{2,})(?=\s|$)/,
         
-        // --- TARİH VE ZAMAN (Hatalı eşleşmeleri önlemek için sıkılaştırıldı) ---
-        
-        // 1. Kelime Bazlı (Tam kelime sınırları)
+        // Tarih ve Zaman (Kapsamlı Mod)
         keywords: /\b(bugün|today|yarın|tomorrow|dün|yesterday|yarından\s+sonra|geçen\s+hafta|gelecek\s+hafta|haftaya|bu\s+hafta|önümüzdeki\s+(?:hafta|pazartesi|salı|çarşamba|perşembe|cuma|cumartesi|pazar)|hafta\s+sonu)\b/gi,
-        
-        // 2. Gün İsimleri
         dayNames: /\b(pazartesi|salı|çarşamba|perşembe|cuma|cumartesi|pazar|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
-        
-        // 3. Göreceli Zaman
         relative: /\b((?:\d+|bir|iki|üç|dört|beş|on)\s+(?:gün|hafta|ay|yıl)\s+(?:sonra|ertele|taşı)|(?:yarına|gelecek\s+haftaya|haftaya|bugünden\s+yarına)\s+(?:ertele|taşı)|(?:pazartesi|salı|çarşamba|perşembe|cuma|cumartesi|pazar)(?:ye|ya|e|a)\s+(?:kadar|ertele))\b/gi,
-        
-        // 4. Formatlı Tarihler (12/05 gibi - En az bir ayırıcı şart)
         formatted: /\b(\d{1,2})[\/.](\d{1,2})(?:[\/.](\d{4}))?\b/g,
-        
-        // 5. İsimli Aylar (5 Şubat)
         namedMonth: /\b(?:\d{1,2}\s+(?:ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)|(?:ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2})(?:\s+\d{4})?\b/gi,
-        
-        // 6. Saatler (Sadece sayıları yakalamamalı: 14:00, 9'da, 4pm)
         time: /\b(?:\d{1,2}[:.]\d{2}(?:\s?(?:am|pm))?|\d{1,2}(?:am|pm)|(?:\d{1,2})(?:[:.]00)?\s*['’](?:da|de|ta|te))\b/gi,
-        
-        // 7. Tekrarlı
         recurring: /\b(her\s+(?:(?:\d+|bir|iki|üç)\s+)?(?:gün|sabah|akşam|hafta|ay|yıl|pazartesi|salı|çarşamba|perşembe|cuma|cumartesi|pazar)(?:\s+(?:içi|sonu|günü|bir))?|hafta\s*sonları|her\s+ayın\s+(?:son\s+günü|\d+(?:['’].*)?))\b/gi
+    };
+
+    // Statü Eşleştirme Haritası
+    const STATUS_MAP = { 
+        'başlamadı': 'not_started',
+        'devam': 'in_progress',
+        'bekle': 'on_hold',
+        'iptal': 'cancelled',
+        'tamam': 'completed',
+        'bitti': 'completed',
+        'revize': 'in_review',
+        'onay': 'pending_approval'
     };
 
     const textToNum = (text) => {
@@ -46,11 +44,13 @@
         const wrapper = document.createElement('div');
         wrapper.innerHTML = htmlContent;
         
+        // Sadece metin düğümlerini gez (HTML yapısını bozmamak için)
         const walker = document.createTreeWalker(wrapper, NodeFilter.SHOW_TEXT, null, false);
         const textNodes = [];
         while (walker.nextNode()) textNodes.push(walker.currentNode);
 
         textNodes.forEach(node => {
+            // Zaten highlight edilmiş bir elementin içindeysek atla
             if (node.parentElement && (node.parentElement.classList.contains('h2l-highlight-tag') || ['SCRIPT', 'STYLE', 'TEXTAREA'].includes(node.parentElement.tagName))) return;
 
             let text = node.nodeValue;
@@ -60,25 +60,40 @@
             let changed = false;
 
             const replaceSafe = (regex, className, mode = 'phrase') => {
-                // Regex'i global yap
                 const re = new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : regex.flags + 'g');
                 
                 const temp = newHTML.replace(re, (match, ...args) => {
                     if (mode === 'simple') {
-                        // Regex yapısı: (^|\s) (Keyword)
-                        // args[0] = p1 (Prefix), args[1] = p2 (Keyword)
                         const p1 = args[0]; 
                         const p2 = args[1];
-
+                        
                         if (p2 && typeof p2 === 'string') {
                             let finalClass = className;
+                            
+                            // Priority Özel Rengi (p1, p2...)
                             if (className === 'priority') {
                                 finalClass = `priority priority-${p2.toLowerCase()}`;
                             }
+                            
+                            // Status Özel Rengi (+onay, +iptal...)
+                            if (className === 'status') {
+                                const stKey = p2.replace('+','').toLowerCase();
+                                let statusKey = 'default';
+                                
+                                // Haritada anahtar kelimeyi ara
+                                for (const [key, val] of Object.entries(STATUS_MAP)) {
+                                    if (stKey.includes(key)) {
+                                        statusKey = val;
+                                        break;
+                                    }
+                                }
+                                finalClass = `status status-${statusKey}`;
+                            }
+
                             return `${p1}<span class="h2l-highlight-tag ${finalClass}">${p2}</span>`;
                         }
                     } else {
-                        // Phrase modu: Tüm eşleşmeyi sar
+                        // Phrase Mode (Tarihler vb.)
                         return `<span class="h2l-highlight-tag ${className}">${match}</span>`;
                     }
                     return match;
@@ -90,7 +105,7 @@
                 }
             };
 
-            // Uzun ifadeler önce (Phrase Mode)
+            // Önce uzun ifadeleri (Tarihler) işle
             replaceSafe(PATTERNS.recurring, 'date', 'phrase');
             replaceSafe(PATTERNS.relative, 'date', 'phrase');
             replaceSafe(PATTERNS.namedMonth, 'date', 'phrase');
@@ -99,7 +114,7 @@
             replaceSafe(PATTERNS.time, 'date', 'phrase');
             replaceSafe(PATTERNS.dayNames, 'date', 'phrase');
 
-            // Etiketler (Simple Mode - Prefix'li)
+            // Sonra kısa etiketleri işle
             replaceSafe(PATTERNS.priority, 'priority', 'simple');
             replaceSafe(PATTERNS.user, 'mention', 'simple');
             replaceSafe(PATTERNS.projectOrLabel, 'project', 'simple');
@@ -128,7 +143,7 @@
         switch(parseInt(p)) { case 1: return '#d1453b'; case 2: return '#eb8909'; case 3: return '#246fe0'; default: return '#808080'; }
     };
 
-    // --- SMART PARSER (Data Extraction) ---
+    // --- SMART PARSER (Veri Çıkarma) ---
     const SmartParser = {
         patterns: PATTERNS,
         
@@ -144,11 +159,11 @@
                 projectId: null, sectionId: null, labels: [], status: null, isRecurring: false
             };
 
-            // 1. Öncelik (Grup 2: p1)
+            // 1. Öncelik
             const pMatch = cleanText.match(PATTERNS.priority);
             if (pMatch && pMatch[2]) parsed.priority = parseInt(pMatch[2].replace('p',''));
 
-            // 2. Kullanıcı (Grup 2: @isim)
+            // 2. Kullanıcı
             const uMatch = cleanText.match(PATTERNS.user);
             if (uMatch && uMatch[2] && users.length > 0) {
                 const search = uMatch[2].replace('@','').toLowerCase();
@@ -156,7 +171,7 @@
                 if (user) parsed.assigneeId = user.id;
             }
 
-            // 3. Proje (Grup 2: #proje)
+            // 3. Proje & Etiket
             const pRegex = new RegExp(PATTERNS.projectOrLabel, 'gi');
             let match;
             while ((match = pRegex.exec(cleanText)) !== null) {
@@ -169,7 +184,7 @@
                 }
             }
 
-            // 4. Bölüm (Grup 2: >bölüm)
+            // 4. Bölüm
             const sMatch = cleanText.match(PATTERNS.section);
             if (sMatch && sMatch[2]) {
                 const secName = sMatch[2].replace('>','').trim().toLowerCase();
@@ -181,15 +196,19 @@
                 }
             }
 
-            // 5. Durum (Grup 2: +durum)
+            // 5. Statü (Status)
             const stMatch = cleanText.match(PATTERNS.status);
             if (stMatch && stMatch[2]) {
                 const stKey = stMatch[2].replace('+','').toLowerCase();
-                const stMap = { 'açık': 'open', 'tamamlandı': 'completed', 'bekliyor': 'on_hold' };
-                if(stMap[stKey]) parsed.status = stMap[stKey];
+                for (const [key, val] of Object.entries(STATUS_MAP)) {
+                    if (stKey.includes(key)) {
+                        parsed.status = val;
+                        break;
+                    }
+                }
             }
 
-            // 6. Tarih (Parsing)
+            // 6. Tarih
             const dateResult = this.parseDate(cleanText);
             if (dateResult) {
                 parsed.dueDate = dateResult.date;
@@ -205,10 +224,8 @@
             let hasDate = false;
             let isRecurring = false;
 
-            // Recurring
             if(text.match(PATTERNS.recurring)) { isRecurring = true; hasDate = true; }
 
-            // Relative
             const relMatch = text.match(PATTERNS.relative);
             if(relMatch && !isRecurring) {
                 const m = relMatch[0].toLowerCase();
@@ -224,14 +241,12 @@
                 }
             }
 
-            // Keywords
             if (!hasDate) {
                 if (text.match(/\b(bugün|today)\b/i)) { targetDate = now; hasDate = true; }
                 else if (text.match(/\b(yarın|tomorrow)\b/i)) { targetDate.setDate(now.getDate() + 1); hasDate = true; }
                 else if (text.match(/\b(dün|yesterday)\b/i)) { targetDate.setDate(now.getDate() - 1); hasDate = true; }
             }
 
-            // Named Date
             const nameMatch = text.match(PATTERNS.namedMonth);
             if (nameMatch && !hasDate) {
                 const mStr = nameMatch[0].toLowerCase();
@@ -255,7 +270,6 @@
                 }
             }
 
-            // Day Names
             if (!hasDate) {
                 const dayMatch = text.match(PATTERNS.dayNames);
                 if (dayMatch) {
@@ -272,7 +286,6 @@
                 }
             }
 
-            // Formatted
             const fmtMatch = text.match(PATTERNS.formatted);
             if (fmtMatch && !hasDate) {
                 const parts = fmtMatch[0].split(/[\/.]/);
@@ -285,7 +298,6 @@
                 }
             }
 
-            // Time
             const timeMatch = text.match(PATTERNS.time);
             if (timeMatch) {
                 const tStr = timeMatch[0];

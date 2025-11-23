@@ -1,8 +1,8 @@
 (function(wp) {
     const { createElement: el, useState, useEffect, useRef } = wp.element;
     
-    const Common = window.H2L && window.H2L.Common ? window.H2L.Common : { Icon: () => null, Avatar: () => null };
-    const { Icon, Avatar } = Common;
+    const Common = window.H2L && window.H2L.Common ? window.H2L.Common : { Icon: () => null, Avatar: () => null, TASK_STATUSES: {} };
+    const { Icon, Avatar, TASK_STATUSES } = Common;
     
     const TaskInput = window.H2L && window.H2L.TaskInput ? window.H2L.TaskInput : { TaskEditor: () => null, QuickAddTrigger: () => null };
     const { TaskEditor, QuickAddTrigger } = TaskInput;
@@ -13,6 +13,8 @@
     // --- 1. TASK ROW ---
     const TaskRow = ({ task, users, projects = [], sections = [], onUpdateTask, onTaskClick, highlightToday }) => {
         const [isEditing, setIsEditing] = useState(false);
+        const [isStatusHovered, setIsStatusHovered] = useState(false);
+        const hoverTimeoutRef = useRef(null);
         
         let assignee = null;
         if (task.assignees && task.assignees.length > 0) { 
@@ -21,6 +23,21 @@
         const isToday = task.date_display === 'Bugün';
         const highlightClass = (highlightToday && isToday) ? 'h2l-highlight-today' : '';
         const plainDesc = task.content ? task.content.replace(/<[^>]*>/g, ' ').trim() : '';
+
+        // Hover Yönetimi
+        const handleMouseEnter = () => {
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+                hoverTimeoutRef.current = null;
+            }
+            setIsStatusHovered(true);
+        };
+
+        const handleMouseLeave = () => {
+            hoverTimeoutRef.current = setTimeout(() => {
+                setIsStatusHovered(false);
+            }, 250); 
+        };
 
         if (isEditing) {
             return el('div', { style: { marginLeft: 28, marginBottom: 10 } },
@@ -39,28 +56,89 @@
             );
         }
         
+        const renderStatusMenu = () => {
+            if (!TASK_STATUSES) return null;
+            return el('div', { 
+                className: 'h2l-status-hover-menu',
+                onMouseEnter: handleMouseEnter,
+                onMouseLeave: handleMouseLeave
+            },
+                Object.entries(TASK_STATUSES).map(([key, val]) => {
+                    const isActive = task.status === key;
+                    return el('div', {
+                        key: key,
+                        className: `h2l-status-menu-item ${isActive ? 'active' : ''}`,
+                        onClick: (e) => {
+                            e.stopPropagation();
+                            onUpdateTask(task.id, { status: key });
+                            setIsStatusHovered(false);
+                        }
+                    },
+                        el(Icon, { name: val.icon, style: { color: val.color, width: 16, marginRight: 8 } }),
+                        val.label
+                    );
+                })
+            );
+        };
+
+        const isDoneLike = ['completed', 'cancelled'].includes(task.status);
+        // İptal edilmişse 'cancelled' class'ı ekle, yoksa 'completed' kontrolü yap
+        const checkClass = task.status === 'cancelled' 
+            ? 'cancelled' 
+            : (task.status === 'completed' ? 'completed' : '');
+            
+        // İkon seçimi: cancelled ise 'ban', yoksa 'check'
+        const checkIcon = task.status === 'cancelled' ? 'ban' : 'check';
+
         return el('div', { className: `h2l-task-row ${highlightClass}`, onClick: () => onTaskClick(task) },
-            el('div', { className: 'h2l-task-left' },
-                el('div', { 
-                    className: `h2l-task-check p${task.priority} ${task.status==='completed'?'completed':''}`, 
-                    // YUVARLAĞA TIKLAMA İŞLEMİ:
-                    onClick: (e) => { 
-                        e.stopPropagation(); 
-                        onUpdateTask(task.id, { status: task.status==='completed'?'open':'completed' }); 
-                    } 
-                }, el(Icon, { name: 'check' }))
+            
+            // SOL ALAN
+            el('div', { 
+                className: 'h2l-task-left',
+                onMouseEnter: handleMouseEnter,
+                onMouseLeave: handleMouseLeave
+            },
+                el('div', { className: 'h2l-status-wrapper' },
+                    el('div', { 
+                        className: `h2l-task-check p${task.priority} ${checkClass}`, 
+                        onClick: (e) => { 
+                            e.stopPropagation();
+                            setIsStatusHovered(false);
+                            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                            
+                            const newStatus = (task.status === 'completed' || task.status === 'cancelled') ? 'in_progress' : 'completed';
+                            onUpdateTask(task.id, { status: newStatus }); 
+                        } 
+                    }, el(Icon, { name: checkIcon })),
+
+                    isStatusHovered && renderStatusMenu()
+                )
             ),
+
+            // İÇERİK ALANI
             el('div', { className: 'h2l-task-content' },
                 el('span', { 
-                    className: `h2l-task-title ${task.status==='completed'?'completed':''}`,
-                    dangerouslySetInnerHTML: { __html: task.title } 
+                    // isDoneLike (cancelled veya completed) ise completed stilini (üstü çizili) uygula
+                    // Ayrıca cancelled ise ek olarak cancelled class'ı da ekle (özel stil için)
+                    className: `h2l-task-title ${isDoneLike ? 'completed' : ''} ${task.status === 'cancelled' ? 'cancelled' : ''}`,
+                    dangerouslySetInnerHTML: { __html: task.title }
                 }),
                 plainDesc && el('div', { className: 'h2l-task-desc' }, plainDesc),
                 el('div', { className: 'h2l-task-details' },
                     task.date_display && el('span', { className: `h2l-detail-item date ${isToday ? 'today' : ''}` }, el(Icon, {name:'calendar'}), task.date_display),
+                    
+                    (task.status !== 'open' && task.status !== 'in_progress' && TASK_STATUSES[task.status]) && 
+                        el('span', { className: 'h2l-detail-item status-badge', style: { color: TASK_STATUSES[task.status].color, fontSize: '11px', fontWeight: 600 } }, 
+                            // Eğer cancelled ise ikon + label göster, completed ise gösterme (zaten çizili)
+                            // Kullanıcı "cancelled"ın da badge olarak görünmesini isteyebilir, burada gösteriyoruz.
+                            // Ancak 'completed' için genellikle gizlenir.
+                            task.status === 'completed' ? null : [el(Icon, {name: TASK_STATUSES[task.status].icon}), ' ', TASK_STATUSES[task.status].label]
+                        ),
+                    
                     assignee && el('span', { className: 'h2l-detail-item' }, assignee.name)
                 )
             ),
+
             el('div', { className: 'h2l-task-right' },
                 el('button', { className: 'h2l-icon-btn', title: 'Düzenle', onClick: (e) => { e.stopPropagation(); setIsEditing(true); } }, el(Icon, { name: 'pen' })),
                 assignee ? el('div', { style:{margin:'0 4px'} }, el(Avatar, { userId: assignee.id, users, size: 24 })) : el('button', { className: 'h2l-icon-btn', title: 'Ata', onClick: (e) => { e.stopPropagation(); } }, el(Icon, { name: 'user' })),
@@ -156,25 +234,23 @@
     const ListView = ({ project, tasks, sections, users, projects = [], onUpdateTask, onDeleteTask, onAddTask, onAddSection, onTaskClick, showCompleted, highlightToday, onUpdateSection, onDeleteSection }) => {
         const isVirtualView = project.id === 0;
         
-        // FILTER & SORT LOGIC
-        let visibleTasks = [...tasks]; // Copy array
+        let visibleTasks = [...tasks]; 
 
         if (!showCompleted) { 
-            visibleTasks = visibleTasks.filter(t => t.status !== 'completed'); 
+            visibleTasks = visibleTasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled'); 
         }
 
-        // Sort: Open tasks top, Completed tasks bottom
+        // GÜNCELLEME: SIRALAMA MANTIĞI
         visibleTasks.sort((a, b) => {
-            const isADone = a.status === 'completed';
-            const isBDone = b.status === 'completed';
+            const isADone = a.status === 'completed' || a.status === 'cancelled';
+            const isBDone = b.status === 'completed' || b.status === 'cancelled';
             
-            // If 'a' is done and 'b' is not, 'a' goes after 'b' (return 1)
-            if (isADone && !isBDone) return 1;
+            if (isADone && !isBDone) return 1;  // A bitti, B bitmedi -> A alta
+            if (!isADone && isBDone) return -1; // A bitmedi, B bitti -> A üste
             
-            // If 'a' is not done and 'b' is done, 'a' goes before 'b' (return -1)
-            if (!isADone && isBDone) return -1;
-            
-            return 0; // Keep existing order otherwise
+            // İkisi de aynı gruptaysa (ikisi de açık veya ikisi de kapalı),
+            // sort_order veya created_at'e göre sıralanabilir. Şimdilik mevcut sırayı koru.
+            return 0; 
         });
 
         const rootTasks = visibleTasks.filter(t => !t.section_id || t.section_id == 0);

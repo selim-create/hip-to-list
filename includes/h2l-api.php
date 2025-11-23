@@ -2,6 +2,7 @@
 /**
  * REST API - Frontend Veri Yönetimi (CRUD)
  * Güvenlik ve Erişim Kontrolleri ile Güncellendi.
+ * Partial Update (Kısmi Güncelleme) desteği eklendi.
  */
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -62,15 +63,14 @@ function h2l_api_get_init_data( $request ) {
     global $wpdb;
     $uid = get_current_user_id();
     
-    // 1. KLASÖRLER: Sadece 'public' olanlar VEYA benim sahibim olduklarım
+    // 1. KLASÖRLER
     $folders = $wpdb->get_results($wpdb->prepare("
         SELECT * FROM {$wpdb->prefix}h2l_folders 
         WHERE access_type = 'public' OR owner_id = %d 
         ORDER BY name ASC
     ", $uid));
     
-    // 2. PROJELER: Tüm projeleri çekip PHP tarafında filtreleyelim (JSON decode gerektiği için)
-    // Daha performanslı olması için önce ham veriyi alıyoruz.
+    // 2. PROJELER
     $all_projects = $wpdb->get_results("
         SELECT p.*, 
         (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_tasks WHERE project_id = p.id AND status = 'completed') as completed_count,
@@ -81,24 +81,20 @@ function h2l_api_get_init_data( $request ) {
     ");
 
     $visible_projects = [];
-    $visible_project_ids = []; // Görevleri filtrelemek için ID listesi
+    $visible_project_ids = [];
 
     foreach ($all_projects as $p) {
         $managers = !empty($p->managers) ? json_decode((string)$p->managers, true) : [];
         if (!is_array($managers)) $managers = [];
 
-        // GÖRÜNÜRLÜK KURALI:
-        // 1. Projenin sahibi benim
-        // 2. VEYA Yöneticiler listesinde varım
-        // (Admin yetkisi olsa bile kural gereği projeye dahil değilse göremez)
         if ( $p->owner_id == $uid || in_array((string)$uid, $managers) || in_array($uid, $managers) ) {
-            $p->managers = $managers; // Decode edilmiş hali geri koy
+            $p->managers = $managers;
             $visible_projects[] = $p;
             $visible_project_ids[] = $p->id;
         }
     }
 
-    // 3. GÖREVLER: Sadece görünür projelerin görevleri
+    // 3. GÖREVLER
     $tasks = [];
     if (!empty($visible_project_ids)) {
         $ids_placeholder = implode(',', array_fill(0, count($visible_project_ids), '%d'));
@@ -111,7 +107,7 @@ function h2l_api_get_init_data( $request ) {
         ));
     }
 
-    // 4. BÖLÜMLER: Sadece görünür projelerin bölümleri
+    // 4. BÖLÜMLER
     $sections = [];
     if (!empty($visible_project_ids)) {
         $ids_placeholder = implode(',', array_fill(0, count($visible_project_ids), '%d'));
@@ -123,7 +119,7 @@ function h2l_api_get_init_data( $request ) {
         ));
     }
     
-    // Kullanıcı Listesi (Atama yapabilmek için herkesi getiriyoruz, ama filtreleme frontend'de proje bazlı olacak)
+    // Kullanıcı Listesi
     $users = array_map(function($u) {
         return [
             'id' => $u->ID, 
@@ -132,7 +128,7 @@ function h2l_api_get_init_data( $request ) {
         ];
     }, get_users());
 
-    // Task verilerini işle (Assignee decode vb.)
+    // Task verilerini işle
     $tasks = array_map(function($t) {
         $t->assignees = !empty($t->assignee_ids) ? json_decode((string)$t->assignee_ids) : [];
         if($t->due_date) {
@@ -161,27 +157,49 @@ function h2l_api_manage_task($request) {
         return ['success' => true]; 
     }
     
-    $data = [
-        'title' => wp_kses_post($params['title'] ?? ''), 
-        'content' => wp_kses_post($params['content'] ?? ''),
-        'project_id' => intval($params['projectId'] ?? 0),
-        'section_id' => intval($params['sectionId'] ?? 0),
-        'priority' => intval($params['priority'] ?? 4),
-        'status' => sanitize_text_field($params['status'] ?? 'open'),
-        'due_date' => !empty($params['dueDate']) ? sanitize_text_field($params['dueDate']) : null,
-        'assignee_ids' => json_encode($params['assignees'] ?? [])
-    ];
+    // DÜZELTME: Veri güncelleme mantığı "Partial Update" (Kısmi Güncelleme) olarak değiştirildi.
+    // Eğer sadece status gelirse, diğer alanlar (title, project_id vb.) silinmeyecek.
     
-    // TODO: Buraya da proje yetki kontrolü eklenebilir (Kullanıcı bu projeye görev ekleyebilir mi?)
+    if ($id) {
+        // UPDATE MODU: Sadece gelen alanları güncelle
+        $data = [];
+        if (isset($params['title'])) $data['title'] = wp_kses_post($params['title']);
+        if (isset($params['content'])) $data['content'] = wp_kses_post($params['content']);
+        if (isset($params['projectId'])) $data['project_id'] = intval($params['projectId']);
+        if (isset($params['sectionId'])) $data['section_id'] = intval($params['sectionId']);
+        if (isset($params['priority'])) $data['priority'] = intval($params['priority']);
+        if (isset($params['status'])) $data['status'] = sanitize_text_field($params['status']);
+        
+        // Tarih kontrolü: null gönderilirse tarihi silmeli
+        if (array_key_exists('dueDate', $params)) {
+            $data['due_date'] = !empty($params['dueDate']) ? sanitize_text_field($params['dueDate']) : null;
+        }
+        
+        if (isset($params['assignees'])) $data['assignee_ids'] = json_encode($params['assignees']);
+        
+        if (!empty($data)) {
+            $wpdb->update($table, $data, ['id'=>$id]);
+        }
+        $new_id = $id;
 
-    if ($id) { 
-        $wpdb->update($table, $data, ['id'=>$id]); 
-        $new_id = $id; 
-    } else { 
-        $data['created_at'] = current_time('mysql'); 
+    } else {
+        // INSERT MODU: Varsayılan değerlerle oluştur
+        $data = [
+            'title' => wp_kses_post($params['title'] ?? ''), 
+            'content' => wp_kses_post($params['content'] ?? ''),
+            'project_id' => intval($params['projectId'] ?? 0),
+            'section_id' => intval($params['sectionId'] ?? 0),
+            'priority' => intval($params['priority'] ?? 4),
+            'status' => sanitize_text_field($params['status'] ?? 'open'),
+            'due_date' => !empty($params['dueDate']) ? sanitize_text_field($params['dueDate']) : null,
+            'assignee_ids' => json_encode($params['assignees'] ?? []),
+            'created_at' => current_time('mysql')
+        ];
+        
         $wpdb->insert($table, $data); 
         $new_id = $wpdb->insert_id; 
     }
+    
     return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id=%d", $new_id));
 }
 
@@ -223,7 +241,6 @@ function h2l_api_manage_project($request) {
     $current_user_id = get_current_user_id();
 
     if ($method === 'DELETE') { 
-        // Sadece sahibi silebilir
         $project = $wpdb->get_row($wpdb->prepare("SELECT owner_id FROM $table_projects WHERE id = %d", $id));
         if ($project && $project->owner_id != $current_user_id) {
              return new WP_Error('forbidden', 'Sadece proje sahibi silebilir.', ['status'=>403]);
@@ -232,51 +249,55 @@ function h2l_api_manage_project($request) {
         return ['success' => true]; 
     }
 
-    // Klasör Kontrolü (Private Folder Logic)
-    $folder_id = intval($params['folderId'] ?? 0);
-    $managers = $params['managers'] ?? [];
-
-    if ($folder_id > 0) {
-        $folder = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_folders WHERE id = %d", $folder_id));
-        
-        // KURAL: Klasör 'private' ise, üyeler sıfırlanır (Sadece owner kalır)
-        if ($folder && $folder->access_type === 'private') {
-            // Frontend'den ne gelirse gelsin, private klasördeki projenin manager'ı olamaz.
-            // Sadece owner kendi projesini görür.
-            $managers = []; 
-        }
-    }
-
-    // Owner'ı her zaman managers listesine (JSON) dahil etmeyebiliriz çünkü owner_id sütunu var.
-    // Ama tutarlılık için owner_id'yi managers array'ine dahil etmek iyi olabilir.
-    // Şimdilik managers array'i "eklenen diğer kişiler" olarak düşünüldü ama
-    // frontend'de owner'ı da listeye eklediğimiz için burada da cleanlemek lazım.
-    
-    // Gelen managers array'inde sadece string ID'ler olduğundan emin ol
-    $clean_managers = array_map('strval', $managers);
-    
-    // Eğer proje yeni oluşturuluyorsa owner benim
-    $owner_id = $id ? $wpdb->get_var($wpdb->prepare("SELECT owner_id FROM $table_projects WHERE id=%d", $id)) : $current_user_id;
-
-    $data = [
-        'title' => sanitize_text_field($params['title'] ?? ''),
-        'folder_id' => $folder_id,
-        'color' => sanitize_hex_color($params['color'] ?? '#808080'),
-        'view_type' => sanitize_text_field($params['viewType'] ?? 'list'),
-        'managers' => json_encode($clean_managers),
-        'is_favorite' => !empty($params['is_favorite']) ? 1 : 0
-    ];
-
     if ($id) { 
-        // Güncelleme: Sadece yetkili kişiler (Owner veya Manager) güncelleyebilir
-        // Basitlik için: Şimdilik herkes güncelleyebiliyor varsayalım (frontend engelliyor)
-        // Ama güvenlik için kontrol eklenebilir.
-        $wpdb->update($table_projects, $data, ['id' => $id]); 
+        // UPDATE: Kısmi güncelleme
+        $data = [];
+        if (isset($params['title'])) $data['title'] = sanitize_text_field($params['title']);
+        if (isset($params['folderId'])) $data['folder_id'] = intval($params['folderId']); // Buraya private folder kontrolü eklenebilir
+        if (isset($params['color'])) $data['color'] = sanitize_hex_color($params['color']);
+        if (isset($params['viewType'])) $data['view_type'] = sanitize_text_field($params['viewType']);
+        if (isset($params['managers'])) {
+            $managers = $params['managers'];
+            
+            // Eğer folderId gönderildiyse ve private ise managerları temizle
+            if (isset($params['folderId'])) {
+                $folder = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_folders WHERE id = %d", $params['folderId']));
+                if ($folder && $folder->access_type === 'private') {
+                    $managers = [];
+                }
+            }
+            $clean_managers = array_map('strval', $managers);
+            $data['managers'] = json_encode($clean_managers);
+        }
+        if (isset($params['is_favorite'])) $data['is_favorite'] = !empty($params['is_favorite']) ? 1 : 0;
+        
+        if (!empty($data)) {
+            $wpdb->update($table_projects, $data, ['id' => $id]); 
+        }
         $new_id = $id; 
     } else { 
-        $data['owner_id'] = $current_user_id;
-        $data['created_at'] = current_time('mysql'); 
-        $data['status'] = 'active'; 
+        // INSERT
+        // Private folder kontrolü
+        $folder_id = intval($params['folderId'] ?? 0);
+        $managers = $params['managers'] ?? [];
+        if ($folder_id > 0) {
+            $folder = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_folders WHERE id = %d", $folder_id));
+            if ($folder && $folder->access_type === 'private') $managers = [];
+        }
+        $clean_managers = array_map('strval', $managers);
+
+        $data = [
+            'title' => sanitize_text_field($params['title'] ?? ''),
+            'folder_id' => $folder_id,
+            'color' => sanitize_hex_color($params['color'] ?? '#808080'),
+            'view_type' => sanitize_text_field($params['viewType'] ?? 'list'),
+            'managers' => json_encode($clean_managers),
+            'is_favorite' => !empty($params['is_favorite']) ? 1 : 0,
+            'owner_id' => $current_user_id,
+            'created_at' => current_time('mysql'),
+            'status' => 'active'
+        ];
+        
         $wpdb->insert($table_projects, $data); 
         $new_id = $wpdb->insert_id; 
     }
@@ -287,18 +308,42 @@ function h2l_api_manage_project($request) {
 function h2l_api_manage_folder($request) {
     global $wpdb; $table = $wpdb->prefix . 'h2l_folders';
     $method = $request->get_method(); $id = $request->get_param('id'); $params = $request->get_json_params();
+    
     if ($method === 'DELETE') { $wpdb->delete($table, ['id' => $id]); return ['success' => true]; }
-    $data = ['name'=>sanitize_text_field($params['name']??''),'access_type'=>sanitize_text_field($params['access_type']??'private'),'description'=>sanitize_textarea_field($params['description']??''),'owner_id'=>get_current_user_id()];
-    if ($id) { $wpdb->update($table, $data, ['id'=>$id]); $new_id=$id; } else { $wpdb->insert($table, $data); $new_id=$wpdb->insert_id; }
+    
+    if ($id) {
+        $data = [];
+        if(isset($params['name'])) $data['name'] = sanitize_text_field($params['name']);
+        if(isset($params['access_type'])) $data['access_type'] = sanitize_text_field($params['access_type']);
+        if(isset($params['description'])) $data['description'] = sanitize_textarea_field($params['description']);
+        if(!empty($data)) $wpdb->update($table, $data, ['id'=>$id]);
+        $new_id=$id;
+    } else {
+        $data = ['name'=>sanitize_text_field($params['name']??''),'access_type'=>sanitize_text_field($params['access_type']??'private'),'description'=>sanitize_textarea_field($params['description']??''),'owner_id'=>get_current_user_id()];
+        $wpdb->insert($table, $data); 
+        $new_id=$wpdb->insert_id;
+    }
     return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id=%d", $new_id));
 }
 
 function h2l_api_manage_section($request) {
     global $wpdb; $table = $wpdb->prefix . 'h2l_sections';
     $method = $request->get_method(); $id = $request->get_param('id'); $params = $request->get_json_params();
+    
     if ($method === 'DELETE') { $wpdb->delete($table, ['id' => $id]); return ['success' => true]; }
-    $data = ['name' => sanitize_text_field($params['name']), 'project_id' => intval($params['projectId']), 'sort_order' => intval($params['sortOrder'] ?? 0)];
-    if ($id) { $wpdb->update($table, $data, ['id' => $id]); $new_id = $id; } else { $data['created_at'] = current_time('mysql'); $wpdb->insert($table, $data); $new_id = $wpdb->insert_id; }
+    
+    if ($id) {
+        $data = [];
+        if(isset($params['name'])) $data['name'] = sanitize_text_field($params['name']);
+        if(isset($params['projectId'])) $data['project_id'] = intval($params['projectId']);
+        if(isset($params['sortOrder'])) $data['sort_order'] = intval($params['sortOrder']);
+        if(!empty($data)) $wpdb->update($table, $data, ['id' => $id]); 
+        $new_id = $id;
+    } else {
+        $data = ['name' => sanitize_text_field($params['name']??''), 'project_id' => intval($params['projectId']??0), 'sort_order' => intval($params['sortOrder'] ?? 0), 'created_at' => current_time('mysql')];
+        $wpdb->insert($table, $data); 
+        $new_id = $wpdb->insert_id;
+    }
     return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $new_id));
 }
 ?>

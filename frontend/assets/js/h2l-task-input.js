@@ -1,8 +1,9 @@
 (function(wp) {
     const { createElement: el, useState, useEffect, useRef } = wp.element;
     
-    const Common = window.H2L && window.H2L.Common ? window.H2L.Common : { Icon: () => null, Avatar: () => null };
-    const { Icon, Avatar } = Common;
+    // Common ve Status Tanımlarını Al
+    const Common = window.H2L && window.H2L.Common ? window.H2L.Common : { Icon: () => null, Avatar: () => null, TASK_STATUSES: {} };
+    const { Icon, Avatar, TASK_STATUSES } = Common;
     
     const getReminders = () => {
         return window.H2L && window.H2L.Reminders ? window.H2L.Reminders : {
@@ -15,7 +16,7 @@
     window.H2L = window.H2L || {};
     window.H2L.TaskInput = window.H2L.TaskInput || {};
 
-    // --- 1. TODOIST DATEPICKER CLASS ---
+    // --- 1. TODOIST DATEPICKER CLASS (Tam Sürüm) ---
     class TodoistDatepicker {
         constructor(wrapperElement, options = {}) {
             this.wrapper = typeof wrapperElement === 'string' ? document.getElementById(wrapperElement) : wrapperElement;
@@ -31,14 +32,15 @@
             this.iconHolder = this.wrapper.querySelector('.td-icon-holder');
             
             this.hDate = this.wrapper.querySelector('#h_date');
-            this.hTime = this.wrapper.querySelector('#h_time');
-            this.hRepeat = this.wrapper.querySelector('#h_repeat');
-
+            
             this.today = new Date();
             this.today.setHours(0,0,0,0);
             this.currentViewDate = new Date(this.today);
             
-            this.selectedDate = options.defaultDate ? new Date(options.defaultDate) : null;
+            // Başlangıç tarihi kontrolü
+            const defDate = options.defaultDate ? new Date(options.defaultDate) : null;
+            this.selectedDate = (defDate && !isNaN(defDate.getTime())) ? defDate : null;
+            
             this.selectedTime = options.defaultTime || null;
             this.selectedRepeat = options.defaultRepeat || null;
 
@@ -53,8 +55,6 @@
         renderBaseHTML() {
             this.wrapper.innerHTML = `
                 <input type="hidden" name="date" id="h_date">
-                <input type="hidden" name="time" id="h_time">
-                <input type="hidden" name="repeat" id="h_repeat">
                 <div class="td-trigger-btn" id="td-trigger" style="height: 30px; box-sizing: border-box;">
                     <span class="td-icon-holder">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z"/></svg>
@@ -266,10 +266,11 @@
                 this.btnRepeat.querySelector('.lbl').textContent = rMap[this.selectedRepeat] || 'Tekrar';
             } else { this.btnRepeat.classList.remove('has-value'); this.btnRepeat.querySelector('.lbl').textContent = 'Tekrar'; }
 
-            if (!this.selectedDate) {
+            // ERROR FIX: Check if selectedDate is valid before using it
+            if (!this.selectedDate || isNaN(this.selectedDate.getTime())) {
                 this.label.textContent = "Tarih";
                 this.iconHolder.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z"/></svg>`;
-                this.hDate.value = "";
+                if(this.hDate) this.hDate.value = "";
             } else {
                 const result = this.getSmartDateLabel(this.selectedDate);
                 let labelHTML = `<span>${result.text}</span>`;
@@ -283,14 +284,14 @@
                 const y = this.selectedDate.getFullYear();
                 const m = String(this.selectedDate.getMonth() + 1).padStart(2, '0');
                 const d = String(this.selectedDate.getDate()).padStart(2, '0');
-                this.hDate.value = `${y}-${m}-${d}`;
+                if(this.hDate) this.hDate.value = `${y}-${m}-${d}`;
             }
             
             if(this.popup.classList.contains('active')) this.renderCalendar();
 
             if (this.onChange) {
                 let isoDate = null;
-                if (this.selectedDate) {
+                if (this.selectedDate && !isNaN(this.selectedDate.getTime())) {
                     const y = this.selectedDate.getFullYear();
                     const m = String(this.selectedDate.getMonth() + 1).padStart(2, '0');
                     const d = String(this.selectedDate.getDate()).padStart(2, '0');
@@ -301,6 +302,9 @@
         }
 
         getSmartDateLabel(date) {
+            // ERROR FIX: Safety Check for Invalid Dates
+            if (!date || isNaN(date.getTime())) return { text: "Tarih", class: "", icon: "" };
+
             const tomorrow = this.addDays(this.today, 1);
             const diffTime = date - this.today;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
@@ -311,19 +315,24 @@
         }
 
         getDynamicCalendarIcon(dayNum) {
+            // Fallback for NaN
+            if (isNaN(dayNum)) dayNum = 1;
             return `<svg viewBox="0 0 24 24" class="dynamic-calendar-icon" fill="currentColor"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z"/><text x="12" y="19" text-anchor="middle" fill="${this.isSameDay(this.selectedDate, this.today) || !this.selectedDate ? 'currentColor' : '#fff'}" style="font-size:10px; font-family:sans-serif; font-weight:700;">${dayNum}</text></svg>`;
         }
         
         addDays(d, n) { const z=new Date(d); z.setDate(z.getDate()+n); return z; }
         getNextDay(dayIdx) { const d=new Date(); d.setDate(d.getDate() + (dayIdx + 7 - d.getDay()) % 7); if(d<=new Date()) d.setDate(d.getDate()+7); return d; }
-        isSameDay(a, b) { return a && b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+        isSameDay(a, b) { return a && b && !isNaN(a.getTime()) && !isNaN(b.getTime()) && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
         getDayNameShort(d) { return this.daysShort[(d.getDay()+6)%7]; }
-        formatDateShort(d) { return `${d.getDate()} ${this.months[d.getMonth()].substring(0,3)}`; }
+        formatDateShort(d) { 
+            if (!d || isNaN(d.getTime())) return '';
+            return `${d.getDate()} ${this.months[d.getMonth()].substring(0,3)}`; 
+        }
         getMonday(d) { d = new Date(d); var day = d.getDay(), diff = d.getDate() - day + (day == 0 ? -6 : 1); return new Date(d.setDate(diff)); }
     }
 
     const PLACEHOLDERS = [
-         "Kampanya kurulumu ekleyin… ör. yarın 10:00 #DV360 p1",
+        "Kampanya kurulumu ekleyin… ör. yarın 10:00 #DV360 p1",
         "Müşteri onayı iste… @selim bugün 15:00",
         "Günlük optimizasyon görevi… her gün 09:30 #MetaAds",
         "Teklif hazırlama… 2 gün sonra >Satış @berkay",
@@ -479,10 +488,18 @@
 
         useEffect(() => {
             if (pickerRef.current) {
-                if (date) pickerRef.current.selectedDate = new Date(date);
-                else pickerRef.current.selectedDate = null;
+                if (date) {
+                    const d = new Date(date);
+                    // Fix: Ensure date is valid
+                    pickerRef.current.selectedDate = isNaN(d.getTime()) ? null : d;
+                } else {
+                    pickerRef.current.selectedDate = null;
+                }
+                
                 pickerRef.current.selectedTime = time;
                 pickerRef.current.selectedRepeat = repeat;
+                
+                // Safe update
                 if (pickerRef.current.updateUI) pickerRef.current.updateUI();
             }
         }, [date, time, repeat]);
@@ -605,13 +622,16 @@
     const TaskEditor = ({ mode = 'add', initialData = {}, users = [], projects = [], sections = [], activeProjectId = 0, onSave, onCancel }) => {
         const [title, setTitle] = useState(initialData.title || '');
         const [description, setDescription] = useState(initialData.content || '');
-        const [currentPlaceholder, setCurrentPlaceholder] = useState(mode === 'add' ? getRandomPlaceholder() : 'Görev adı');
+        const [currentPlaceholder, setCurrentPlaceholder] = useState(mode === 'add' ? getRandomPlaceholder() : 'Görev adını yazın… @selim bugün 15:00');
         const [priority, setPriority] = useState(initialData.priority || 4);
         const [assigneeIds, setAssigneeIds] = useState(initialData.assignees || []);
         const [dueDate, setDueDate] = useState(initialData.due_date ? initialData.due_date.split(' ')[0] : '');
         const [dueTime, setDueTime] = useState(initialData.due_date && initialData.due_date.includes(' ') ? initialData.due_date.split(' ')[1].substring(0, 5) : '');
         const [repeat, setRepeat] = useState(initialData.repeat || null);
-        const [status, setStatus] = useState(initialData.status || 'open');
+        
+        // --- YENİ: Varsayılan Statü 'in_progress' ---
+        const [status, setStatus] = useState(initialData.status || 'in_progress');
+        
         const [projectId, setProjectId] = useState(initialData.project_id || activeProjectId);
         const [sectionId, setSectionId] = useState(initialData.section_id || null);
         const [activePopup, setActivePopup] = useState(null);
@@ -668,7 +688,6 @@
             const { SmartParser } = getReminders();
             
             if (SmartParser && SmartParser.parse) {
-                // Proje Üyelerini Filtrele
                 let eligibleUsers = users;
                 if (projectId) {
                     const currentProj = projects.find(p => parseInt(p.id) === parseInt(projectId));
@@ -684,7 +703,6 @@
                 
                 if (result.priority) setPriority(result.priority);
                 
-                // ÇOKLU MENTION YAKALAMA
                 const mentionRegex = /(?:^|\s)@([\w\u00C0-\u017F]{2,})/gi;
                 const foundIds = [];
                 let m;
@@ -693,7 +711,6 @@
                     const user = eligibleUsers.find(u => u.name.toLowerCase().includes(search));
                     if (user) foundIds.push(user.id);
                 }
-                // Tekrarları önle ve state'i güncelle
                 if (foundIds.length > 0) {
                     setAssigneeIds([...new Set(foundIds)]);
                 }
@@ -705,6 +722,8 @@
                 }
                 if (result.projectId) setProjectId(result.projectId);
                 if (result.sectionId) setSectionId(result.sectionId);
+                // YENİ: Status update logic based on parser result
+                if (result.status) setStatus(result.status);
             }
         }, [title, users, projects, sections, projectId]);
 
@@ -741,7 +760,7 @@
                 const { SmartParser } = getReminders();
                 pasteLines.forEach(line => {
                     const parsed = SmartParser.parse(line, projects, users, sections);
-                    const taskData = { title: line, priority: parsed.priority || priority, assignees: parsed.assigneeId ? [parsed.assigneeId] : [], dueDate: parsed.dueDate || dueDate, projectId: parsed.projectId || projectId, sectionId: parsed.sectionId || sectionId, status: 'open' };
+                    const taskData = { title: line, priority: parsed.priority || priority, assignees: parsed.assigneeId ? [parsed.assigneeId] : [], dueDate: parsed.dueDate || dueDate, projectId: parsed.projectId || projectId, sectionId: parsed.sectionId || sectionId, status: 'in_progress' };
                     onSave(taskData);
                 });
                 if(mode === 'add') { setTitle(''); setDescription(''); setCurrentPlaceholder(getRandomPlaceholder()); }
@@ -757,7 +776,7 @@
                 const taskData = { id: initialData.id, title, content: description, priority, assignees: assigneeIds, dueDate: finalDueDate, repeat, status, projectId, sectionId };
                 onSave(taskData);
                 if(mode === 'add') { 
-                    setTitle(''); setDescription(''); setPriority(4); setAssigneeIds([]); setDueDate(''); setDueTime(''); setRepeat(null);
+                    setTitle(''); setDescription(''); setPriority(4); setAssigneeIds([]); setDueDate(''); setDueTime(''); setRepeat(null); setStatus('in_progress'); // RESET TO IN_PROGRESS
                     setCurrentPlaceholder(getRandomPlaceholder());
                     const titleEl = wrapperRef.current.querySelector('.h2l-content-editable.title-mode'); if(titleEl) titleEl.innerHTML = ''; 
                 }
@@ -808,9 +827,12 @@
             return elements;
         };
 
+        // Statü Etiketi İçin
+        const currentStatusObj = TASK_STATUSES[status] || TASK_STATUSES['in_progress'];
+
         const renderPopup = () => {
             if (!activePopup) return null;
-            const popupStyle = { top: '100%', left: 0, marginTop: 5 };
+            const popupStyle = { top: '100%', left: 0, marginTop: 5, zIndex: 1000 };
             
             if (activePopup === 'assignee') {
                 let eligibleUsers = users;
@@ -839,7 +861,20 @@
             }
 
             if (activePopup === 'priority') return el('div', { className: 'h2l-popover-menu', style: popupStyle }, [1, 2, 3, 4].map(p => el('div', { key: p, className: 'h2l-menu-item', onClick: () => { setPriority(p); setActivePopup(null); } }, el(Icon, { name: 'flag', style: { color: getPriorityColor(p), marginRight: 8 } }), `Öncelik ${p}`, priority === p && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } }))));
-            if (activePopup === 'status') return el('div', { className: 'h2l-popover-menu', style: popupStyle }, Object.keys({'open':'Açık','in_progress':'Devam Ediyor','completed':'Tamamlandı'}).map(k => el('div', { key: k, className: 'h2l-menu-item', onClick: () => { setStatus(k); setActivePopup(null); } }, el(Icon, { name: k === 'completed' ? 'check-circle' : 'circle', style: { marginRight: 8, color: '#888' } }), {'open':'Açık','in_progress':'Devam Ediyor','completed':'Tamamlandı'}[k], status === k && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } }))));
+            
+            // --- YENİ STATÜ POPUP ---
+            if (activePopup === 'status') {
+                return el('div', { className: 'h2l-popover-menu', style: { ...popupStyle, width: 200 } }, 
+                    Object.entries(TASK_STATUSES).map(([key, val]) => 
+                        el('div', { key: key, className: 'h2l-menu-item', onClick: () => { setStatus(key); setActivePopup(null); } }, 
+                            el(Icon, { name: val.icon, style: { marginRight: 8, color: val.color } }), 
+                            val.label, 
+                            status === key && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } })
+                        )
+                    )
+                );
+            }
+
             if (activePopup === 'project') return el('div', { className: 'h2l-popover-menu', style: { bottom: '100%', top: 'auto', marginBottom: 5, left: 0 } }, el('div', { className: 'h2l-menu-title' }, 'Proje Seç'), projects.map(p => el('div', { key: p.id, className: 'h2l-menu-item', onClick: () => { setProjectId(p.id); setActivePopup(null); } }, el('span', { style: { color: p.color, marginRight: 8, fontSize: 14 } }, '#'), p.title, parseInt(projectId) === parseInt(p.id) && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } }))));
             return null;
         };
@@ -866,7 +901,15 @@
                     el('div', { className: 'h2l-chip-wrapper' }, el('button', { className: 'h2l-todoist-chip', onClick: () => setActivePopup(activePopup === 'priority' ? null : 'priority'), style: priority !== 4 ? { color: getPriorityColor(priority), borderColor: getPriorityColor(priority) } : {} }, el(Icon, {name:'flag'}), ` Öncelik ${priority !== 4 ? priority : ''}`), activePopup === 'priority' && renderPopup()),
                     
                     el('div', { className: 'h2l-chip-wrapper' }, el('button', { className: 'h2l-todoist-chip disabled' }, el(Icon, {name:'clock'}), ' Hatırlatıcılar')),
-                    el('div', { className: 'h2l-chip-wrapper' }, el('button', { className: 'h2l-todoist-chip', onClick: () => setActivePopup(activePopup === 'status' ? null : 'status') }, el(Icon, {name:'spinner'}), status === 'open' ? ' Status' : ` ${status}`), activePopup === 'status' && renderPopup()),
+                    
+                    // YENİ: STATÜ BUTONU
+                    el('div', { className: 'h2l-chip-wrapper' }, 
+                        el('button', { className: 'h2l-todoist-chip', onClick: () => setActivePopup(activePopup === 'status' ? null : 'status') }, 
+                            el(Icon, {name: currentStatusObj.icon, style: { color: currentStatusObj.color }}), 
+                            ` ${currentStatusObj.label}`
+                        ), 
+                        activePopup === 'status' && renderPopup()
+                    ),
                     
                     el('div', { className: 'h2l-chip-wrapper' }, el('button', { className: 'h2l-todoist-chip icon-only' }, el(Icon, {name:'ellipsis'})))
                 )

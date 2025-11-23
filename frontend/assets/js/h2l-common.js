@@ -12,6 +12,17 @@
         { name: 'Nane', code: '#6accbc' }, { name: 'Turkuaz', code: '#158fad' }, { name: 'Koyu Gri', code: '#2c3e50' }
     ];
 
+    // YENİ: Gelişmiş Görev Statüleri
+    const TASK_STATUSES = {
+        not_started: { key: 'not_started', label: 'Başlamadı', icon: 'circle', color: '#808080' },
+        in_progress: { key: 'in_progress', label: 'Devam Ediyor', icon: 'play', color: '#246fe0' }, // Varsayılan
+        on_hold: { key: 'on_hold', label: 'Beklemede', icon: 'pause', color: '#e67e22' },
+        in_review: { key: 'in_review', label: 'Revizyonda', icon: 'magnifying-glass', color: '#8e44ad' },
+        pending_approval: { key: 'pending_approval', label: 'Onay Bekliyor', icon: 'clock', color: '#f1c40f' },
+        cancelled: { key: 'cancelled', label: 'İptal Edildi', icon: 'ban', color: '#c0392b' },
+        completed: { key: 'completed', label: 'Tamamlandı', icon: 'check-circle', color: '#27ae60' }
+    };
+
     class ErrorBoundary extends Component {
         constructor(props) { super(props); this.state = { hasError: false }; }
         static getDerivedStateFromError(error) { return { hasError: true }; }
@@ -94,7 +105,6 @@
                                 el('span', null, u.name),
                                 isOwner && el('span', { style: { fontSize: '10px', color: '#888', fontWeight: 600 } }, 'Proje Sahibi')
                             ),
-                            // Owner ise Kilit, değilse Tık
                             isOwner 
                                 ? el(Icon, { name: 'lock', style: { color: '#999', fontSize: '12px' } })
                                 : (selectedState && el(Icon, { name: 'check', style: { color: '#db4c3f' } }))
@@ -111,6 +121,7 @@
         Avatar,
         MultiSelect,
         getFolderId,
-        PROJECT_COLORS
+        PROJECT_COLORS,
+        TASK_STATUSES
     };
 })(window.wp);

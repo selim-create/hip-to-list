@@ -64,7 +64,7 @@ function h2l_handle_status_actions($table_name) {
     if (!isset($_GET['id']) || !isset($_GET['action'])) return;
     $id = intval($_GET['id']); $action = $_GET['action'];
     if ($action == 'trash') { $wpdb->update($table_name, array('status' => 'trash'), array('id' => $id)); h2l_show_admin_notice('Çöp kutusuna taşındı.'); }
-    elseif ($action == 'restore') { $new_status = ($table_name == $wpdb->prefix . 'h2l_tasks') ? 'open' : 'active'; $wpdb->update($table_name, array('status' => $new_status), array('id' => $id)); h2l_show_admin_notice('Geri alındı.'); }
+    elseif ($action == 'restore') { $new_status = ($table_name == $wpdb->prefix . 'h2l_tasks') ? 'in_progress' : 'active'; $wpdb->update($table_name, array('status' => $new_status), array('id' => $id)); h2l_show_admin_notice('Geri alındı.'); }
     elseif ($action == 'delete_permanent') { $wpdb->delete($table_name, array('id' => $id)); h2l_show_admin_notice('Kalıcı silindi.'); }
 }
 
@@ -72,7 +72,7 @@ function h2l_handle_status_actions($table_name) {
 function h2l_render_tasks_page() {
     global $wpdb;
     $table_tasks = $wpdb->prefix . 'h2l_tasks'; $table_projects = $wpdb->prefix . 'h2l_projects'; $table_folders = $wpdb->prefix . 'h2l_folders'; $table_sections = $wpdb->prefix . 'h2l_sections';
-    if (isset($_GET['action']) && $_GET['action'] == 'restore' && isset($_GET['id'])) { $wpdb->update($table_tasks, array('status' => 'open'), array('id' => intval($_GET['id']))); h2l_show_admin_notice('Görev geri alındı.'); } else { h2l_handle_status_actions($table_tasks); }
+    if (isset($_GET['action']) && $_GET['action'] == 'restore' && isset($_GET['id'])) { $wpdb->update($table_tasks, array('status' => 'in_progress'), array('id' => intval($_GET['id']))); h2l_show_admin_notice('Görev geri alındı.'); } else { h2l_handle_status_actions($table_tasks); }
     $view_status = isset($_GET['status_view']) ? $_GET['status_view'] : 'active';
     $where = $view_status == 'trash' ? "WHERE t.status = 'trash'" : "WHERE t.status != 'trash'";
     if($wpdb->get_var("SHOW TABLES LIKE '$table_sections'") != $table_sections) { echo '<div class="wrap"><div class="notice notice-warning"><p>Sistem yapılandırılıyor, lütfen sayfayı yenileyiniz.</p></div></div>'; return; }
@@ -95,15 +95,24 @@ function h2l_render_tasks_page() {
                 $assignees = !empty($t->assignee_ids) ? json_decode((string)$t->assignee_ids) : [];
                 $assignee_html = '-';
                 if(is_array($assignees) && !empty($assignees)) { $u = get_userdata($assignees[0]); if($u) $assignee_html = get_avatar($u->ID, 20).' '.esc_html($u->display_name); if(count($assignees)>1) $assignee_html.=' +'.(count($assignees)-1); }
+                
+                $status_map = [
+                    'not_started' => 'Başlamadı',
+                    'in_progress' => 'Devam Ediyor',
+                    'on_hold' => 'Beklemede',
+                    'in_review' => 'Revizyonda',
+                    'pending_approval' => 'Onay Bekliyor',
+                    'cancelled' => 'İptal Edildi',
+                    'completed' => 'Tamamlandı',
+                    'open' => 'Devam Ediyor' // Eski kayıtlar için fallback
+                ];
+                $status_text = isset($status_map[$t->status]) ? $status_map[$t->status] : ucfirst($t->status);
             ?>
             <tr><td><strong><a href="?page=h2l-task-edit&id=<?php echo $t->id; ?>">
-                <?php 
-                // DÜZELTME: Admin tarafında DÜZ METİN gösterim
-                echo esc_html(wp_strip_all_tags($t->title)); 
-                ?>
+                <?php echo esc_html(wp_strip_all_tags($t->title)); ?>
             </a></strong><div class="row-actions"><?php if($view_status=='trash'): ?><span class="restore"><a href="?page=h2l-tasks&action=restore&id=<?php echo $t->id; ?>&status_view=trash">Geri Al</a></span><?php else: ?><span class="edit"><a href="?page=h2l-task-edit&id=<?php echo $t->id; ?>">Düzenle</a> | </span><span class="trash"><a href="?page=h2l-tasks&action=trash&id=<?php echo $t->id; ?>">Çöp</a></span><?php endif; ?></div></td>
             <td><?php echo $t->section_name?esc_html($t->section_name):'-'; ?></td><td><?php echo esc_html($t->project_title); ?></td><td><?php echo esc_html($t->folder_name); ?></td>
-            <td><span style="color:<?php echo $p[0]; ?>; font-weight:bold;"><?php echo $p[1]; ?></span></td><td><?php echo ucfirst($t->status); ?></td><td><?php echo $assignee_html; ?></td></tr>
+            <td><span style="color:<?php echo $p[0]; ?>; font-weight:bold;"><?php echo $p[1]; ?></span></td><td><?php echo $status_text; ?></td><td><?php echo $assignee_html; ?></td></tr>
             <?php endforeach; else: ?><tr><td colspan="7">Görev bulunamadı.</td></tr><?php endif; ?>
         </tbody></table></div>
     <?php
@@ -172,8 +181,20 @@ function h2l_render_task_edit_page() {
     $projects = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_projects WHERE status != 'trash'"); $all_labels = $wpdb->get_results("SELECT * FROM $table_labels ORDER BY name ASC"); $users = get_users();
     $sections_all = []; if($wpdb->get_var("SHOW TABLES LIKE '$table_sections'") == $table_sections) { $sections_all = $wpdb->get_results("SELECT id, project_id, name FROM $table_sections ORDER BY sort_order ASC"); } $sections_json = []; foreach($sections_all as $s) { $sections_json[$s->project_id][$s->id] = $s->name; } echo '<script>window.h2lSections = ' . json_encode($sections_json) . ';</script>';
     $p_data = [1=>['#d1453b','P1 - Kritik'], 2=>['#eb8909','P2 - Yüksek'], 3=>['#246fe0','P3 - Orta'], 4=>['#808080','P4 - Düşük']]; $current_assignees = ($task && !empty($task->assignee_ids)) ? json_decode((string)$task->assignee_ids) : [];
+    
+    // YENİ STATÜ HARİTASI
+    $status_options = [
+        'not_started' => 'Başlamadı',
+        'in_progress' => 'Devam Ediyor',
+        'on_hold' => 'Beklemede',
+        'in_review' => 'Revizyonda',
+        'pending_approval' => 'Onay Bekliyor',
+        'cancelled' => 'İptal Edildi',
+        'completed' => 'Tamamlandı',
+        'open' => 'Devam Ediyor (Eski)' // Fallback
+    ];
     ?>
-    <div class="wrap"><h1><?php echo $task?'Görevi Düzenle':'Yeni Görev'; ?></h1><form method="post"><?php wp_nonce_field('h2l_save_task'); ?><input type="hidden" name="h2l_save_task" value="1"><div id="poststuff"><div id="post-body" class="metabox-holder columns-2"><div id="post-body-content"><div class="form-field"><label><strong>Başlık</strong></label><textarea name="title" style="width:100%;height:60px;" required><?php echo $task?esc_textarea($task->title):''; ?></textarea></div><div style="margin-top:20px;"><label><strong>Açıklama</strong></label><?php wp_editor($task?$task->content:'', 'content', array('textarea_rows'=>8)); ?></div></div><div id="postbox-container-1" class="postbox-container"><div class="postbox"><h2 class="hndle">Detaylar</h2><div class="inside"><p><label>Proje</label><br><select name="project_id" id="h2l-project-select" class="h2l-select2" required><option value="">Seç...</option><?php foreach($projects as $p): ?><option value="<?php echo $p->id; ?>" <?php selected($task?$task->project_id:0, $p->id); ?>><?php echo esc_html($p->title); ?></option><?php endforeach; ?></select></p><p><label>Bölüm</label><br><select name="section_id" id="h2l-section-select" class="h2l-select2" data-selected="<?php echo $task?$task->section_id:0; ?>"><option value="0">-- Bölümsüz --</option></select></p><p><label>Öncelik</label><br><select name="priority" class="h2l-select2-priority"><?php foreach($p_data as $k=>$v): ?><option value="<?php echo $k; ?>" data-color="<?php echo $v[0]; ?>" <?php selected($task?$task->priority:4, $k); ?>><?php echo $v[1]; ?></option><?php endforeach; ?></select></p><p><label>Durum</label><br><select name="status" class="h2l-select2"><?php foreach(['open'=>'Açık','in_progress'=>'Devam Ediyor','completed'=>'Tamamlandı','on_hold'=>'Durdu','cancelled'=>'İptal','not_started'=>'Başlamadı'] as $k=>$v): ?><option value="<?php echo $k; ?>" <?php selected($task?$task->status:'open', $k); ?>><?php echo $v; ?></option><?php endforeach; ?></select></p><p><label>Tarih</label><br><input type="text" name="due_date" class="h2l-datetime" value="<?php echo $task?esc_attr($task->due_date):''; ?>" style="width:100%"></p><p><label>Atanan</label><br><select name="assignees[]" multiple class="h2l-select2"><?php foreach($users as $u): ?><option value="<?php echo $u->ID; ?>" <?php echo in_array($u->ID, (array)$current_assignees)?'selected':''; ?>><?php echo $u->display_name; ?></option><?php endforeach; ?></select></p><p><label>Etiketler</label><br><select name="labels[]" multiple class="h2l-select2-tags"><?php foreach($all_labels as $l): ?><option value="<?php echo $l->id; ?>" <?php echo in_array($l->id, (array)$task_labels)?'selected':''; ?>><?php echo esc_html($l->name); ?></option><?php endforeach; ?></select></p><p><label>Konum</label><br><input type="text" name="location" value="<?php echo $task?esc_attr($task->location):''; ?>" style="width:100%"></p><p><input type="checkbox" name="reminder" value="1" <?php checked($task?$task->reminder_enabled:1, 1); ?>> Hatırlatıcı Açık</p><input type="submit" class="button button-primary button-large" value="Kaydet" style="width:100%"></div></div></div></div></div></form></div>
+    <div class="wrap"><h1><?php echo $task?'Görevi Düzenle':'Yeni Görev'; ?></h1><form method="post"><?php wp_nonce_field('h2l_save_task'); ?><input type="hidden" name="h2l_save_task" value="1"><div id="poststuff"><div id="post-body" class="metabox-holder columns-2"><div id="post-body-content"><div class="form-field"><label><strong>Başlık</strong></label><textarea name="title" style="width:100%;height:60px;" required><?php echo $task?esc_textarea($task->title):''; ?></textarea></div><div style="margin-top:20px;"><label><strong>Açıklama</strong></label><?php wp_editor($task?$task->content:'', 'content', array('textarea_rows'=>8)); ?></div></div><div id="postbox-container-1" class="postbox-container"><div class="postbox"><h2 class="hndle">Detaylar</h2><div class="inside"><p><label>Proje</label><br><select name="project_id" id="h2l-project-select" class="h2l-select2" required><option value="">Seç...</option><?php foreach($projects as $p): ?><option value="<?php echo $p->id; ?>" <?php selected($task?$task->project_id:0, $p->id); ?>><?php echo esc_html($p->title); ?></option><?php endforeach; ?></select></p><p><label>Bölüm</label><br><select name="section_id" id="h2l-section-select" class="h2l-select2" data-selected="<?php echo $task?$task->section_id:0; ?>"><option value="0">-- Bölümsüz --</option></select></p><p><label>Öncelik</label><br><select name="priority" class="h2l-select2-priority"><?php foreach($p_data as $k=>$v): ?><option value="<?php echo $k; ?>" data-color="<?php echo $v[0]; ?>" <?php selected($task?$task->priority:4, $k); ?>><?php echo $v[1]; ?></option><?php endforeach; ?></select></p><p><label>Durum</label><br><select name="status" class="h2l-select2"><?php foreach($status_options as $k=>$v): ?><option value="<?php echo $k; ?>" <?php selected($task?$task->status:'in_progress', $k); ?>><?php echo $v; ?></option><?php endforeach; ?></select></p><p><label>Tarih</label><br><input type="text" name="due_date" class="h2l-datetime" value="<?php echo $task?esc_attr($task->due_date):''; ?>" style="width:100%"></p><p><label>Atanan</label><br><select name="assignees[]" multiple class="h2l-select2"><?php foreach($users as $u): ?><option value="<?php echo $u->ID; ?>" <?php echo in_array($u->ID, (array)$current_assignees)?'selected':''; ?>><?php echo $u->display_name; ?></option><?php endforeach; ?></select></p><p><label>Etiketler</label><br><select name="labels[]" multiple class="h2l-select2-tags"><?php foreach($all_labels as $l): ?><option value="<?php echo $l->id; ?>" <?php echo in_array($l->id, (array)$task_labels)?'selected':''; ?>><?php echo esc_html($l->name); ?></option><?php endforeach; ?></select></p><p><label>Konum</label><br><input type="text" name="location" value="<?php echo $task?esc_attr($task->location):''; ?>" style="width:100%"></p><p><input type="checkbox" name="reminder" value="1" <?php checked($task?$task->reminder_enabled:1, 1); ?>> Hatırlatıcı Açık</p><input type="submit" class="button button-primary button-large" value="Kaydet" style="width:100%"></div></div></div></div></div></form></div>
     <?php
 }
 

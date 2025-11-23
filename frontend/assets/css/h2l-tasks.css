@@ -1,21 +1,155 @@
 /* --- Hip to List: Tasks & Sections --- */
 .h2l-task-list { padding-top: 0; }
-.h2l-task-row { display: flex; align-items: flex-start; padding: 10px 10px; border-bottom: 1px solid #f9f9f9; position: relative; cursor: pointer; transition: background 0.1s; background-color: #fff; margin: 5px 0px 5px 28px;}
-.h2l-task-row:hover { background: #fafafa;border-radius: 8px; }
+
+.h2l-task-row { 
+    display: flex; 
+    align-items: flex-start; 
+    padding: 10px 10px; 
+    border-bottom: 1px solid #f9f9f9; 
+    position: relative; 
+    cursor: pointer; 
+    transition: background 0.1s; 
+    background-color: #fff; 
+    margin: 5px 0px 5px 28px;
+    /* Varsayılan z-index düşük */
+    z-index: 1;
+}
+
+/* HOVER DURUMUNDA Z-INDEX ARTIR - MENÜ ÜSTTE KALSIN */
+.h2l-task-row:hover { 
+    background: #fafafa;
+    border-radius: 8px; 
+    z-index: 100; /* Diğer satırların üzerine çıkar */
+}
+
 .h2l-task-row::before { content: '\f58e'; font-family: "Font Awesome 6 Free"; font-weight: 900; position: absolute; left: -24px; top: 12px; color: #ccc; cursor: grab; opacity: 0; transition: opacity 0.2s; font-size: 12px; }
 .h2l-task-row:hover::before { opacity: 1; }
 .h2l-task-row.h2l-highlight-today { background-color: #fffcf9; }
-.h2l-task-left { width: 26px; flex-shrink: 0; padding-top: 3px; }
-.h2l-task-check { width: 18px; height: 18px; border: 1px solid #808080; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: transparent; transition: all 0.2s; background: #fff; }
-.h2l-task-check:hover { background: rgba(0,0,0,0.05); }
+
+/* --- SOL ALAN WRAPPER --- */
+.h2l-task-left { 
+    width: 26px; 
+    flex-shrink: 0; 
+    padding-top: 3px; 
+    position: relative; 
+    /* z-index kaldırıldı, row seviyesinde yönetiliyor */
+}
+
+.h2l-status-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+/* --- TASK CHECKBOX STYLES --- */
+.h2l-task-check { 
+    width: 18px; 
+    height: 18px; 
+    border: 1px solid #808080; 
+    border-radius: 50%; 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    color: transparent; 
+    transition: all 0.2s; 
+    background: #fff; 
+    position: relative;
+}
+
+.h2l-task-check:hover { 
+    background: rgba(0,0,0,0.05); 
+    color: #ccc; 
+}
+
 .h2l-task-check.p1 { border-color: #db4c3f; background: rgba(219,76,63,0.05); }
 .h2l-task-check.p2 { border-color: #eb8909; background: rgba(235,137,9,0.05); }
 .h2l-task-check.p3 { border-color: #246fe0; background: rgba(36,111,224,0.05); }
-.h2l-task-check.completed { background: #ccc; border-color: #ccc; color: #fff; }
+
+/* COMPLETED STATE */
+.h2l-task-check.completed { 
+    background: #ccc; 
+    border-color: #ccc; 
+    color: #fff !important; 
+}
+
+/* CANCELLED STATE (YENİ) */
+.h2l-task-check.cancelled {
+    background: transparent;
+    border-color: #c0392b; /* Koyu kırmızı çerçeve */
+    color: #c0392b !important; /* İkon rengi */
+    opacity: 0.7; /* Hafif soluk */
+}
+
+/* İptal ikonunu biraz küçültelim */
+.h2l-task-check.cancelled i { font-size: 10px; }
+
 .h2l-task-check i { font-size: 10px; }
+
+/* --- YENİ STATUS HOVER MENU --- */
+.h2l-status-hover-menu {
+    position: absolute;
+    top: 22px; 
+    left: -6px;
+    width: 160px;
+    background: #fff;
+    border: 1px solid #eee;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2); /* Gölge güçlendirildi */
+    border-radius: 6px;
+    padding: 4px 0;
+    display: flex;
+    flex-direction: column;
+    animation: fadeInMenu 0.15s ease-out;
+    /* Menünün satır içinde en üstte kalması garanti olsun */
+    z-index: 10000; 
+}
+
+/* GÖRÜNMEZ KÖPRÜ */
+.h2l-status-hover-menu::before {
+    content: '';
+    position: absolute;
+    top: -10px; 
+    left: 0;
+    width: 100%;
+    height: 10px;
+    background: transparent;
+}
+
+@keyframes fadeInMenu {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.h2l-status-menu-item {
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.h2l-status-menu-item:hover { background: #f5f5f5; }
+.h2l-status-menu-item.active { background: #f0f7ff; color: #246fe0; font-weight: 600; }
+
 .h2l-task-content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+
 .h2l-task-title { font-size: 14px; color: #202020; line-height: 1.4; word-wrap: break-word; }
+
+/* Completed: Üstü çizili, gri */
 .h2l-task-title.completed { text-decoration: line-through; color: #888; }
+
+/* Cancelled: Üstü çizili, soluk, hafif kırmızımsı gri */
+.h2l-task-title.cancelled { 
+    text-decoration: line-through; 
+    color: #aaa; 
+    text-decoration-color: #c0392b; /* Çizgi rengi kırmızı */
+}
+
+.h2l-task-desc { font-size: 12px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; margin-top: 2px; line-height: 1.4; }
+
+/* İptal edilen görevin açıklaması da soluk olsun */
+.h2l-task-title.cancelled + .h2l-task-desc { opacity: 0.6; text-decoration: line-through; }
+
 .h2l-task-details { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .h2l-detail-item { font-size: 12px; color: #808080; display: flex; align-items: center; gap: 4px; }
 .h2l-detail-item i { font-size: 12px; color: #808080; }
@@ -98,324 +232,61 @@
 .h2l-comment-tools { display: flex; gap: 10px; color: #666; }
 .h2l-tool-btn { cursor: pointer; font-size: 14px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
 .h2l-tool-btn:hover { background: #eee; color: #333; }
-
-/* --- YENİ GÖREV EDİTÖRÜ (TODOIST STYLE - CONTENT EDITABLE) --- */
-
-/* Ana Konteyner */
-.h2l-todoist-editor-wrapper { 
-    border: 1px solid #e5e5e5 !important; 
-    border-radius: 10px !important; 
-    background: #fff !important; 
-    margin-top: 10px !important; 
-    margin-bottom: 15px !important; 
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important; 
-    display: flex !important; 
-    flex-direction: column !important; 
-    padding: 0 !important; 
-    direction: ltr !important;
-    text-align: left !important;
-}
-
-.h2l-todoist-editor-body { 
-    padding: 12px 12px 4px 12px !important; 
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-/* Content Editable Input (ÖZEL) */
-.h2l-content-editable {
-    width: 100%;
-    border: none;
-    outline: none;
-    background: transparent;
-    color: #202020;
-    cursor: text;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    padding: 0;
-    margin: 0;
-    display: block;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    direction: ltr !important;
-    text-align: left !important;
-    unicode-bidi: normal !important;
-    writing-mode: horizontal-tb !important;
-}
-
-.h2l-content-editable * {
-    direction: ltr !important;
-    unicode-bidi: normal !important;
-    text-align: left !important;
-}
-
-/* --- Link Stilleri (GERİ GETİRİLDİ) --- */
-/* Hem editör hem de görev listesi başlığı için geçerli */
-.h2l-content-editable a,
-.h2l-task-title a {
-    color: inherit !important;
-    text-decoration: underline !important;
-    text-decoration-color: #db4c3f !important;
-    text-underline-offset: 2px;
-    cursor: pointer;
-    transition: color 0.2s;
-}
-.h2l-content-editable a:hover,
-.h2l-task-title a:hover {
-    color: #db4c3f !important;
-}
-
-/* --- HIGHLIGHT TAGS (AKILLI AYRIŞTIRICI STİLLERİ - KAPSAMLI) --- */
-.h2l-highlight-tag {
-    display: inline-block;
-    padding: 0 4px;
-    border-radius: 4px;
-    font-weight: 600;
-    margin: 0 1px;
-    font-size: 0.95em;
-    cursor: pointer;
-}
-
-/* Öncelik Renkleri (P1-P4) - DÜZELTİLDİ: Specificity Artırıldı */
-.h2l-content-editable .h2l-highlight-tag.priority,
-.h2l-highlight-tag.priority { color: #333; background: #eee; }
-
-.h2l-content-editable .h2l-highlight-tag.priority-p1,
-.h2l-highlight-tag.priority-p1 { color: #d1453b !important; background: rgba(209, 69, 59, 0.1) !important; }
-
-.h2l-content-editable .h2l-highlight-tag.priority-p2,
-.h2l-highlight-tag.priority-p2 { color: #eb8909 !important; background: rgba(235, 137, 9, 0.1) !important; }
-
-.h2l-content-editable .h2l-highlight-tag.priority-p3,
-.h2l-highlight-tag.priority-p3 { color: #246fe0 !important; background: rgba(36, 111, 224, 0.1) !important; }
-
-.h2l-content-editable .h2l-highlight-tag.priority-p4,
-.h2l-highlight-tag.priority-p4 { color: #808080 !important; background: #f0f0f0 !important; }
-
-/* Kişi (Assignee) @selim */
+.h2l-todoist-editor-wrapper { border: 1px solid #e5e5e5 !important; border-radius: 10px !important; background: #fff !important; margin-top: 10px !important; margin-bottom: 15px !important; box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important; display: flex !important; flex-direction: column !important; padding: 0 !important; direction: ltr !important; text-align: left !important; }
+.h2l-todoist-editor-body { padding: 12px 12px 4px 12px !important; display: flex; flex-direction: column; gap: 8px; }
+.h2l-content-editable { width: 100%; border: none; outline: none; background: transparent; color: #202020; cursor: text; white-space: pre-wrap; word-wrap: break-word; padding: 0; margin: 0; display: block; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; direction: ltr !important; text-align: left !important; unicode-bidi: normal !important; writing-mode: horizontal-tb !important; }
+.h2l-content-editable * { direction: ltr !important; unicode-bidi: normal !important; text-align: left !important; }
+.h2l-content-editable a, .h2l-task-title a { color: inherit !important; text-decoration: underline !important; text-decoration-color: #db4c3f !important; text-underline-offset: 2px; cursor: pointer; transition: color 0.2s; }
+.h2l-content-editable a:hover, .h2l-task-title a:hover { color: #db4c3f !important; }
+.h2l-highlight-tag { display: inline-block; padding: 0 4px; border-radius: 4px; font-weight: 600; margin: 0 1px; font-size: 0.95em; cursor: pointer; }
+.h2l-content-editable .h2l-highlight-tag.priority, .h2l-highlight-tag.priority { color: #333; background: #eee; }
+.h2l-content-editable .h2l-highlight-tag.priority-p1, .h2l-highlight-tag.priority-p1 { color: #d1453b !important; background: rgba(209, 69, 59, 0.1) !important; }
+.h2l-content-editable .h2l-highlight-tag.priority-p2, .h2l-highlight-tag.priority-p2 { color: #eb8909 !important; background: rgba(235, 137, 9, 0.1) !important; }
+.h2l-content-editable .h2l-highlight-tag.priority-p3, .h2l-highlight-tag.priority-p3 { color: #246fe0 !important; background: rgba(36, 111, 224, 0.1) !important; }
+.h2l-content-editable .h2l-highlight-tag.priority-p4, .h2l-highlight-tag.priority-p4 { color: #808080 !important; background: #f0f0f0 !important; }
 .h2l-highlight-tag.mention { color: #246fe0; background: rgba(36, 111, 224, 0.1); }
-
-/* Proje #Proje */
 .h2l-highlight-tag.project { color: #555; background: rgba(128, 128, 128, 0.15); }
-
-/* Etiket #etiket (Proje değilse) */
 .h2l-highlight-tag.label { color: #e67e22; background: rgba(230, 126, 34, 0.1); }
-
-/* Bölüm >Bölüm */
 .h2l-highlight-tag.section { color: #8e44ad; background: rgba(142, 68, 173, 0.1); }
-
-/* Durum +Durum */
-.h2l-highlight-tag.status { color: #27ae60; background: rgba(39, 174, 96, 0.1); }
-
-/* Tarihler ve Zamanlar */
 .h2l-highlight-tag.date { color: #058527; background: rgba(5, 133, 39, 0.1); }
-
-/* Başlık Modu - SCROLL & MAX-HEIGHT EKLENDİ */
-.h2l-content-editable.title-mode {
-    font-size: 15px;
-    font-weight: 500;
-    line-height: 1.5;
-    min-height: 24px;
-    max-height: 160px; /* ~6-7 satır */
-    overflow-y: auto;
-}
-
-/* Placeholder (Boşluk tutucu) */
-.h2l-content-editable:empty::before {
-    content: attr(data-placeholder);
-    color: #aaa;
-    pointer-events: none;
-    display: block; 
-}
-
-/* Açıklama Modu */
-.h2l-content-editable.desc-mode {
-    font-size: 13px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: #555;
-    min-height: 20px;
-    margin-bottom: 5px;
-}
-
-/* Chips (Etiketler/Butonlar) Alanı */
-.h2l-todoist-chips-area { 
-    display: flex; 
-    gap: 8px; 
-    flex-wrap: wrap; 
-    margin-top: 5px;
-    align-items: center; 
-}
-
+.h2l-content-editable.title-mode { font-size: 15px; font-weight: 500; line-height: 1.5; min-height: 24px; max-height: 160px; overflow-y: auto; }
+.h2l-content-editable:empty::before { content: attr(data-placeholder); color: #aaa; pointer-events: none; display: block; }
+.h2l-content-editable.desc-mode { font-size: 13px; font-weight: 400; line-height: 1.5; color: #555; min-height: 20px; margin-bottom: 5px; }
+.h2l-todoist-chips-area { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 5px; align-items: center; }
 .h2l-chip-wrapper { position: relative; }
-
-.h2l-todoist-chip { 
-    display: flex; 
-    align-items: center; 
-    gap: 6px; 
-    padding: 5px 8px !important; 
-    border: 1px solid #e5e5e5 !important; 
-    border-radius: 5px !important; 
-    background: #fff !important; 
-    color: #555 !important; 
-    font-size: 13px !important; 
-    cursor: pointer; 
-    transition: all 0.1s; 
-    font-weight: 500; 
-    line-height: 1.4; 
-    height: 30px; 
-}
-
-.h2l-todoist-chip:hover { 
-    background: #f5f5f5 !important; 
-    color: #333 !important; 
-    border-color: #ccc !important; 
-}
-
-.h2l-todoist-chip.active { 
-    background: #fff5f5 !important; 
-    color: #db4c3f !important; 
-    border-color: #db4c3f !important; 
-}
-
+.h2l-todoist-chip { display: flex; align-items: center; gap: 6px; padding: 5px 8px !important; border: 1px solid #e5e5e5 !important; border-radius: 5px !important; background: #fff !important; color: #555 !important; font-size: 13px !important; cursor: pointer; transition: all 0.1s; font-weight: 500; line-height: 1.4; height: 30px; }
+.h2l-todoist-chip:hover { background: #f5f5f5 !important; color: #333 !important; border-color: #ccc !important; }
+.h2l-todoist-chip.active { background: #fff5f5 !important; color: #db4c3f !important; border-color: #db4c3f !important; }
 .h2l-todoist-chip i { font-size: 14px; color: #666; }
 .h2l-todoist-chip.active i { color: #db4c3f; }
 .h2l-todoist-chip.disabled { opacity: 0.6; cursor: not-allowed; background: #fafafa !important; }
 .h2l-todoist-chip.icon-only { padding: 0 8px !important; width: 32px; justify-content: center; }
-
-/* Footer */
-.h2l-todoist-footer { 
-    display: flex !important; 
-    justify-content: space-between !important; 
-    align-items: center !important; 
-    padding: 10px 12px !important; 
-    border-top: 1px solid #f0f0f0 !important; 
-    background: #fff !important; 
-    border-radius: 0 0 10px 10px !important; 
-}
-
-.h2l-todoist-project-selector { 
-    font-size: 13px !important; 
-    font-weight: 600 !important; 
-    color: #333 !important; 
-    display: flex; 
-    align-items: center; 
-    gap: 6px; 
-    padding: 6px 10px !important; 
-    border-radius: 5px !important; 
-    cursor: pointer; 
-    transition: background 0.2s; 
-    background: transparent; 
-}
+.h2l-todoist-footer { display: flex !important; justify-content: space-between !important; align-items: center !important; padding: 10px 12px !important; border-top: 1px solid #f0f0f0 !important; background: #fff !important; border-radius: 0 0 10px 10px !important; }
+.h2l-todoist-project-selector { font-size: 13px !important; font-weight: 600 !important; color: #333 !important; display: flex; align-items: center; gap: 6px; padding: 6px 10px !important; border-radius: 5px !important; cursor: pointer; transition: background 0.2s; background: transparent; }
 .h2l-todoist-project-selector:hover { background: #f5f5f5 !important; }
-
 .h2l-todoist-footer-actions { display: flex; gap: 10px; }
-
-button.h2l-todoist-btn-add { 
-    background-color: #db4c3f !important; 
-    color: #fff !important; 
-    padding: 6px 12px !important; 
-    font-weight: 700 !important; 
-    border-radius: 5px !important; 
-    font-size: 13px !important; 
-    border: none !important; 
-    cursor: pointer; 
-    opacity: 1; 
-}
+button.h2l-todoist-btn-add { background-color: #db4c3f !important; color: #fff !important; padding: 6px 12px !important; font-weight: 700 !important; border-radius: 5px !important; font-size: 13px !important; border: none !important; cursor: pointer; opacity: 1; }
 button.h2l-todoist-btn-add:hover { background-color: #c53727 !important; }
 button.h2l-todoist-btn-add:disabled { opacity: 0.5; cursor: not-allowed; }
-
-button.h2l-todoist-btn-cancel { 
-    background-color: #f3f3f3 !important; 
-    color: #444 !important; 
-    padding: 6px 12px !important; 
-    font-weight: 700 !important; 
-    border-radius: 5px !important; 
-    font-size: 13px !important; 
-    border: none !important; 
-    cursor: pointer; 
-}
+button.h2l-todoist-btn-cancel { background-color: #f3f3f3 !important; color: #444 !important; padding: 6px 12px !important; font-weight: 700 !important; border-radius: 5px !important; font-size: 13px !important; border: none !important; cursor: pointer; }
 button.h2l-todoist-btn-cancel:hover { background-color: #e5e5e5 !important; color: #202020 !important; }
-
-/* Tetikleyici */
-.h2l-todoist-add-trigger { 
-    display: flex; 
-    align-items: center; 
-    gap: 10px; 
-    padding: 8px 0; 
-    cursor: pointer; 
-    margin-top: 2px; 
-    margin-left: 0; 
-    color: #808080; 
-    transition: color 0.2s; 
-}
+.h2l-todoist-add-trigger { display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; margin-top: 2px; margin-left: 0; color: #808080; transition: color 0.2s; }
 .h2l-todoist-add-trigger:hover { color: #db4c3f; }
 .h2l-todoist-btn-content { display: flex; align-items: center; gap: 8px; width: 100%; font-size: 14px; }
 .plus-icon { width: 20px; height: 20px; border-radius: 50%; color: #db4c3f; display: flex; justify-content: center; align-items: center; font-size: 14px; flex-shrink: 0; transition: all 0.2s; }
 .h2l-todoist-add-trigger:hover .plus-icon { background: #db4c3f; color: #fff; }
-
-/* Rich Text Tooltip (Seçim Menüsü - FIXED KONUMLANDIRMA) */
-.h2l-tooltip-popover { 
-    position: fixed; 
-    background: #333; 
-    border-radius: 6px; 
-    padding: 4px; 
-    display: flex; 
-    gap: 2px; 
-    z-index: 99999; 
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3); 
-    animation: h2l-fade-in 0.15s ease-out; 
-}
+.h2l-tooltip-popover { position: fixed; background: #333; border-radius: 6px; padding: 4px; display: flex; gap: 2px; z-index: 99999; box-shadow: 0 4px 12px rgba(0,0,0,0.3); animation: h2l-fade-in 0.15s ease-out; }
 .h2l-tooltip-btn { color: #fff; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; background: transparent; border: none; }
 .h2l-tooltip-btn:hover { background: rgba(255,255,255,0.2); }
 .h2l-tooltip-divider { width: 1px; background: rgba(255,255,255,0.2); margin: 0 4px; }
 @keyframes h2l-fade-in { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
-
-/* Link Input Area in Tooltip */
-.h2l-tooltip-link-area {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 2px;
-}
-
-.h2l-tooltip-input {
-    background: rgba(255,255,255,0.1);
-    border: 1px solid rgba(255,255,255,0.2);
-    color: #fff;
-    font-size: 13px;
-    padding: 5px 8px;
-    border-radius: 4px;
-    outline: none;
-    width: 220px;
-    transition: border-color 0.2s;
-}
+.h2l-tooltip-link-area { display: flex; align-items: center; gap: 5px; padding: 2px; }
+.h2l-tooltip-input { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; font-size: 13px; padding: 5px 8px; border-radius: 4px; outline: none; width: 220px; transition: border-color 0.2s; }
 .h2l-tooltip-input:focus { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.15); }
 .h2l-tooltip-input::placeholder { color: #aaa; }
-
 .h2l-tooltip-btn.action { width: auto; padding: 0 8px; font-size: 12px; height: 26px; }
-
-/* --- YAPIŞTIRMA MODALI STİLLERİ (YENİ) --- */
-.h2l-paste-modal-overlay {
-    position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex; justify-content: center; align-items: center;
-    z-index: 100000;
-    backdrop-filter: blur(2px);
-}
-
-.h2l-paste-modal {
-    background: #fff;
-    width: 500px;
-    max-width: 90%;
-    border-radius: 8px;
-    box-shadow: 0 15px 50px rgba(0,0,0,0.3);
-    display: flex; flex-direction: column;
-    overflow: hidden;
-    animation: h2l-fade-in 0.2s ease-out;
-}
-
+.h2l-paste-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center; z-index: 100000; backdrop-filter: blur(2px); }
+.h2l-paste-modal { background: #fff; width: 500px; max-width: 90%; border-radius: 8px; box-shadow: 0 15px 50px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden; animation: h2l-fade-in 0.2s ease-out; }
 .h2l-paste-header { padding: 16px 20px; border-bottom: 1px solid #eee; }
 .h2l-paste-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: #202020; }
 .h2l-paste-body { padding: 20px; }
@@ -427,34 +298,9 @@ button.h2l-todoist-btn-cancel:hover { background-color: #e5e5e5 !important; colo
 .h2l-paste-footer { padding: 16px 20px; background: #fcfcfc; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
 .h2l-paste-checkbox { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #333; cursor: pointer; font-weight: 500; }
 .h2l-paste-actions { display: flex; gap: 10px; }
-
-/* Limit Warning (EKLENDİ) */
-.h2l-limit-warning {
-    color: #d1453b;
-    font-size: 12px;
-    margin-top: 5px;
-    font-weight: 500;
-    padding-left: 2px;
-}
-/* Açıklama Modu */
-.h2l-content-editable.desc-mode {
-    font-size: 13px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: #555;
-    min-height: 30px;
-    max-height: 150px; /* ~7-8 satır */
-    overflow-y: auto; /* Scroll eklendi */
-    margin-bottom: 10px;
-    border-bottom: 1px solid transparent;
-    transition: border-color 0.2s;
-}
-
-.h2l-content-editable.desc-mode:focus {
-    border-bottom-color: #eee;
-}
-
-/* Zengin Metin Stilleri (Açıklama İçin) */
+.h2l-limit-warning { color: #d1453b; font-size: 12px; margin-top: 5px; font-weight: 500; padding-left: 2px; }
+.h2l-content-editable.desc-mode { font-size: 13px; font-weight: 400; line-height: 1.5; color: #555; min-height: 30px; max-height: 150px; overflow-y: auto; margin-bottom: 10px; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
+.h2l-content-editable.desc-mode:focus { border-bottom-color: #eee; }
 .h2l-content-editable h1 { font-size: 18px; font-weight: 700; margin: 10px 0 5px; color: #202020; }
 .h2l-content-editable h2 { font-size: 16px; font-weight: 600; margin: 10px 0 5px; color: #333; }
 .h2l-content-editable h3 { font-size: 14px; font-weight: 600; margin: 8px 0 4px; color: #444; }
@@ -463,15 +309,13 @@ button.h2l-todoist-btn-cancel:hover { background-color: #e5e5e5 !important; colo
 .h2l-content-editable ul { list-style: disc; padding-left: 20px; margin: 5px 0; }
 .h2l-content-editable ol { list-style: decimal; padding-left: 20px; margin: 5px 0; }
 .h2l-content-editable li { margin-bottom: 2px; }
-
-/* Görev Açıklaması (List View) */
-.h2l-task-desc {
-    font-size: 12px;
-    color: #666;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-    margin-top: 2px;
-    line-height: 1.4;
-}
+.h2l-task-desc { font-size: 12px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; margin-top: 2px; line-height: 1.4; }
+/* --- YENİ STATÜ RENKLERİ --- */
+.h2l-highlight-tag.status { color: #27ae60; background: rgba(39, 174, 96, 0.1); } /* Default */
+.h2l-highlight-tag.status-in_progress { color: #246fe0; background: rgba(36, 111, 224, 0.1); }
+.h2l-highlight-tag.status-on_hold { color: #e67e22; background: rgba(230, 126, 34, 0.1); }
+.h2l-highlight-tag.status-in_review { color: #8e44ad; background: rgba(142, 68, 173, 0.1); }
+.h2l-highlight-tag.status-pending_approval { color: #f1c40f; background: rgba(241, 196, 15, 0.1); }
+.h2l-highlight-tag.status-cancelled { color: #c0392b; background: rgba(192, 57, 43, 0.1); }
+.h2l-highlight-tag.status-completed { color: #27ae60; background: rgba(39, 174, 96, 0.1); }
+.h2l-highlight-tag.status-not_started { color: #808080; background: #eee; }
