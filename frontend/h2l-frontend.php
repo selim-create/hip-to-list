@@ -65,6 +65,9 @@ function h2l_enqueue_frontend_assets() {
         // h2l-task-input-js artık datepicker'a da bağımlı olabilir veya doğrudan globalden kullanabilir.
         wp_enqueue_script('h2l-task-input-js', H2L_URL . 'frontend/assets/js/h2l-task-input.js', array('h2l-reminders-js', 'h2l-common-js', 'h2l-datepicker-js'), time(), true);
 
+        // YENİ EKLENEN: Görev Modal Dosyası (Task Input'tan sonra)
+        wp_enqueue_script('h2l-task-modal-js', H2L_URL . 'frontend/assets/js/h2l-task-modal.js', array('h2l-task-input-js', 'h2l-common-js'), time(), true);
+
         // [GÜNCELLENDİ] 6. Görev Listesi & Modallar (Tasks Logic)
         // Bu dosya artık h2l-task-input-js dosyasına bağımlıdır.
         wp_enqueue_script('h2l-tasks-js', H2L_URL . 'frontend/assets/js/h2l-tasks.js', array('h2l-task-input-js', 'h2l-common-js'), time(), true);
@@ -73,7 +76,8 @@ function h2l_enqueue_frontend_assets() {
         wp_enqueue_script('h2l-project-detail-js', H2L_URL . 'frontend/assets/js/h2l-project-detail.js', array('h2l-tasks-js'), time(), true);
 
         // 8. Ana Uygulama Root (Hepsini birleştirir)
-        wp_enqueue_script('h2l-app-js', H2L_URL . 'frontend/assets/js/h2l-app.js', array('h2l-projects-js', 'h2l-project-detail-js', 'h2l-sidebar-js'), time(), true);
+        // YENİ: Task Modal da eklendi
+        wp_enqueue_script('h2l-app-js', H2L_URL . 'frontend/assets/js/h2l-app.js', array('h2l-projects-js', 'h2l-project-detail-js', 'h2l-sidebar-js', 'h2l-task-modal-js'), time(), true);
 
         // Veri Aktarımı
         wp_localize_script( 'h2l-app-js', 'h2lFrontendSettings', array(

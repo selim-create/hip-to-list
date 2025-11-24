@@ -7,7 +7,11 @@
     const { Sidebar } = window.H2L;
     const { ProjectsDashboard, ProjectModal, FolderModal } = window.H2L.Projects;
     const { ProjectDetail } = window.H2L;
-    const { ListView, TaskDetailModal } = window.H2L.Tasks; // GÜNCELLEME: TaskDetailModal import edildi
+    const { ListView } = window.H2L.Tasks; 
+    
+    // YENİ: TaskDetailModal artık kendi namespace'inden geliyor
+    const TaskModal = window.H2L && window.H2L.TaskModal ? window.H2L.TaskModal : { TaskDetailModal: () => null };
+    const { TaskDetailModal } = TaskModal;
 
     const BASE_URL = settings.base_url || '/gorevler';
 
