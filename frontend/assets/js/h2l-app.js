@@ -6,43 +6,71 @@
     const { Sidebar } = window.H2L;
     const { ProjectsDashboard, ProjectModal, FolderModal } = window.H2L.Projects;
     const { ProjectDetail } = window.H2L;
-    const { ListView } = window.H2L.Tasks; 
+    const { ListView, UpcomingView, TodayView } = window.H2L.Tasks; // TodayView eklendi
     
     const TaskModal = window.H2L && window.H2L.TaskModal ? window.H2L.TaskModal : { TaskDetailModal: () => null };
     const { TaskDetailModal } = TaskModal;
 
     const BASE_URL = settings.base_url || '/gorevler';
 
-    // --- YENİ: Labels & Filters Sayfası ---
+    // --- YENİ: Labels & Filters Sayfası (Güncellendi) ---
     const FiltersLabelsView = ({ labels, navigate }) => {
-        return el('div', { className: 'h2l-dashboard' },
-            el('div', { className: 'h2l-header-area' }, 
-                el('h1', null, 'Etiketler & Filtreler')
+        const [expanded, setExpanded] = useState({ filters: true, labels: true });
+        
+        const toggle = (key) => setExpanded({ ...expanded, [key]: !expanded[key] });
+
+        // Statik Filtreler (Mock Data)
+        const staticFilters = [
+            { id: 'f1', name: 'Bana atananlar', icon: 'user', count: 4 },
+            { id: 'f2', name: 'Öncelik 1', icon: 'flag', count: 3 }
+        ];
+
+        return el('div', { className: 'h2l-filters-page' },
+            el('div', { className: 'h2l-header-area h2l-filters-header' }, 
+                el('h1', null, 'Filtreler & Etiketler')
             ),
-            el('div', { className: 'h2l-filters-grid' },
-                // Filtreler (Statik örnek)
-                el('div', { className: 'h2l-card-group' },
-                    el('h3', null, 'Filtreler'),
-                    el('div', { className: 'h2l-card-list' },
-                        el('div', { className: 'h2l-card-item' }, el(Icon, {name:'filter'}), ' Öncelik 1'),
-                        el('div', { className: 'h2l-card-item' }, el(Icon, {name:'filter'}), ' Bana atananlar'),
-                        el('div', { className: 'h2l-card-item' }, el(Icon, {name:'filter'}), ' Süresi geçmiş')
-                    )
+            
+            // Filtreler Bölümü
+            el('div', { className: 'h2l-filter-section' },
+                el('div', { className: 'h2l-filter-section-header', onClick: () => toggle('filters') },
+                    el('div', { className: 'h2l-filter-toggle' },
+                        el(Icon, { name: expanded.filters ? 'chevron-down' : 'chevron-right' }),
+                        'Filtreler',
+                        el('span', { className: 'h2l-filter-usage-badge' }, 'KULLANILDI: 2/3')
+                    ),
+                    el(Icon, { name: 'plus', className: 'h2l-filter-add-btn' })
                 ),
-                // Etiketler
-                el('div', { className: 'h2l-card-group' },
-                    el('h3', null, 'Etiketler'),
-                    el('div', { className: 'h2l-card-list' },
-                        labels.length === 0 && el('p', {style:{color:'#999', padding:10}}, 'Henüz etiket yok.'),
-                        labels.map(l => 
-                            el('div', { 
-                                key: l.id, 
-                                className: 'h2l-card-item', 
-                                onClick: () => navigate(`/etiket/${l.slug}`) 
-                            }, 
-                                el(Icon, {name:'tag', style:{color: l.color || '#808080'}}), 
+                expanded.filters && el('div', { className: 'h2l-filter-list' },
+                    staticFilters.map(f => 
+                        el('div', { key: f.id, className: 'h2l-filter-row' },
+                            el('div', { className: 'h2l-filter-left' },
+                                el(Icon, { name: f.icon }), // icon-droplet vb olabilir
+                                f.name
+                            ),
+                            el('span', { className: 'h2l-filter-count' }, f.count)
+                        )
+                    )
+                )
+            ),
+
+            // Etiketler Bölümü
+            el('div', { className: 'h2l-filter-section' },
+                el('div', { className: 'h2l-filter-section-header', onClick: () => toggle('labels') },
+                    el('div', { className: 'h2l-filter-toggle' },
+                        el(Icon, { name: expanded.labels ? 'chevron-down' : 'chevron-right' }),
+                        'Etiketler'
+                    ),
+                    el(Icon, { name: 'plus', className: 'h2l-filter-add-btn' })
+                ),
+                expanded.labels && el('div', { className: 'h2l-filter-list' },
+                    labels.length === 0 && el('p', {style:{color:'#999', padding:10, fontStyle:'italic', fontSize:13}}, 'Henüz etiket yok.'),
+                    labels.map(l => 
+                        el('div', { key: l.id, className: 'h2l-filter-row', onClick: () => navigate(`/etiket/${l.slug}`) },
+                            el('div', { className: 'h2l-filter-left' },
+                                el(Icon, { name: 'tag', style: { color: l.color || '#808080', transform: 'rotate(45deg)' } }), 
                                 l.name
-                            )
+                            ),
+                            el('span', { className: 'h2l-filter-count' }, '1') // Mock count
                         )
                     )
                 )
@@ -207,9 +235,8 @@
             const handleGlobalKeys = (e) => {
                 if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
                 if (e.key === 'q' || e.key === 'Q') {
-                    // Quick Add tetikleme (İleride eklenebilir, şimdilik task modalı açar)
                     e.preventDefault();
-                    setModal({ type: 'project', data: null }); // Örnek olarak proje eklemeyi açtık
+                    setModal({ type: 'project', data: null }); 
                 }
             };
             document.addEventListener('keydown', handleGlobalKeys);
@@ -261,15 +288,35 @@
                 content = el(ProjectDetail, { project: activeProject, projects: data.projects, folders: data.folders, tasks: visibleTasks, sections: activeSections, users: data.users, navigate, onAddTask: handleAddTask, onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask, onAddSection: handleAddSection, onUpdateSection: handleUpdateSection, onDeleteSection: handleDeleteSection, onAction: handleAction, labels: data.labels || [], onTaskClick: onTaskClick });
             } else { content = el('div', {className: 'h2l-error'}, 'Proje bulunamadı.'); }
         }
-        else if (viewState.type === 'today' || viewState.type === 'upcoming') {
-            let viewTitle = viewState.type === 'today' ? "Bugün" : "Yaklaşan";
-            if (viewState.type === 'today') {
-                visibleTasks = data.tasks.filter(t => t.due_date && t.due_date.startsWith(todayStr) && t.status !== 'trash');
-            } else {
-                visibleTasks = data.tasks.filter(t => t.due_date && t.due_date >= todayStr && t.status !== 'trash').sort((a,b) => new Date(a.due_date) - new Date(b.due_date));
-            }
-            const virtualProject = { id: 0, title: viewTitle, color: viewState.type==='today'?'#058527':'#692fc2', view_type: 'list' };
-            content = el(ListView, { project: virtualProject, projects: data.projects, tasks: visibleTasks, sections: [], users: data.users, navigate, onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask, onAddTask: (d) => handleAddTask({...d, dueDate: todayStr}), onAddSection: () => alert('Bu görünümde bölüm eklenemez.'), onTaskClick: onTaskClick, showCompleted: true, highlightToday: true, onUpdateSection: ()=>{}, onDeleteSection: ()=>{}, labels: data.labels || [] });
+        else if (viewState.type === 'today') {
+            // Bugün Görünümü (GÜNCELLENDİ: TodayView kullanılıyor)
+            content = el(TodayView, { 
+                tasks: data.tasks.filter(t => t.status !== 'trash'),
+                users: data.users, 
+                projects: data.projects, 
+                sections: data.sections, 
+                onUpdateTask: handleUpdateTask, 
+                onDeleteTask: handleDeleteTask, 
+                onAddTask: handleAddTask, 
+                onTaskClick: onTaskClick, 
+                labels: data.labels || [],
+                navigate
+            });
+        }
+        else if (viewState.type === 'upcoming') {
+            visibleTasks = data.tasks.filter(t => t.due_date && t.status !== 'trash');
+            content = el(UpcomingView, { 
+                tasks: visibleTasks, 
+                users: data.users, 
+                projects: data.projects, 
+                sections: data.sections, 
+                onUpdateTask: handleUpdateTask, 
+                onDeleteTask: handleDeleteTask, 
+                onAddTask: handleAddTask, 
+                onTaskClick: onTaskClick, 
+                labels: data.labels || [],
+                navigate
+            });
         }
         else if (viewState.type === 'filters_labels') {
             content = el(FiltersLabelsView, { labels: data.labels, navigate });

@@ -1,5 +1,5 @@
 (function(wp) {
-    const { createElement: el, useState, useEffect, useRef } = wp.element;
+    const { createElement: el, useState, useEffect, useRef, Fragment } = wp.element;
     const apiFetch = wp.apiFetch;
     
     const Common = window.H2L && window.H2L.Common ? window.H2L.Common : { Icon: () => null, Avatar: () => null, TASK_STATUSES: {} };
@@ -43,6 +43,23 @@
         return d.toISOString().split('T')[0];
     };
 
+    const formatDateKey = (date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
+    const getDayName = (date) => {
+        const days = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+        return days[date.getDay()];
+    };
+
+    const getMonthName = (date) => {
+        const months = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+        return months[date.getMonth()];
+    };
+
     // --- TOAST NOTIFICATION ---
     const Toast = ({ message, onClose }) => {
         useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
@@ -64,7 +81,7 @@
 
     const TaskRow = ({ task, users, projects = [], sections = [], onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask, labels, navigate }) => {
         const [isEditing, setIsEditing] = useState(false);
-        const [editorOpenMenu, setEditorOpenMenu] = useState(null); // Editör açıldığında hangi menü aktif olsun
+        const [editorOpenMenu, setEditorOpenMenu] = useState(null); 
         const [isStatusHovered, setIsStatusHovered] = useState(false);
         const [isMenuOpen, setIsMenuOpen] = useState(false);
         const [isAssigneeMenuOpen, setIsAssigneeMenuOpen] = useState(false);
@@ -123,13 +140,12 @@
             setIsMenuOpen(false);
         };
 
-        // --- EDIT MODE ---
         if (isEditing) {
             const editData = { ...task, dueDate: task.due_date ? task.due_date.split(' ')[0] : '' };
             return el('div', { style: { marginLeft: 28, marginBottom: 10 } }, 
                 el(TaskEditor, { 
                     mode: 'edit', initialData: editData, users, projects, sections, 
-                    initialOpenMenu: editorOpenMenu, // <-- Seçili menü ile aç
+                    initialOpenMenu: editorOpenMenu, 
                     onSave: (updatedData) => { onUpdateTask(task.id, updatedData); setIsEditing(false); setEditorOpenMenu(null); }, 
                     onCancel: () => { setIsEditing(false); setEditorOpenMenu(null); }, 
                     labels 
@@ -164,11 +180,8 @@
 
         const renderMoreMenu = () => {
             return el('div', { className: 'h2l-popover-menu top-aligned', style: { width: 250, paddingBottom: 8 }, onClick: e => e.stopPropagation() },
-                // 1. ALT GÖREV EKLE: Modalı açarak ekleme yapar
                 el('div', { className: 'h2l-menu-item', onClick: () => { setIsMenuOpen(false); onTaskClick(task); }, title: 'Bu göreve bir alt görev ekle' }, el(Icon, { name: 'arrow-turn-down-right', style:{marginRight:10, color:'#666', fontSize:14} }), 'Alt görev ekle'),
                 el('div', { className: 'h2l-menu-separator' }),
-                
-                // 2. TARİH KISAYOLLARI
                 el('span', { className: 'h2l-menu-label' }, 'Tarih'),
                 el('div', { className: 'h2l-menu-row' },
                     el('div', { className: 'h2l-menu-icon-btn', title: 'Bugün', onClick: () => { onUpdateTask(task.id, {dueDate: getDateString(0)}); setIsMenuOpen(false); } }, el(Icon, {name:'calendar-day', style:{color:'#058527'}})),
@@ -176,8 +189,6 @@
                     el('div', { className: 'h2l-menu-icon-btn', title: 'Gelecek Hafta', onClick: () => { onUpdateTask(task.id, {dueDate: getDateString(7)}); setIsMenuOpen(false); } }, el(Icon, {name:'calendar-week', style:{color:'#692fc2'}})),
                     el('div', { className: 'h2l-menu-icon-btn', title: 'Tarih Yok', onClick: () => { onUpdateTask(task.id, {dueDate: null}); setIsMenuOpen(false); } }, el(Icon, {name:'ban', style:{color:'#808080'}}))
                 ),
-                
-                // 3. ÖNCELİK (Çalışıyor)
                 el('span', { className: 'h2l-menu-label' }, 'Öncelik'),
                 el('div', { className: 'h2l-menu-row' },
                     el('div', { className: 'h2l-menu-icon-btn p1', title: 'Öncelik 1', onClick: () => { onUpdateTask(task.id, {priority:1}); setIsMenuOpen(false); } }, el(Icon, {name:'flag'})),
@@ -185,12 +196,10 @@
                     el('div', { className: 'h2l-menu-icon-btn p3', title: 'Öncelik 3', onClick: () => { onUpdateTask(task.id, {priority:3}); setIsMenuOpen(false); } }, el(Icon, {name:'flag'})),
                     el('div', { className: 'h2l-menu-icon-btn p4', title: 'Öncelik 4', onClick: () => { onUpdateTask(task.id, {priority:4}); setIsMenuOpen(false); } }, el(Icon, {name:'flag'}))
                 ),
-                // GÜNCELLEME: Hatırlatıcı Menü Öğesi Mantık Düzeltildi
                 el('div', { 
                     className: 'h2l-menu-item', 
                     title: 'Hatırlatıcı durumunu değiştir',
                     onClick: () => { 
-                        // Veritabanından string "0" veya "1" olarak gelebilir, bu yüzden güvenli kıyaslama yapıyoruz
                         const newStatus = (task.reminder_enabled == 1) ? 0 : 1;
                         onUpdateTask(task.id, { reminder_enabled: newStatus });
                         setIsMenuOpen(false); 
@@ -202,20 +211,11 @@
                     }), 
                     task.reminder_enabled == 1 ? 'Hatırlatıcıyı Kapat' : 'Hatırlatıcıyı Aç'
                 ),
-                // 5. ETİKETLER: Editörü etiket menüsüyle aç
                 el('div', { className: 'h2l-menu-item', title: 'Etiketleri yönet', onClick: () => { setIsMenuOpen(false); setEditorOpenMenu('labels_menu'); setIsEditing(true); } }, el(Icon, { name: 'tag', style:{marginRight:10, color:'#666', fontSize:14} }), 'Etiketler'),
-                
-                // 5. KONUM: Editörü konum menüsüyle aç
                 el('div', { className: 'h2l-menu-item', title: 'Konum ekle', onClick: () => { setIsMenuOpen(false); setEditorOpenMenu('location_menu'); setIsEditing(true); } }, el(Icon, { name: 'location-dot', style:{marginRight:10, color:'#666', fontSize:14} }), 'Konum'),
                 el('div', { className: 'h2l-menu-separator' }),
-                
-                // 6. TAŞI: Editörü proje menüsüyle aç
                 el('div', { className: 'h2l-menu-item', title: 'Başka projeye taşı', onClick: () => { setIsMenuOpen(false); setEditorOpenMenu('project'); setIsEditing(true); } }, el(Icon, { name: 'arrow-right-to-bracket', style:{marginRight:10, color:'#666', fontSize:14} }), 'Taşı'),
-                
-                // 7. KOPYA OLUŞTUR
                 el('div', { className: 'h2l-menu-item', title: 'Görevin kopyasını oluştur', onClick: handleDuplicate }, el(Icon, { name: 'copy', style:{marginRight:10, color:'#666', fontSize:14} }), 'Kopya oluştur'),
-                
-                // 8. BAĞLANTIYI KOPYALA
                 el('div', { className: 'h2l-menu-item', title: 'Bağlantıyı panoya kopyala', onClick: handleCopyLink }, el(Icon, { name: 'link', style:{marginRight:10, color:'#666', fontSize:14} }), 'Görev bağlantısını kopyala')
             );
         };
@@ -227,6 +227,9 @@
         let rowClassName = `h2l-task-row ${highlightClass} ${isMenuOpen || isAssigneeMenuOpen ? 'menu-open' : ''}`;
         if (dragOverState === 'top') rowClassName += ' h2l-drag-over-top';
         if (dragOverState === 'bottom') rowClassName += ' h2l-drag-over-bottom';
+
+        const project = projects.find(p => parseInt(p.id) === parseInt(task.project_id));
+        const section = sections.find(s => parseInt(s.id) === parseInt(task.section_id));
 
         return el('div', { 
             className: rowClassName, 
@@ -272,7 +275,12 @@
                             }
                         }, el(Icon, {name:'hashtag', style:{fontSize:10, marginRight:1}}), labelName);
                     }),
-                    (task.status !== 'open' && task.status !== 'in_progress' && TASK_STATUSES[task.status]) && el('span', { className: 'h2l-detail-item status-badge', style: { color: TASK_STATUSES[task.status].color, fontSize: '11px', fontWeight: 600 } }, task.status === 'completed' ? null : [el(Icon, {name: TASK_STATUSES[task.status].icon}), ' ', TASK_STATUSES[task.status].label])
+                    (task.status !== 'open' && task.status !== 'in_progress' && TASK_STATUSES[task.status]) && el('span', { className: 'h2l-detail-item status-badge', style: { color: TASK_STATUSES[task.status].color, fontSize: '11px', fontWeight: 600 } }, task.status === 'completed' ? null : [el(Icon, {name: TASK_STATUSES[task.status].icon}), ' ', TASK_STATUSES[task.status].label]),
+                    project && el('span', { className: 'h2l-detail-item project', style:{marginLeft: 'auto', fontSize: '11px'} }, 
+                        el('span', {style:{marginRight:4}}, project.title),
+                        el('span', { className: 'h2l-dot', style: { backgroundColor: project.color || '#888' } }),
+                        section ? el('span', {style:{color:'#999', marginLeft:4}}, `/ ${section.name}`) : null
+                    )
                 )
             ),
             
@@ -292,10 +300,11 @@
         );
     };
 
-    const QuickAddContainer = ({ sectionId, projectId, users, projects, sections, onAdd, labels }) => {
+    const QuickAddContainer = ({ sectionId, projectId, users, projects, sections, onAdd, labels, date }) => {
         const [isOpen, setIsOpen] = useState(false);
         if (!isOpen) return el('div', { style: { marginLeft: 28 } }, el(QuickAddTrigger, { onOpen: () => setIsOpen(true) }));
         const initData = { project_id: projectId, section_id: sectionId };
+        if (date) initData.due_date = date; 
         return el('div', { style: { marginLeft: 28 } },
             el(TaskEditor, {
                 mode: 'add', users, projects, sections, activeProjectId: projectId,
@@ -380,6 +389,158 @@
         return el('div', { className: 'h2l-section-add-form' }, el('form', { onSubmit: handleSubmit }, el('input', { className: 'h2l-section-input', autoFocus: true, placeholder: 'Bölüm adı', value: name, onChange: e => setName(e.target.value), onBlur: () => !name.trim() && setIsEditing(false) }), el('div', { className: 'h2l-form-actions' }, el('button', { type:'submit', className: 'h2l-btn primary', disabled:!name.trim() }, 'Bölüm ekle'), el('button', { type:'button', className: 'h2l-btn', onClick: () => setIsEditing(false) }, 'İptal'))));
     };
 
+    // --- UPCOMING VIEW ---
+    const UpcomingView = ({ tasks, users, projects, sections, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, labels, navigate }) => {
+        const [currentDate, setCurrentDate] = useState(new Date());
+        const [weekDates, setWeekDates] = useState([]);
+        const [overdueExpanded, setOverdueExpanded] = useState(true);
+
+        useEffect(() => {
+            const start = new Date(currentDate);
+            const dates = [];
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(start);
+                d.setDate(start.getDate() + i);
+                dates.push(d);
+            }
+            setWeekDates(dates);
+        }, [currentDate]);
+
+        const today = new Date();
+        today.setHours(0,0,0,0);
+
+        const groupedTasks = { overdue: [], today: [], upcoming: {} };
+
+        tasks.forEach(t => {
+            if (t.status === 'completed' || t.status === 'cancelled') return;
+            if (!t.due_date) return;
+            const tDate = new Date(t.due_date);
+            tDate.setHours(0,0,0,0);
+            
+            if (tDate < today) groupedTasks.overdue.push(t);
+            else if (tDate.getTime() === today.getTime()) groupedTasks.today.push(t);
+            else {
+                const dKey = formatDateKey(tDate);
+                if (!groupedTasks.upcoming[dKey]) groupedTasks.upcoming[dKey] = { date: tDate, tasks: [] };
+                groupedTasks.upcoming[dKey].tasks.push(t);
+            }
+        });
+
+        const futureDays = [];
+        const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(tomorrow);
+            d.setDate(tomorrow.getDate() + i);
+            const key = formatDateKey(d);
+            if (!groupedTasks.upcoming[key]) groupedTasks.upcoming[key] = { date: d, tasks: [] };
+        }
+
+        const sortedKeys = Object.keys(groupedTasks.upcoming).sort();
+        const goToToday = () => setCurrentDate(new Date());
+        const shiftWeek = (days) => { const newDate = new Date(currentDate); newDate.setDate(newDate.getDate() + days); setCurrentDate(newDate); };
+        const handleRescheduleOverdue = () => { groupedTasks.overdue.forEach(t => onUpdateTask(t.id, { due_date: getDateString(0) })); };
+
+        return el('div', { className: 'h2l-upcoming-view' },
+            el('div', { className: 'h2l-upcoming-header-wrapper' },
+                el('div', { className: 'h2l-upcoming-top-bar' },
+                    el('h1', null, 'Yaklaşan'),
+                    el('div', { className: 'h2l-uc-controls' },
+                        el('button', { className: 'h2l-btn-today', onClick: goToToday, disabled: formatDateKey(currentDate) === formatDateKey(today) }, 'Bugün'),
+                        el('button', { className: 'h2l-uc-nav', onClick: () => shiftWeek(-7) }, el(Icon, {name:'chevron-left'})),
+                        el('button', { className: 'h2l-uc-nav', onClick: () => shiftWeek(7) }, el(Icon, {name:'chevron-right'}))
+                    )
+                ),
+                el('div', { className: 'h2l-calendar-strip' },
+                    weekDates.map(d => {
+                        const isToday = formatDateKey(d) === formatDateKey(today);
+                        const dayName = d.toLocaleDateString('tr-TR', { weekday: 'short' });
+                        const dayNum = d.getDate();
+                        const hasTask = tasks.some(t => t.due_date && formatDateKey(new Date(t.due_date)) === formatDateKey(d));
+                        return el('div', { key: formatDateKey(d), className: `h2l-strip-day ${isToday ? 'today' : ''}`, onClick: () => { const elId = `day-${formatDateKey(d)}`; const el = document.getElementById(elId); if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, el('span', { className: 'day-name' }, dayName), el('span', { className: 'day-num' }, dayNum), hasTask && el('span', { className: 'has-task-dot' }));
+                    })
+                )
+            ),
+            el('div', { className: 'h2l-upcoming-content' },
+                groupedTasks.overdue.length > 0 && el('div', { className: 'h2l-overdue-section' },
+                    el('div', { className: 'h2l-overdue-header' },
+                        el('div', { className: 'h2l-overdue-toggle', onClick: () => setOverdueExpanded(!overdueExpanded) }, el(Icon, { name: overdueExpanded ? 'chevron-down' : 'chevron-right' }), el('span', null, 'Geciken'), el('span', { className: 'count' }, groupedTasks.overdue.length)),
+                        el('button', { className: 'h2l-reschedule-link', onClick: handleRescheduleOverdue }, 'Zamanı yeniden ayarla')
+                    ),
+                    overdueExpanded && el('div', { className: 'h2l-overdue-list' }, groupedTasks.overdue.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, onAddTask, labels, navigate })))
+                ),
+                el('div', { className: 'h2l-date-section', id: `day-${formatDateKey(today)}` },
+                    el('div', { className: 'h2l-date-header' }, el('span', { className: 'date-title' }, `Bugün · ${getDayName(today)} ${today.getDate()} ${getMonthName(today)}`), el('span', { className: 'date-count' }, groupedTasks.today.length || '')),
+                    el('div', { className: 'h2l-date-tasks' }, groupedTasks.today.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, onAddTask, labels, navigate })), el(QuickAddContainer, { projectId: 0, sectionId: 0, users, projects, sections, onAdd: (d) => onAddTask({...d, dueDate: getDateString(0)}), labels, date: getDateString(0) }))
+                ),
+                sortedKeys.map(key => {
+                    const group = groupedTasks.upcoming[key];
+                    const isTomorrow = key === formatDateKey(new Date(new Date().setDate(new Date().getDate() + 1)));
+                    const title = isTomorrow ? `Yarın · ${getDayName(group.date)} ${group.date.getDate()} ${getMonthName(group.date)}` : `${group.date.getDate()} ${getMonthName(group.date)} · ${getDayName(group.date)}`;
+                    return el('div', { key: key, className: 'h2l-date-section', id: `day-${key}` },
+                        el('div', { className: 'h2l-date-header' }, el('span', { className: 'date-title' }, title), el('span', { className: 'date-count' }, group.tasks.length || '')),
+                        el('div', { className: 'h2l-date-tasks' }, group.tasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, onAddTask, labels, navigate })), el(QuickAddContainer, { projectId: 0, sectionId: 0, users, projects, sections, onAdd: (d) => onAddTask({...d, dueDate: key}), labels, date: key }))
+                    );
+                })
+            )
+        );
+    };
+
+    // --- TODAY VIEW (YENİ - Todoist Style) ---
+    const TodayView = ({ tasks, users, projects, sections, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, labels, navigate }) => {
+        const [overdueExpanded, setOverdueExpanded] = useState(false); // Bugün görünümünde kapalı başlat
+        const today = new Date();
+        today.setHours(0,0,0,0);
+
+        const overdueTasks = [];
+        const todayTasks = [];
+
+        tasks.forEach(t => {
+            if (t.status === 'completed' || t.status === 'cancelled') return;
+            if (!t.due_date) return; // Bugün görünümünde tarihsizler görünmez (Todoist mantığı)
+            
+            const tDate = new Date(t.due_date);
+            tDate.setHours(0,0,0,0);
+            
+            if (tDate < today) overdueTasks.push(t);
+            else if (tDate.getTime() === today.getTime()) todayTasks.push(t);
+        });
+
+        const handleRescheduleOverdue = () => {
+            overdueTasks.forEach(t => onUpdateTask(t.id, { due_date: getDateString(0) }));
+        };
+
+        return el('div', { className: 'h2l-today-view' },
+            el('div', { className: 'h2l-today-header' },
+                el('div', { className: 'h2l-today-title-row' },
+                    el('h1', null, 'Bugün'),
+                    el('span', { className: 'h2l-today-date' }, `${getDayName(today)} ${today.getDate()} ${getMonthName(today)}`),
+                    el('span', { className: 'h2l-today-count' }, todayTasks.length > 0 ? todayTasks.length + ' görev' : '')
+                )
+            ),
+            
+            // OVERDUE SECTION (Varsa)
+            overdueTasks.length > 0 && el('div', { className: 'h2l-overdue-section' },
+                el('div', { className: 'h2l-overdue-header' },
+                    el('div', { className: 'h2l-overdue-toggle', onClick: () => setOverdueExpanded(!overdueExpanded) },
+                        el(Icon, { name: overdueExpanded ? 'chevron-down' : 'chevron-right' }),
+                        el('span', null, 'Geciken'),
+                        el('span', { className: 'count' }, overdueTasks.length)
+                    ),
+                    el('button', { className: 'h2l-reschedule-link', onClick: handleRescheduleOverdue }, 'Zamanı yeniden ayarla')
+                ),
+                overdueExpanded && el('div', { className: 'h2l-overdue-list' },
+                    overdueTasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, onAddTask, labels, navigate }))
+                )
+            ),
+
+            // TODAY TASK LIST
+            el('div', { className: 'h2l-today-list' },
+                todayTasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, onAddTask, labels, navigate })),
+                el(QuickAddContainer, { projectId: 0, sectionId: 0, users, projects, sections, onAdd: (d) => onAddTask({...d, dueDate: getDateString(0)}), labels, date: getDateString(0) })
+            )
+        );
+    };
+
     const ListView = ({ project, tasks, sections, users, projects = [], onUpdateTask, onDeleteTask, onAddTask, onAddSection, onTaskClick, showCompleted, highlightToday, onUpdateSection, onDeleteSection, labels, navigate }) => {
         const [localTasks, setLocalTasks] = useState(tasks);
         const [localSections, setLocalSections] = useState(sections);
@@ -452,7 +613,7 @@
                 const sTasks = visibleTasks.filter(t => parseInt(t.section_id) === parseInt(s.id));
                 return el(SectionGroup, { 
                     key: s.id, section: s, tasks: sTasks, users, projects, sections, 
-                    onUpdateTask, onDeleteTask, onAddTask, onTaskClick, highlightToday, 
+                    onUpdateTask, onDeleteTask, onTaskClick, highlightToday, 
                     onUpdateSection, onDeleteSection, 
                     onMoveTask: handleMoveTask,
                     onMoveSection: handleMoveSection,
@@ -465,6 +626,8 @@
 
     window.H2L.Tasks = {
         ListView,
+        UpcomingView,
+        TodayView, // YENİ: Dışa Aktar
         BoardView: () => el('div', { className: 'h2l-board-placeholder' }, el(Icon, {name: 'table-columns', style: {fontSize: 40, color: '#ddd'}}), el('p', null, 'Pano görünümü yapım aşamasında...')),
         SectionGroup,
         TaskRow
