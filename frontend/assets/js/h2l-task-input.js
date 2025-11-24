@@ -712,7 +712,8 @@
         const [repeat, setRepeat] = useState(initialData.repeat || null);
         
         const [status, setStatus] = useState(initialData.status || 'in_progress');
-        
+        const [reminderEnabled, setReminderEnabled] = useState(initialData.reminder_enabled == 1 || false);
+
         const [projectId, setProjectId] = useState(initialData.project_id || activeProjectId);
         const [sectionId, setSectionId] = useState(initialData.section_id || null);
         
@@ -868,10 +869,11 @@
             const finalPlainTitle = title.replace(/<[^>]*>/g, '').trim();
             if(finalPlainTitle && finalPlainTitle.length <= MAX_CHARS) {
                 let finalDueDate = dueDate; if(dueDate && dueTime) finalDueDate = `${dueDate} ${dueTime}:00`;
-                const taskData = { id: initialData.id, title, content: description, priority, assignees: assigneeIds, dueDate: finalDueDate, repeat, status, projectId, sectionId,location, labels: selectedLabels };
+                // GÜNCELLEME: reminder_enabled state'ini gönder
+                const taskData = { id: initialData.id, title, content: description, priority, assignees: assigneeIds, dueDate: finalDueDate, repeat, status, projectId, sectionId,location, labels: selectedLabels, reminder_enabled: reminderEnabled };
                 onSave(taskData);
                 if(mode === 'add') { 
-                    setTitle(''); setDescription(''); setPriority(4); setAssigneeIds([]); setDueDate(''); setDueTime(''); setRepeat(null); setStatus('in_progress'); setLocation(''); setSelectedLabels([]);
+                    setTitle(''); setDescription(''); setPriority(4); setAssigneeIds([]); setDueDate(''); setDueTime(''); setRepeat(null); setStatus('in_progress'); setLocation(''); setSelectedLabels([]); setReminderEnabled(false);
                     setCurrentPlaceholder(getRandomPlaceholder());
                     const titleEl = wrapperRef.current.querySelector('.h2l-content-editable.title-mode'); if(titleEl) titleEl.innerHTML = ''; 
                 }
@@ -1102,7 +1104,6 @@
                         el('button', { 
                             className: 'h2l-todoist-chip', 
                             onClick: (e) => { e.stopPropagation(); setActivePopup(activePopup === 'priority' ? null : 'priority'); }, 
-                            // İkon rengi artık her zaman görünecek şekilde ayarlandı
                             style: { borderColor: priority !== 4 ? getPriorityColor(priority) : '#e5e5e5', color: priority !== 4 ? getPriorityColor(priority) : '#555' } 
                         }, 
                             el(Icon, {name:'flag', style: { color: getPriorityColor(priority) } }), // İkon rengi zorla ayarlandı
@@ -1110,33 +1111,22 @@
                         ), 
                         activePopup === 'priority' && renderPopup()
                     ),
-                    
-                    // İPTAL EDİLDİ: ETİKET VE KONUM CHİPLERİ BURADA GÖRÜNMEYECEK (İSTEK ÜZERİNE)
-                    // selectedLabels.map(...) ve location && ... kaldırıldı.
-
-                    el('div', { className: 'h2l-chip-wrapper' }, el('button', { className: 'h2l-todoist-chip disabled' }, el(Icon, {name:'clock'}), ' Hatırlatıcılar')),
-                    
+                    // GÜNCELLEME: Hatırlatıcı Butonu Aktif Hale Getirildi
                     el('div', { className: 'h2l-chip-wrapper' }, 
-                        el('button', { className: 'h2l-todoist-chip', onClick: (e) => { e.stopPropagation(); setActivePopup(activePopup === 'status' ? null : 'status'); } }, 
-                            el(Icon, {name: currentStatusObj.icon, style: { color: currentStatusObj.color }}), 
-                            ` ${currentStatusObj.label}`
-                        ), 
-                        activePopup === 'status' && renderPopup()
+                        el('button', { 
+                            className: `h2l-todoist-chip ${reminderEnabled ? 'active' : ''}`,
+                            onClick: () => setReminderEnabled(!reminderEnabled),
+                            style: { color: reminderEnabled ? '#db4c3f' : '#555', borderColor: reminderEnabled ? '#db4c3f' : '#e5e5e5' }
+                        }, el(Icon, {name:'bell', style: { color: reminderEnabled ? '#db4c3f' : '#666' }}), reminderEnabled ? ' Hatırlatıcı Açık' : ' Hatırlatıcı')
                     ),
                     
-                    // MORE MENU TRIGGER (Updated)
-                    el('div', { className: 'h2l-chip-wrapper' }, 
-                        el('button', { className: 'h2l-todoist-chip icon-only', onClick: (e) => { e.stopPropagation(); setActivePopup(activePopup === 'more' ? null : 'more'); } }, el(Icon, {name:'ellipsis'})),
-                        (activePopup === 'more' || activePopup === 'labels_menu' || activePopup === 'location_menu') && renderPopup()
-                    )
+                    el('div', { className: 'h2l-chip-wrapper' }, el('button', { className: 'h2l-todoist-chip', onClick: (e) => { e.stopPropagation(); setActivePopup(activePopup === 'status' ? null : 'status'); } }, el(Icon, {name: currentStatusObj.icon, style: { color: currentStatusObj.color }}), ` ${currentStatusObj.label}`), activePopup === 'status' && renderPopup()),
+                    el('div', { className: 'h2l-chip-wrapper' }, el('button', { className: 'h2l-todoist-chip icon-only', onClick: (e) => { e.stopPropagation(); setActivePopup(activePopup === 'more' ? null : 'more'); } }, el(Icon, {name:'ellipsis'})), (activePopup === 'more' || activePopup === 'labels_menu' || activePopup === 'location_menu') && renderPopup())
                 )
             ),
             el('div', { className: 'h2l-todoist-footer' },
                 el('div', { className: 'h2l-chip-wrapper' }, el('div', { className: 'h2l-todoist-project-selector', onClick: (e) => { e.stopPropagation(); setActivePopup(activePopup === 'project' ? null : 'project'); } }, selectedProject ? el('span', {style:{color:selectedProject.color}}, '#') : el(Icon, {name:'inbox'}), el('span', null, selectedProject ? selectedProject.title : 'Proje Seç'), el(Icon, {name:'angle-down', style:{fontSize:10, marginLeft:4}})), activePopup === 'project' && renderPopup()),
-                el('div', { className: 'h2l-todoist-footer-actions' }, 
-                    el('button', { className: 'h2l-todoist-btn-cancel', onClick: onCancel }, 'İptal'), 
-                    el('button', { className: 'h2l-todoist-btn-add', onClick: handleSubmit, disabled: !plainTitle || isLimitExceeded }, mode === 'add' ? 'Görev ekle' : 'Kaydet')
-                )
+                el('div', { className: 'h2l-todoist-footer-actions' }, el('button', { className: 'h2l-todoist-btn-cancel', onClick: onCancel }, 'İptal'), el('button', { className: 'h2l-todoist-btn-add', onClick: handleSubmit, disabled: !plainTitle || isLimitExceeded }, mode === 'add' ? 'Görev ekle' : 'Kaydet'))
             )
         );
     };

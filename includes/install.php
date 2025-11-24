@@ -1,7 +1,7 @@
 <?php
 /**
  * Veritabanı kurulum işlemleri.
- * dbDelta uyumluluğu için katı SQL formatı.
+ * Hatırlatıcı durumu için 'reminder_sent' alanı eklendi.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -57,7 +57,7 @@ function h2l_install_db() {
   KEY project_id (project_id)
 ) $charset_collate;";
 
-    // 4. Tasks
+    // 4. Tasks - GÜNCELLENDİ: reminder_sent kolonu eklendi
     $sql_tasks = "CREATE TABLE {$wpdb->prefix}h2l_tasks (
   id bigint(20) NOT NULL AUTO_INCREMENT,
   project_id bigint(20) NOT NULL,
@@ -71,6 +71,7 @@ function h2l_install_db() {
   assignee_ids text,
   location text,
   reminder_enabled tinyint(1) DEFAULT 1,
+  reminder_sent tinyint(1) DEFAULT 0,
   due_date datetime DEFAULT NULL,
   created_at datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
   completed_at datetime DEFAULT NULL,
@@ -95,7 +96,7 @@ function h2l_install_db() {
   PRIMARY KEY  (id)
 ) $charset_collate;";
 
-    // 7. Comments (YENİ)
+    // 7. Comments
     $sql_comments = "CREATE TABLE {$wpdb->prefix}h2l_comments (
   id bigint(20) NOT NULL AUTO_INCREMENT,
   task_id bigint(20) NOT NULL,
@@ -107,7 +108,7 @@ function h2l_install_db() {
   KEY task_id (task_id)
 ) $charset_collate;";
 
-    // 8. Activity Log (YENİ)
+    // 8. Activity Log
     $sql_activity = "CREATE TABLE {$wpdb->prefix}h2l_activity_log (
   id bigint(20) NOT NULL AUTO_INCREMENT,
   object_type varchar(50) NOT NULL,
@@ -130,7 +131,7 @@ function h2l_install_db() {
     dbDelta( $sql_comments );
     dbDelta( $sql_activity );
 
-    add_option( 'h2l_db_version', '1.7.0' );
+    add_option( 'h2l_db_version', '1.8.0' );
     
     // Sayfayı oluştur
     h2l_create_app_page();

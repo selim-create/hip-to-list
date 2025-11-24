@@ -13,19 +13,14 @@
 
     const BASE_URL = settings.base_url || '/gorevler';
 
-    // --- API MIDDLEWARE (GÜNCELLENDİ) ---
+    // --- API MIDDLEWARE ---
     apiFetch.use((options, next) => {
         if (!options.headers) options.headers = {};
         options.headers['X-WP-Nonce'] = settings.nonce;
-
-        // LITESPEED CACHE FIX:
-        // Sadece veri okuma (GET) işlemlerinde URL sonuna benzersiz zaman damgası ekle.
-        // Bu sayede tarayıcı ve sunucu her isteği "yeni" sanar ve cache kullanmaz.
         if ((!options.method || options.method === 'GET') && options.path) {
             const separator = options.path.includes('?') ? '&' : '?';
             options.path = `${options.path}${separator}t=${new Date().getTime()}`;
         }
-
         return next(options);
     });
 
@@ -37,12 +32,31 @@
         const [activeTaskId, setActiveTaskId] = useState(null); 
 
         const loadData = () => {
-            // Init isteği artık middleware sayesinde ?t=... parametresi alacak
             apiFetch({ path: '/h2l/v1/init' }).then(res => { setData(res); setLoading(false); })
             .catch(err => { console.error(err); setLoading(false); });
         };
 
         useEffect(() => { loadData(); }, []);
+
+        // --- YENİ: HEARTBEAT (OTOMATİK TETİKLEME) ---
+        useEffect(() => {
+            // Sayfa ilk açıldığında bir kere çalıştır
+            apiFetch({ path: '/h2l/v1/trigger-reminders', method: 'POST' }).catch(() => {});
+
+            // Her 60 saniyede bir tetikle
+            const interval = setInterval(() => {
+                apiFetch({ path: '/h2l/v1/trigger-reminders', method: 'POST' })
+                    .then(res => {
+                        // İsteğe bağlı: console.log('Heartbeat tick', res);
+                    })
+                    .catch(err => {
+                        // Hata olursa sessizce yut, kullanıcıyı rahatsız etme
+                    });
+            }, 60000); // 1 Dakika
+
+            // Component unmount olursa interval'i temizle
+            return () => clearInterval(interval);
+        }, []);
 
         // --- ROUTING LOGIC ---
         const navigate = (path) => {

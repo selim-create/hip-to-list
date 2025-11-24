@@ -686,16 +686,16 @@
                                 })
                             ),
                             
-                            // HATIRLATICI
+                            // HATIRLATICI - GÜNCELLENMİŞ
                             el(SidebarRow, { 
                                 label: 'Hatırlatıcılar', 
-                                value: task.reminder_enabled ? 'Açık' : 'Kapalı', 
+                                value: (task.reminder_enabled == 1) ? 'Açık' : 'Kapalı', 
                                 icon: 'bell', 
-                                color: task.reminder_enabled ? '#db4c3f' : '#aaa', 
+                                color: (task.reminder_enabled == 1) ? '#db4c3f' : '#aaa', 
                                 isClickable: true,
-                                onTogglePopup: () => updateField({ reminder_enabled: !task.reminder_enabled })
+                                onTogglePopup: () => updateField({ reminder_enabled: (task.reminder_enabled == 1) ? 0 : 1 })
                             }),
-
+                            
                             // DURUM (STATUS)
                             el(SidebarRow, { 
                                 label: 'Durum', 

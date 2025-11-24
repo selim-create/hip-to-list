@@ -185,9 +185,23 @@
                     el('div', { className: 'h2l-menu-icon-btn p3', title: 'Öncelik 3', onClick: () => { onUpdateTask(task.id, {priority:3}); setIsMenuOpen(false); } }, el(Icon, {name:'flag'})),
                     el('div', { className: 'h2l-menu-icon-btn p4', title: 'Öncelik 4', onClick: () => { onUpdateTask(task.id, {priority:4}); setIsMenuOpen(false); } }, el(Icon, {name:'flag'}))
                 ),
-                el('div', { className: 'h2l-menu-separator' }),
-                el('div', { className: 'h2l-menu-item', title: 'Hatırlatıcı ekle (Yapım Aşamasında)', style:{opacity:0.5} }, el(Icon, { name: 'bell', style:{marginRight:10, color:'#666', fontSize:14} }), 'Hatırlatıcı'),
-                
+                // GÜNCELLEME: Hatırlatıcı Menü Öğesi Mantık Düzeltildi
+                el('div', { 
+                    className: 'h2l-menu-item', 
+                    title: 'Hatırlatıcı durumunu değiştir',
+                    onClick: () => { 
+                        // Veritabanından string "0" veya "1" olarak gelebilir, bu yüzden güvenli kıyaslama yapıyoruz
+                        const newStatus = (task.reminder_enabled == 1) ? 0 : 1;
+                        onUpdateTask(task.id, { reminder_enabled: newStatus });
+                        setIsMenuOpen(false); 
+                    }
+                }, 
+                    el(Icon, { 
+                        name: 'bell', 
+                        style:{ marginRight:10, color: task.reminder_enabled == 1 ? '#db4c3f' : '#666', fontSize:14 } 
+                    }), 
+                    task.reminder_enabled == 1 ? 'Hatırlatıcıyı Kapat' : 'Hatırlatıcıyı Aç'
+                ),
                 // 5. ETİKETLER: Editörü etiket menüsüyle aç
                 el('div', { className: 'h2l-menu-item', title: 'Etiketleri yönet', onClick: () => { setIsMenuOpen(false); setEditorOpenMenu('labels_menu'); setIsEditing(true); } }, el(Icon, { name: 'tag', style:{marginRight:10, color:'#666', fontSize:14} }), 'Etiketler'),
                 
@@ -238,7 +252,7 @@
                 plainDesc && el('div', { className: 'h2l-task-desc' }, plainDesc),
                 el('div', { className: 'h2l-task-details' },
                     smartDate && el('span', { className: 'h2l-detail-item date', style: { color: smartDate.color } }, el(Icon, {name: smartDate.icon, style:{color: smartDate.color}}), smartDate.text, smartDate.isRecurring && el(Icon, { name: 'arrows-rotate', style: { fontSize: 10, marginLeft: 4, color: smartDate.color }, title: 'Tekrarlı' })),
-                    (task.reminder_enabled == 1) && el('span', { className: 'h2l-detail-item', title: 'Hatırlatıcı açık' }, el(Icon, {name:'bell', style:{color:'#888', fontSize:12}})),
+                    (task.reminder_enabled == 1) && el('span', { className: 'h2l-detail-item', title: 'Hatırlatıcı açık' }, el(Icon, {name:'bell', style:{color:'#db4c3f', fontSize:12}})),
                     (parseInt(task.comment_count || 0) > 0) && el('span', { className: 'h2l-detail-item comments', style: { cursor: 'pointer', color: '#888' }, onClick: (e) => { e.stopPropagation(); onTaskClick(task); } }, el(Icon, {name:'comment', style:{fontSize:11}}), ' ', task.comment_count),
                     (task.labels && task.labels.length > 0) && task.labels.map(lbl => {
                         const isString = typeof lbl === 'string';

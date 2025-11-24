@@ -1,6 +1,7 @@
 <?php
 /**
  * Hip to List - Admin Sayfaları
+ * Ayarlar Sayfası: Giriş Metni ve Footer için ayrı editörler eklendi.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -182,7 +183,6 @@ function h2l_render_task_edit_page() {
     $sections_all = []; if($wpdb->get_var("SHOW TABLES LIKE '$table_sections'") == $table_sections) { $sections_all = $wpdb->get_results("SELECT id, project_id, name FROM $table_sections ORDER BY sort_order ASC"); } $sections_json = []; foreach($sections_all as $s) { $sections_json[$s->project_id][$s->id] = $s->name; } echo '<script>window.h2lSections = ' . json_encode($sections_json) . ';</script>';
     $p_data = [1=>['#d1453b','P1 - Kritik'], 2=>['#eb8909','P2 - Yüksek'], 3=>['#246fe0','P3 - Orta'], 4=>['#808080','P4 - Düşük']]; $current_assignees = ($task && !empty($task->assignee_ids)) ? json_decode((string)$task->assignee_ids) : [];
     
-    // YENİ STATÜ HARİTASI
     $status_options = [
         'not_started' => 'Başlamadı',
         'in_progress' => 'Devam Ediyor',
@@ -191,12 +191,133 @@ function h2l_render_task_edit_page() {
         'pending_approval' => 'Onay Bekliyor',
         'cancelled' => 'İptal Edildi',
         'completed' => 'Tamamlandı',
-        'open' => 'Devam Ediyor (Eski)' // Fallback
+        'open' => 'Devam Ediyor (Eski)' 
     ];
     ?>
     <div class="wrap"><h1><?php echo $task?'Görevi Düzenle':'Yeni Görev'; ?></h1><form method="post"><?php wp_nonce_field('h2l_save_task'); ?><input type="hidden" name="h2l_save_task" value="1"><div id="poststuff"><div id="post-body" class="metabox-holder columns-2"><div id="post-body-content"><div class="form-field"><label><strong>Başlık</strong></label><textarea name="title" style="width:100%;height:60px;" required><?php echo $task?esc_textarea($task->title):''; ?></textarea></div><div style="margin-top:20px;"><label><strong>Açıklama</strong></label><?php wp_editor($task?$task->content:'', 'content', array('textarea_rows'=>8)); ?></div></div><div id="postbox-container-1" class="postbox-container"><div class="postbox"><h2 class="hndle">Detaylar</h2><div class="inside"><p><label>Proje</label><br><select name="project_id" id="h2l-project-select" class="h2l-select2" required><option value="">Seç...</option><?php foreach($projects as $p): ?><option value="<?php echo $p->id; ?>" <?php selected($task?$task->project_id:0, $p->id); ?>><?php echo esc_html($p->title); ?></option><?php endforeach; ?></select></p><p><label>Bölüm</label><br><select name="section_id" id="h2l-section-select" class="h2l-select2" data-selected="<?php echo $task?$task->section_id:0; ?>"><option value="0">-- Bölümsüz --</option></select></p><p><label>Öncelik</label><br><select name="priority" class="h2l-select2-priority"><?php foreach($p_data as $k=>$v): ?><option value="<?php echo $k; ?>" data-color="<?php echo $v[0]; ?>" <?php selected($task?$task->priority:4, $k); ?>><?php echo $v[1]; ?></option><?php endforeach; ?></select></p><p><label>Durum</label><br><select name="status" class="h2l-select2"><?php foreach($status_options as $k=>$v): ?><option value="<?php echo $k; ?>" <?php selected($task?$task->status:'in_progress', $k); ?>><?php echo $v; ?></option><?php endforeach; ?></select></p><p><label>Tarih</label><br><input type="text" name="due_date" class="h2l-datetime" value="<?php echo $task?esc_attr($task->due_date):''; ?>" style="width:100%"></p><p><label>Atanan</label><br><select name="assignees[]" multiple class="h2l-select2"><?php foreach($users as $u): ?><option value="<?php echo $u->ID; ?>" <?php echo in_array($u->ID, (array)$current_assignees)?'selected':''; ?>><?php echo $u->display_name; ?></option><?php endforeach; ?></select></p><p><label>Etiketler</label><br><select name="labels[]" multiple class="h2l-select2-tags"><?php foreach($all_labels as $l): ?><option value="<?php echo $l->id; ?>" <?php echo in_array($l->id, (array)$task_labels)?'selected':''; ?>><?php echo esc_html($l->name); ?></option><?php endforeach; ?></select></p><p><label>Konum</label><br><input type="text" name="location" value="<?php echo $task?esc_attr($task->location):''; ?>" style="width:100%"></p><p><input type="checkbox" name="reminder" value="1" <?php checked($task?$task->reminder_enabled:1, 1); ?>> Hatırlatıcı Açık</p><input type="submit" class="button button-primary button-large" value="Kaydet" style="width:100%"></div></div></div></div></div></form></div>
     <?php
 }
 
-function h2l_render_settings_page() { echo '<div class="wrap"><h1>Ayarlar</h1></div>'; }
+// 7. AYARLAR (YENİ: AYRI GİRİŞ VE FOOTER EDİTÖRLERİ)
+function h2l_render_settings_page() { 
+    // Ayarları Kaydet
+    if ( isset($_POST['h2l_save_settings']) ) {
+        check_admin_referer('h2l_settings_nonce');
+        update_option('h2l_reminder_subject', sanitize_text_field($_POST['h2l_reminder_subject']));
+        update_option('h2l_reminder_body', wp_kses_post($_POST['h2l_reminder_body']));
+        update_option('h2l_reminder_footer', wp_kses_post($_POST['h2l_reminder_footer']));
+        h2l_show_admin_notice('Ayarlar kaydedildi.');
+    }
+
+    // Test Maili Gönder
+    if ( isset($_POST['h2l_send_test_email']) ) {
+        check_admin_referer('h2l_settings_nonce');
+        $test_email = sanitize_email($_POST['h2l_test_email']);
+        
+        if ( is_email($test_email) && class_exists('H2L_Reminder') ) {
+            $reminder = new H2L_Reminder();
+            if ( $reminder->send_test_reminder($test_email) ) {
+                h2l_show_admin_notice('Test e-postası başarıyla gönderildi.');
+            } else {
+                h2l_show_admin_notice('E-posta gönderilemedi.', 'error');
+            }
+        } else {
+            h2l_show_admin_notice('Geçersiz e-posta adresi.', 'error');
+        }
+    }
+
+    $subject = get_option('h2l_reminder_subject', '🔔 Hatırlatma: {task_title}');
+    $body_intro = get_option('h2l_reminder_body', "Merhaba {user_name},\n\nAşağıdaki görevin zamanı geldi:");
+    $footer_text = get_option('h2l_reminder_footer', 'Bu e-posta Hip to List tarafından gönderilmiştir.');
+    ?>
+    <div class="wrap">
+        <h1>Ayarlar</h1>
+        
+        <!-- Ayarlar Formu -->
+        <form method="post">
+            <?php wp_nonce_field('h2l_settings_nonce'); ?>
+            <input type="hidden" name="h2l_save_settings" value="1">
+            
+            <div class="card" style="padding:20px; max-width:800px; margin-bottom: 20px;">
+                <h2>Hatırlatıcı E-posta Şablonu</h2>
+                <p class="description">Kullanıcıya gönderilecek hatırlatma e-postasının içeriğini buradan düzenleyebilirsiniz.</p>
+                
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="h2l_reminder_subject">E-posta Başlığı</label></th>
+                        <td>
+                            <input name="h2l_reminder_subject" type="text" id="h2l_reminder_subject" value="<?php echo esc_attr($subject); ?>" class="regular-text" style="width:100%">
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="h2l_reminder_body">E-posta Giriş Metni</label></th>
+                        <td>
+                            <p class="description" style="margin-bottom:5px;">Görev kartının <strong>üstünde</strong> yer alacak metin.</p>
+                            <?php 
+                            wp_editor($body_intro, 'h2l_reminder_body', array(
+                                'textarea_name' => 'h2l_reminder_body',
+                                'textarea_rows' => 8,
+                                'media_buttons' => false,
+                                'teeny' => true
+                            )); 
+                            ?>
+                            <p class="description" style="margin-top:5px; font-size:12px;">Değişkenler: <code>{user_name}</code></p>
+                        </td>
+                    </tr>
+                    
+                    <!-- GÖRSEL TEMSİL (SABİT KART) -->
+                    <tr>
+                        <th scope="row">Sabit İçerik</th>
+                        <td>
+                            <div style="background:#f9f9f9; padding:15px; border:1px dashed #ccc; border-radius:4px; color:#777;">
+                                [GÖREV KARTI BURADA GÖRÜNTÜLENİR]<br>
+                                [GÖREVİ GÖRÜNTÜLE BUTONU BURADA GÖRÜNTÜLENİR]
+                            </div>
+                            <p class="description">Bu alan otomatik oluşturulur ve değiştirilemez.</p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row"><label for="h2l_reminder_footer">E-posta Alt Bilgisi (Footer)</label></th>
+                        <td>
+                            <p class="description" style="margin-bottom:5px;">Butonun <strong>altında</strong> yer alacak metin.</p>
+                            <?php 
+                            wp_editor($footer_text, 'h2l_reminder_footer', array(
+                                'textarea_name' => 'h2l_reminder_footer',
+                                'textarea_rows' => 5,
+                                'media_buttons' => false,
+                                'teeny' => true
+                            )); 
+                            ?>
+                        </td>
+                    </tr>
+                </table>
+                
+                <p class="submit">
+                    <input type="submit" name="submit" id="submit" class="button button-primary" value="Değişiklikleri Kaydet">
+                </p>
+            </div>
+        </form>
+
+        <!-- Test Gönderme Formu -->
+        <div class="card" style="padding:20px; max-width:800px;">
+            <h2>Test E-postası Gönder</h2>
+            <p class="description">Şablonunuzu test etmek için kendinize bir örnek e-posta gönderin.</p>
+            <form method="post">
+                <?php wp_nonce_field('h2l_settings_nonce'); ?>
+                <input type="hidden" name="h2l_send_test_email" value="1">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="h2l_test_email">Alıcı E-posta</label></th>
+                        <td>
+                            <input name="h2l_test_email" type="email" id="h2l_test_email" value="<?php echo esc_attr(wp_get_current_user()->user_email); ?>" class="regular-text">
+                            <input type="submit" class="button button-secondary" value="Test Gönder">
+                        </td>
+                    </tr>
+                </table>
+            </form>
+        </div>
+    </div>
+    <?php 
+}
 ?>
