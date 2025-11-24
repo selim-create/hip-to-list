@@ -43,29 +43,6 @@
         );
     };
 
-    // --- HELPER: Date Formatter ---
-    const getSmartDateDisplay = (dateStr, isRecurring) => {
-        if (!dateStr) return null;
-        const date = new Date(dateStr);
-        const today = new Date(); today.setHours(0,0,0,0);
-        const target = new Date(date); target.setHours(0,0,0,0);
-        const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
-        
-        const days = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
-        const months = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-
-        let text = `${target.getDate()} ${months[target.getMonth()]}`;
-        let color = '#555'; let icon = 'calendar';
-        
-        if (diffDays === 0) { text = 'Bugün'; color = '#058527'; icon = 'calendar-day'; }
-        else if (diffDays === 1) { text = 'Yarın'; color = '#b36b00'; icon = 'sun'; }
-        else if (diffDays < 0) { color = '#d1453b'; }
-        else if (diffDays < 7) { text = days[target.getDay()]; color = '#692fc2'; icon = 'calendar-week'; }
-
-        const hasTime = dateStr.includes(' ') && !dateStr.endsWith('00:00:00');
-        return { text: hasTime ? `${text} ${dateStr.split(' ')[1].substring(0,5)}` : text, color, icon, isRecurring };
-    };
-
     // --- COMPONENT: DatePicker Wrapper (Sidebar İçin) ---
     const SidebarDatePicker = ({ date, repeat, onChange }) => {
         const wrapperRef = useRef(null);
@@ -104,7 +81,63 @@
         return el('div', { ref: wrapperRef, style: { width: '100%' } });
     };
 
-    // --- COMPONENT: Comment Item ---
+    // --- YENİ: Sidebar Öncelik Seçici ---
+    const SidebarPrioritySelector = ({ priority, onChange }) => {
+        return el('div', { className: 'h2l-sidebar-priority-selector' },
+            [1, 2, 3, 4].map(p => 
+                el('div', { 
+                    key: p,
+                    // DÜZELTİLDİ: active sınıfı eklendi
+                    className: `h2l-priority-flag p${p} ${priority === p ? 'active selected' : ''}`,
+                    onClick: (e) => { e.stopPropagation(); onChange(p); },
+                    title: `Öncelik ${p}`
+                }, el(Icon, { name: 'flag' }))
+            )
+        );
+    };
+
+    // --- YENİ: Sidebar Çoklu Atanan Kişi ---
+    const SidebarAssigneeList = ({ assigneeIds, users, onOpenMenu }) => {
+        if (!assigneeIds || assigneeIds.length === 0) {
+            return el('div', { className: 'h2l-tm-sb-value clickable', onClick: onOpenMenu },
+                el(Icon, { name: 'user', style: { color: '#888', marginRight: 8, fontSize: 14 } }),
+                el('span', { style: { color: '#555' } }, 'Kişi ata')
+            );
+        }
+
+        const assignedUsers = assigneeIds.map(id => users.find(u => parseInt(u.id) === parseInt(id))).filter(Boolean);
+
+        return el('div', { className: 'h2l-tm-sb-value clickable', onClick: onOpenMenu, style: { height: 'auto', padding: '4px 0' } },
+            el('div', { className: 'h2l-sidebar-avatars' },
+                assignedUsers.map(u => 
+                    el(Avatar, { key: u.id, userId: u.id, users, size: 26, style: { border: '2px solid #fafafa', marginLeft: '-6px' } })
+                ),
+                el('div', { className: 'h2l-sidebar-add-assignee-btn' }, el(Icon, { name: 'plus' }))
+            )
+        );
+    };
+
+    // --- YENİ: Sidebar Satırı (Dışarı Taşındı - Flickering Çözümü) ---
+    const SidebarRow = ({ label, value, icon, color, onClick, activeKey, renderPopupContent, isClickable = true, customContent, onTogglePopup }) => {
+        return el('div', { className: 'h2l-tm-sidebar-group', style: { position: 'relative' } },
+            el('div', { className: 'h2l-tm-sb-label' }, label),
+            customContent ? customContent : el('div', { 
+                className: `h2l-tm-sb-value clickable-trigger ${isClickable?'clickable':''}`, 
+                onClick: isClickable ? (e) => { 
+                    e.stopPropagation(); 
+                    if(onTogglePopup) onTogglePopup();
+                } : null 
+            },
+                icon && el(Icon, { name: icon, style: { color: color || '#777', marginRight: 8, fontSize: 14 } }),
+                el('div', { style: { display: 'flex', flexDirection: 'column', lineHeight: 1.2 } },
+                    el('span', { style: { color: color || '#202020' } }, value)
+                )
+            ),
+            (activeKey && renderPopupContent) && renderPopupContent()
+        );
+    };
+
+    // --- Comment Components ---
     const CommentItem = ({ comment, user, onDelete, onUpdate }) => {
         const [isEditing, setIsEditing] = useState(false);
         const [editContent, setEditContent] = useState(comment.content);
@@ -150,7 +183,6 @@
         );
     };
 
-    // --- COMPONENT: Comment Input ---
     const CommentInput = ({ onSend, currentUser, users, scrollToView }) => {
         const [isExpanded, setIsExpanded] = useState(false);
         const [text, setText] = useState('');
@@ -201,7 +233,6 @@
         );
     };
 
-    // --- UNIFIED TASK CONTENT EDITOR ---
     const TaskContentEditor = ({ title, description, onSave, placeholderTitle, placeholderDesc }) => {
         const [isEditing, setIsEditing] = useState(false);
         const [tempTitle, setTempTitle] = useState(title);
@@ -281,12 +312,9 @@
         const [isScrolled, setIsScrolled] = useState(false);
         const [activePopup, setActivePopup] = useState(null);
         const [popoverSearch, setPopoverSearch] = useState('');
-        const [newLabelName, setNewLabelName] = useState('');
         const [newLocation, setNewLocation] = useState('');
         const scrollRef = useRef(null);
-        const sidebarRef = useRef(null);
         
-        // NAVIGASYON MANTIĞI
         const currentIndex = tasks.findIndex(t => t.id === task.id);
         const prevTask = currentIndex > 0 ? tasks[currentIndex - 1] : null;
         const nextTask = currentIndex !== -1 && currentIndex < tasks.length - 1 ? tasks[currentIndex + 1] : null;
@@ -299,7 +327,7 @@
 
         useEffect(() => {
             loadComments();
-            setActivePopup(null); // Görev değiştiğinde popup'ları kapat
+            setActivePopup(null);
         }, [task.id]);
 
         useEffect(() => {
@@ -311,7 +339,6 @@
             const div = scrollRef.current;
             if (div) div.addEventListener('scroll', handleScroll);
             
-            // Dışarı tıklama kontrolü (Popup kapatma)
             const handleClickOutside = (e) => {
                 if (activePopup && !e.target.closest('.h2l-popover-menu') && !e.target.closest('.clickable-trigger')) {
                     setActivePopup(null);
@@ -367,7 +394,6 @@
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(url).then(() => alert('Link kopyalandı!'));
             } else {
-                // Fallback
                 const ta = document.createElement("textarea");
                 ta.value = url;
                 document.body.appendChild(ta);
@@ -386,7 +412,6 @@
         };
 
         const currentProject = projects.find(p => p.id == task.project_id) || {};
-        const assignee = users.find(u => u.id == (task.assignees && task.assignees[0]));
         const currentStatusObj = TASK_STATUSES[task.status] || TASK_STATUSES['in_progress'];
 
         // --- POPOVER RENDERERS ---
@@ -407,7 +432,6 @@
         };
 
         const renderAssigneeMenu = () => {
-            // Proje üyelerini filtrele
             let eligibleUsers = users;
             if (currentProject) {
                 let mgrs = currentProject.managers || [];
@@ -422,15 +446,30 @@
                     el('input', { className: 'h2l-search-input', placeholder: 'Kişi ara...', value: popoverSearch, onChange: e => setPopoverSearch(e.target.value), autoFocus: true, onClick:e=>e.stopPropagation() })
                 ),
                 el('div', { className: 'h2l-popover-list' },
-                    el('div', { className: 'h2l-menu-item', onClick: () => { updateField({ assignees: [] }); setActivePopup(null); } }, el(Icon, { name: 'user-xmark', style: { marginRight: 8 } }), 'Atanmamış'),
                     filtered.map(u => {
-                        const isAssigned = task.assignees && task.assignees.map(Number).includes(Number(u.id));
-                        return el('div', { key: u.id, className: 'h2l-menu-item', onClick: () => { updateField({ assignees: [u.id] }); setActivePopup(null); } },
+                        const currentAssignees = task.assignees ? task.assignees.map(Number) : [];
+                        const isAssigned = currentAssignees.includes(Number(u.id));
+                        return el('div', { 
+                            key: u.id, 
+                            className: 'h2l-menu-item', 
+                            onClick: (e) => {
+                                e.stopPropagation();
+                                let newAssignees;
+                                if (isAssigned) {
+                                    newAssignees = currentAssignees.filter(id => id !== Number(u.id));
+                                } else {
+                                    newAssignees = [...currentAssignees, Number(u.id)];
+                                }
+                                updateField({ assignees: newAssignees });
+                            } 
+                        },
                             el(Avatar, { userId: u.id, users, size: 20, style:{marginRight:8} }),
                             u.name,
                             isAssigned && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } })
                         );
-                    })
+                    }),
+                    el('div', { className: 'h2l-menu-separator' }),
+                    el('div', { className: 'h2l-menu-item text-danger', onClick: () => { updateField({ assignees: [] }); setActivePopup(null); } }, 'Tümünü Kaldır')
                 )
             );
         };
@@ -504,29 +543,6 @@
             );
         };
 
-        const SidebarRow = ({ label, value, icon, color, onClick, activeKey, renderPopupContent, isClickable = true }) => el('div', { className: 'h2l-tm-sidebar-group', style: { position: 'relative' } },
-            el('div', { className: 'h2l-tm-sb-label' }, label),
-            el('div', { 
-                className: `h2l-tm-sb-value clickable-trigger ${isClickable?'clickable':''}`, 
-                onClick: isClickable ? (e) => { 
-                    e.stopPropagation(); 
-                    setPopoverSearch(''); 
-                    setNewLocation(task.location || '');
-                    setActivePopup(activePopup === activeKey ? null : activeKey); 
-                } : null 
-            },
-                icon && el(Icon, { name: icon, style: { color: color || '#777', marginRight: 8, fontSize: 14 } }),
-                label === 'Öncelik' && el('div', { className: 'h2l-priority-circle', style: { backgroundColor: color } }),
-                label === 'Atanan kişi' && !icon && el(Avatar, { userId: task.assignees[0], users, size: 24, style:{marginRight:8} }),
-                
-                el('div', { style: { display: 'flex', flexDirection: 'column', lineHeight: 1.2 } },
-                    el('span', { style: { color: color || '#202020' } }, value),
-                    label === 'Öncelik' && el('span', { style: { fontSize: 11, color: '#888', marginTop: 2 } }, currentProject.title)
-                )
-            ),
-            (activePopup === activeKey && renderPopupContent) && renderPopupContent()
-        );
-
         return el('div', { className: 'h2l-detail-overlay', onClick: onClose },
             el('div', { className: 'h2l-task-modal', onClick: e => e.stopPropagation() },
                 
@@ -542,7 +558,6 @@
                         )
                     ),
                     el('div', { className: 'h2l-tm-header-actions' },
-                        // ÖNCEKİ GÖREV
                         el('button', { 
                             className: 'h2l-icon-btn', 
                             title: 'Önceki', 
@@ -551,7 +566,6 @@
                             onClick: () => prevTask && navigate('/gorev/' + prevTask.id)
                         }, el(Icon, { name: 'chevron-up' })),
                         
-                        // SONRAKİ GÖREV
                         el('button', { 
                             className: 'h2l-icon-btn', 
                             title: 'Sonraki', 
@@ -561,7 +575,6 @@
                         }, el(Icon, { name: 'chevron-down' })),
                         
                         el('div', { className: 'h2l-sep-v' }),
-                        // DIĞER MENÜSÜ
                         el('div', { style:{position:'relative'} },
                             el('button', { className: 'h2l-icon-btn clickable-trigger', onClick: () => setActivePopup(activePopup === 'actions' ? null : 'actions') }, el(Icon, { name: 'ellipsis' })),
                             activePopup === 'actions' && renderActionsMenu()
@@ -600,7 +613,6 @@
                                         el('span', null, 'Yorumlar'),
                                         el('span', { className: 'h2l-tm-badge' }, comments.length)
                                     ),
-                                    // YORUM YOKSA SİLİK UYARI
                                     comments.length === 0 && el('div', { 
                                         style: { color: '#ccc', fontSize: '13px', padding: '20px 0', textAlign: 'center', fontStyle: 'italic' } 
                                     }, 'Henüz yorum yapılmamıştır'),
@@ -628,7 +640,7 @@
                     ),
 
                     /* RIGHT SIDEBAR */
-                    el('div', { className: 'h2l-tm-sidebar', ref: sidebarRef },
+                    el('div', { className: 'h2l-tm-sidebar' },
                         el('div', { className: 'h2l-tm-sidebar-inner' },
                             // PROJE
                             el(SidebarRow, { 
@@ -636,16 +648,20 @@
                                 value: currentProject.title || 'Projesiz', 
                                 icon: 'hashtag', 
                                 color: currentProject.color,
-                                activeKey: 'project',
+                                activeKey: activePopup === 'project' ? 'project' : null,
+                                onTogglePopup: () => { setPopoverSearch(''); setActivePopup(activePopup === 'project' ? null : 'project'); },
                                 renderPopupContent: renderProjectMenu
                             }),
                             
-                            // ATANAN KİŞİ
-                            el(SidebarRow, { 
-                                label: 'Atanan kişi', 
-                                value: assignee ? assignee.name : 'Atanmamış', 
-                                icon: assignee ? null : 'user',
-                                activeKey: 'assignee',
+                            // ATANAN KİŞİ (Çoklu)
+                            el(SidebarRow, {
+                                label: 'Atanan kişiler',
+                                activeKey: activePopup === 'assignee' ? 'assignee' : null,
+                                customContent: el(SidebarAssigneeList, { 
+                                    assigneeIds: task.assignees, 
+                                    users, 
+                                    onOpenMenu: (e) => { e.stopPropagation(); setPopoverSearch(''); setActivePopup(activePopup === 'assignee' ? null : 'assignee'); }
+                                }),
                                 renderPopupContent: renderAssigneeMenu
                             }),
                             
@@ -653,7 +669,6 @@
                             el('div', { className: 'h2l-tm-sidebar-group' },
                                 el('div', { className: 'h2l-tm-sb-label' }, 'Tarih'),
                                 el('div', { className: 'h2l-tm-sb-value', style: { padding: 0 } },
-                                    // DÜZELTME: repeat prop'u eklendi
                                     el(SidebarDatePicker, { 
                                         date: task.due_date, 
                                         repeat: task.recurrence_rule,
@@ -662,15 +677,14 @@
                                 )
                             ),
                             
-                            // ÖNCELİK
-                            el(SidebarRow, { 
-                                label: 'Öncelik', 
-                                value: `P${task.priority}`, 
-                                icon: null, 
-                                color: getPriorityColor(task.priority), 
-                                activeKey: 'priority',
-                                renderPopupContent: () => el('div', { className: 'h2l-popover-menu right-aligned' }, [1, 2, 3, 4].map(p => el('div', { key: p, className: 'h2l-menu-item', onClick: () => { updateField({ priority: p }); setActivePopup(null); } }, el(Icon, { name: 'flag', style: { color: getPriorityColor(p), marginRight: 8 } }), `Öncelik ${p}`, task.priority === p && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } }))))
-                            }),
+                            // ÖNCELİK (Inline Selector)
+                            el('div', { className: 'h2l-tm-sidebar-group' },
+                                el('div', { className: 'h2l-tm-sb-label' }, 'Öncelik'),
+                                el(SidebarPrioritySelector, {
+                                    priority: task.priority,
+                                    onChange: (p) => updateField({ priority: p })
+                                })
+                            ),
                             
                             // HATIRLATICI
                             el(SidebarRow, { 
@@ -679,7 +693,7 @@
                                 icon: 'bell', 
                                 color: task.reminder_enabled ? '#db4c3f' : '#aaa', 
                                 isClickable: true,
-                                onClick: () => updateField({ reminder_enabled: !task.reminder_enabled })
+                                onTogglePopup: () => updateField({ reminder_enabled: !task.reminder_enabled })
                             }),
 
                             // DURUM (STATUS)
@@ -688,7 +702,8 @@
                                 value: currentStatusObj.label, 
                                 icon: currentStatusObj.icon, 
                                 color: currentStatusObj.color,
-                                activeKey: 'status',
+                                activeKey: activePopup === 'status' ? 'status' : null,
+                                onTogglePopup: () => setActivePopup(activePopup === 'status' ? null : 'status'),
                                 renderPopupContent: renderStatusMenu
                             }),
 
@@ -711,7 +726,8 @@
                                 value: task.location || 'Konum ekle', 
                                 icon: 'location-dot', 
                                 color: task.location ? '#202020' : '#aaa', 
-                                activeKey: 'location',
+                                activeKey: activePopup === 'location' ? 'location' : null,
+                                onTogglePopup: () => { setNewLocation(task.location || ''); setActivePopup(activePopup === 'location' ? null : 'location'); },
                                 renderPopupContent: renderLocationMenu
                             }),
                             

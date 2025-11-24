@@ -31,11 +31,13 @@
             this.daysLong = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 
             this.activeMenu = null;
+            this.popup = null; // Popup referansı
 
             this.init();
         }
 
         renderBaseHTML() {
+            // Tetikleyici buton (Trigger) wrapper içinde kalır
             this.wrapper.innerHTML = `
                 <div class="td-trigger-btn">
                     <span class="td-icon-holder">
@@ -53,6 +55,7 @@
         }
 
         createPopup() {
+            // Popup'ı oluştur ama henüz DOM'a ekleme (açılınca body'ye ekleyeceğiz)
             this.popup = document.createElement('div');
             this.popup.className = 'td-popup';
             this.popup.innerHTML = `
@@ -91,7 +94,6 @@
                 </div>
             `;
             
-            this.wrapper.appendChild(this.popup);
             this.calBody = this.popup.querySelector('#cal-body');
             this.calTitle = this.popup.querySelector('#cal-title');
             this.noDateShortcut = this.popup.querySelector('#shortcut-no-date');
@@ -101,14 +103,35 @@
         }
 
         bindEvents() {
-            this.trigger.addEventListener('click', (e) => { e.stopPropagation(); this.toggle(); });
+            this.trigger.addEventListener('click', (e) => { 
+                e.stopPropagation(); 
+                this.toggle(); 
+            });
+            
+            // Popup içinde tıklamaları durdur, dışarı tıklayınca kapanmasın
             this.popup.addEventListener('click', (e) => e.stopPropagation());
             
             this.outsideClickHandler = (e) => {
-                if(this.activeMenu && !this.activeMenu.contains(e.target)) this.closeMenu();
-                if(this.wrapper && !this.wrapper.contains(e.target) && !e.target.closest('.td-floating-menu')) this.close();
+                // Popup açıksa ve tıklanan yer popup, menü veya trigger değilse kapat
+                const isClickInside = this.popup.contains(e.target) || 
+                                      (this.activeMenu && this.activeMenu.contains(e.target)) ||
+                                      this.trigger.contains(e.target);
+                
+                if (!isClickInside) {
+                    this.close();
+                }
             };
+            
+            // Pencere boyutu değişirse konumu güncelle
+            this.resizeHandler = () => {
+                if (this.popup.classList.contains('active')) {
+                    this.updatePosition();
+                }
+            };
+
             document.addEventListener('click', this.outsideClickHandler);
+            window.addEventListener('resize', this.resizeHandler);
+            window.addEventListener('scroll', this.resizeHandler, true); // Capture phase ile tüm scroll'ları yakala
 
             this.popup.querySelectorAll('.td-nav-btn[data-nav]').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -132,20 +155,60 @@
 
         destroy() {
             document.removeEventListener('click', this.outsideClickHandler);
+            window.removeEventListener('resize', this.resizeHandler);
+            window.removeEventListener('scroll', this.resizeHandler, true);
             if (this.popup) this.popup.remove();
             if (this.activeMenu) this.activeMenu.remove();
         }
 
         toggle() { this.popup.classList.contains('active') ? this.close() : this.open(); }
+        
         open() {
-            this.popup.classList.add('active');
+            // Popup'ı body'ye taşı
+            document.body.appendChild(this.popup);
+            
             this.renderCalendar();
             this.noDateShortcut.style.display = this.selectedDate ? 'flex' : 'none';
+            this.popup.classList.add('active');
+            this.updatePosition();
         }
+        
+        updatePosition() {
+            const rect = this.trigger.getBoundingClientRect();
+            const popupRect = this.popup.getBoundingClientRect();
+            
+            let top = rect.bottom + 5;
+            let left = rect.left;
+            
+            // Ekranın altına taşıyor mu kontrol et
+            if (top + popupRect.height > window.innerHeight) {
+                top = rect.top - popupRect.height - 5; // Üste aç
+            }
+            
+            // Sağa taşıyor mu?
+            if (left + popupRect.width > window.innerWidth) {
+                left = window.innerWidth - popupRect.width - 10;
+            }
+
+            this.popup.style.position = 'fixed';
+            this.popup.style.top = `${top}px`;
+            this.popup.style.left = `${left}px`;
+            this.popup.style.zIndex = '2147483647'; // En üstte
+        }
+
         close() {
-            if (this.popup) this.popup.classList.remove('active');
+            if (this.popup) {
+                this.popup.classList.remove('active');
+                // Kapatınca DOM'dan temizlemek yerine gizliyoruz, çünkü referansları kaybetmek istemeyiz
+                // Ama z-index sorunları için remove etmek daha güvenli olabilir. Şimdilik sadece class kaldırıyoruz.
+                // Eğer başka bir sayfaya geçilirse destroy() çağrılmalı.
+                if (this.popup.parentNode === document.body) {
+                    document.body.removeChild(this.popup);
+                }
+            }
             this.closeMenu();
         }
+        
         closeMenu() {
             if(this.activeMenu) {
                 this.activeMenu.remove();
@@ -153,7 +216,6 @@
             }
         }
 
-        // DÜZELTME: Fixed Positioning ve Yüksek Z-Index
         createMenu(triggerEl) {
             this.closeMenu();
             const menu = document.createElement('div');
@@ -166,9 +228,7 @@
             // Scroll hesaplamalarını kaldırıp 'fixed' kullanarak viewport'a göre konumlandırıyoruz
             menu.style.position = 'fixed';
             menu.style.left = rect.left + 'px';
-            menu.style.top = (rect.bottom + 5) + 'px'; // Butonun hemen altı
-            
-            // Modal'ın (20050) üzerinde olması için çok yüksek z-index
+            menu.style.top = (rect.bottom + 5) + 'px';
             menu.style.zIndex = '2147483647';
             
             return menu;
@@ -279,7 +339,10 @@
                 this.iconHolder.innerHTML = result.icon;
             }
             
-            if(this.popup.classList.contains('active')) this.renderCalendar();
+            // Popup açıksa takvimi güncelle (seçili günü boyamak için)
+            if(document.body.contains(this.popup) && this.popup.classList.contains('active')) {
+                this.renderCalendar();
+            }
 
             if (this.onChange) {
                 let isoDate = null;

@@ -3,9 +3,24 @@
  * REST API - Frontend Veri Yönetimi (CRUD)
  * Güvenlik ve Erişim Kontrolleri ile Güncellendi.
  * Partial Update (Kısmi Güncelleme) desteği eklendi.
+ * LiteSpeed Cache Engelleme Eklendi.
  */
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+/**
+ * API Yanıtlarına No-Cache Başlıkları Ekler
+ */
+function h2l_set_nocache_headers() {
+    if ( ! headers_sent() ) {
+        // LiteSpeed Cache'e bu yanıtı önbellekleme talimatı ver
+        header( 'X-LiteSpeed-Cache-Control: no-cache' );
+        // Tarayıcılara ve diğer proxylere önbellekleme talimatı ver
+        header( 'Cache-Control: no-cache, no-store, must-revalidate, max-age=0' );
+        header( 'Pragma: no-cache' );
+        header( 'Expires: 0' );
+    }
+}
 
 add_action( 'rest_api_init', function () {
     // Başlangıç Verisi
@@ -74,6 +89,8 @@ function h2l_get_user_profile_picture_url( $user_id ) {
 }
 
 function h2l_api_get_tasks($request) {
+    h2l_set_nocache_headers(); // CACHE ENGELLEME
+    
     global $wpdb;
     $table = $wpdb->prefix . 'h2l_tasks';
     $params = $request->get_params();
@@ -136,6 +153,8 @@ function h2l_api_get_tasks($request) {
 }
 
 function h2l_api_get_init_data( $request ) {
+    h2l_set_nocache_headers(); // CACHE ENGELLEME
+    
     global $wpdb;
     $uid = get_current_user_id();
     
@@ -249,6 +268,7 @@ function h2l_api_get_init_data( $request ) {
 }
 
 function h2l_api_reorder_items($request) {
+    // Reorder işlemi kritik değil ama tutarlılık için eklenebilir
     global $wpdb;
     $params = $request->get_json_params();
     $type = isset($params['type']) ? $params['type'] : 'task';
@@ -371,6 +391,8 @@ function h2l_api_manage_task($request) {
 }
 
 function h2l_api_manage_comments($request) {
+    h2l_set_nocache_headers(); // CACHE ENGELLEME
+    
     $method = $request->get_method();
     $id = $request->get_param('id'); 
     $comment_cls = new H2L_Comment();

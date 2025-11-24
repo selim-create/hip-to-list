@@ -1,3 +1,146 @@
+/* ... MEVCUT KODLAR ... */
+
+/* Z-Index Fix for Popups inside Modals */
+.h2l-popover-menu { 
+    z-index: 20060 !important; 
+}
+
+/* Header içindeki "Diğer" menüsü - KULLANICI DÜZELTMESİ */
+/* Yukarı doğru açılmasını engelle, aşağıya serbest bırak */
+.h2l-popover-menu.top-aligned {
+    bottom: auto !important;
+    top: 100% !important; /* Modalın altına taşmaması için aşağı yönlendir */
+    right: 0;
+    margin-top: 8px;
+    margin-bottom: 5px;
+    transform-origin: top right;
+}
+
+/* Sadece Header içindeki "Diğer" menüsü için özel konumlandırma */
+.h2l-tm-header-actions .h2l-popover-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    z-index: 20070 !important;
+}
+
+/* Header Stack Context Fix */
+.h2l-tm-header {
+    position: relative;
+    z-index: 50;
+}
+
+/* SIDEBAR ÖZEL STİLLERİ */
+
+/* 1. Çoklu Avatar (Stack) */
+.h2l-sidebar-avatars {
+    display: flex;
+    align-items: center;
+    padding-left: 6px; 
+}
+
+.h2l-sidebar-add-assignee-btn {
+    width: 26px; 
+    height: 26px; 
+    border-radius: 50%; 
+    border: 1px dashed #ccc; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    margin-left: 6px; 
+    color: #888;
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 0;
+}
+.h2l-sidebar-add-assignee-btn:hover {
+    border-color: #db4c3f;
+    color: #db4c3f;
+    background: #fff5f5;
+}
+
+/* KULLANICI İSTEĞİ: Plus İkonunu Ortala */
+.h2l-sidebar-add-assignee-btn i,
+.h2l-sidebar-add-assignee-btn .fa-plus {
+    font-size: 12px !important;
+    padding: 8px !important;
+    line-height: 1;
+    display: block;
+}
+
+/* 2. Öncelik Seçici (Yan Yana Flaglar - Renklendirilmiş) */
+.h2l-sidebar-priority-selector {
+    display: flex;
+    gap: 6px;
+    background: transparent;
+    padding: 3px 0;
+    width: 100%;
+}
+
+.h2l-priority-flag {
+    flex: 1;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #999;
+    border: 1px solid #eee;
+    transition: all 0.2s;
+    background: #fff;
+}
+
+.h2l-priority-flag:hover {
+    background: #fafafa;
+    color: #666;
+    border-color: #ddd;
+}
+
+.h2l-priority-flag i { font-size: 14px; }
+
+/* SEÇİLİ (ACTIVE) DURUMLAR */
+/* .active sınıfı eklendiğinde devreye girer */
+.h2l-priority-flag.active {
+    font-weight: bold;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* P1: Kırmızı */
+.h2l-priority-flag.active.p1 { 
+    color: #d1453b; 
+    background: #ffebe9; 
+    border-color: #d1453b; 
+}
+.h2l-priority-flag.p1:hover { color: #d1453b; border-color: #d1453b; }
+
+/* P2: Turuncu */
+.h2l-priority-flag.active.p2 { 
+    color: #eb8909; 
+    background: #fff4e5; 
+    border-color: #eb8909; 
+}
+.h2l-priority-flag.p2:hover { color: #eb8909; border-color: #eb8909; }
+
+/* P3: Mavi */
+.h2l-priority-flag.active.p3 { 
+    color: #246fe0; 
+    background: #eaf2ff; 
+    border-color: #246fe0; 
+}
+.h2l-priority-flag.p3:hover { color: #246fe0; border-color: #246fe0; }
+
+/* P4: Gri */
+.h2l-priority-flag.active.p4 { 
+    color: #555; 
+    background: #f0f0f0; 
+    border-color: #999; 
+}
+.h2l-priority-flag.p4:hover { color: #555; border-color: #999; }
+
+
+/* Diğer stiller aynı kalır */
 .h2l-task-list { padding-top: 0; }
 .h2l-task-row { 
     display: flex; 
