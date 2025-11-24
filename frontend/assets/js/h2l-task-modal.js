@@ -3,18 +3,18 @@
     const apiFetch = wp.apiFetch;
     
     const Common = window.H2L && window.H2L.Common ? window.H2L.Common : { Icon: () => null, Avatar: () => null, TASK_STATUSES: {} };
-    const { Icon, Avatar, TASK_STATUSES } = Common;
+    const { Icon, Avatar, TASK_STATUSES, MultiSelect } = Common;
     const TaskInput = window.H2L && window.H2L.TaskInput ? window.H2L.TaskInput : { ContentEditable: () => null };
     const { ContentEditable } = TaskInput;
     const Reminders = window.H2L && window.H2L.Reminders ? window.H2L.Reminders : { getPriorityColor: () => '#808080' };
     const { getPriorityColor } = Reminders;
+    const TodoistDatepicker = window.H2L && window.H2L.TodoistDatepicker ? window.H2L.TodoistDatepicker : null;
 
     window.H2L = window.H2L || {};
     window.H2L.TaskModal = window.H2L.TaskModal || {};
 
     // --- HELPER: Text Tooltip ---
     const TextTooltip = ({ position, onFormat, showLinkInput, onLinkSubmit, onClose }) => {
-        // ... (Tooltip kodları aynı)
         const [linkUrl, setLinkUrl] = useState('');
         const inputRef = useRef(null);
         
@@ -45,7 +45,6 @@
 
     // --- HELPER: Date Formatter ---
     const getSmartDateDisplay = (dateStr, isRecurring) => {
-        // ... (Tarih formatlama aynı)
         if (!dateStr) return null;
         const date = new Date(dateStr);
         const today = new Date(); today.setHours(0,0,0,0);
@@ -67,13 +66,53 @@
         return { text: hasTime ? `${text} ${dateStr.split(' ')[1].substring(0,5)}` : text, color, icon, isRecurring };
     };
 
+    // --- COMPONENT: DatePicker Wrapper (Sidebar İçin) ---
+    const SidebarDatePicker = ({ date, repeat, onChange }) => {
+        const wrapperRef = useRef(null);
+        const pickerRef = useRef(null);
+
+        useEffect(() => {
+            if (wrapperRef.current && !pickerRef.current && TodoistDatepicker) {
+                const timePart = date && date.includes(' ') ? date.split(' ')[1].substring(0, 5) : null;
+                pickerRef.current = new TodoistDatepicker(wrapperRef.current, {
+                    defaultDate: date, defaultTime: timePart, defaultRepeat: repeat,
+                    onChange: (data) => {
+                        let isoDate = null;
+                        if (data.date) { isoDate = data.date + (data.time ? ` ${data.time}:00` : ''); }
+                        onChange(isoDate, data.repeat);
+                    }
+                });
+            }
+            return () => { if (pickerRef.current && pickerRef.current.destroy) pickerRef.current.destroy(); };
+        }, []);
+
+        useEffect(() => {
+            if (pickerRef.current) {
+                if (date) {
+                    const d = new Date(date);
+                    pickerRef.current.selectedDate = isNaN(d.getTime()) ? null : d;
+                    if (date.includes(' ')) pickerRef.current.selectedTime = date.split(' ')[1].substring(0, 5);
+                    else pickerRef.current.selectedTime = null;
+                } else {
+                    pickerRef.current.selectedDate = null; pickerRef.current.selectedTime = null;
+                }
+                pickerRef.current.selectedRepeat = repeat;
+                pickerRef.current.updateUI();
+            }
+        }, [date, repeat]);
+
+        return el('div', { ref: wrapperRef, style: { width: '100%' } });
+    };
+
     // --- COMPONENT: Comment Item ---
     const CommentItem = ({ comment, user, onDelete, onUpdate }) => {
         const [isEditing, setIsEditing] = useState(false);
         const [editContent, setEditContent] = useState(comment.content);
 
         const handleSave = () => {
-            onUpdate(comment.id, editContent);
+            if (editContent.trim() !== comment.content) {
+                onUpdate(comment.id, editContent);
+            }
             setIsEditing(false);
         };
 
@@ -101,7 +140,7 @@
                 el('div', { className: 'h2l-tm-comment-meta' }, 
                     el('strong', null, user ? user.name : 'Bilinmeyen'),
                     el('span', null, comment.created_at.split('T')[0]),
-                    el('div', { className: 'h2l-tm-comment-actions' },
+                    (window.h2lFrontendSettings.currentUser.ID == comment.user_id) && el('div', { className: 'h2l-tm-comment-actions' },
                         el('button', { title: 'Düzenle', onClick: () => setIsEditing(true) }, el(Icon, { name: 'pen' })),
                         el('button', { title: 'Sil', onClick: () => { if(confirm('Yorum silinsin mi?')) onDelete(comment.id); } }, el(Icon, { name: 'trash' }))
                     )
@@ -237,42 +276,32 @@
     };
 
     // --- MAIN MODAL ---
-    const TaskDetailModal = ({ task, onClose, onUpdate, users, projects, sections, labels = [], navigate }) => { // navigate prop eklendi
+    const TaskDetailModal = ({ task, tasks = [], onClose, onUpdate, onDelete, onAdd, users, projects, sections, labels = [], navigate }) => { 
         const [comments, setComments] = useState([]);
-        const [isScrolled, setIsScrolled] = useState(false); // Scroll durumu
+        const [isScrolled, setIsScrolled] = useState(false);
+        const [activePopup, setActivePopup] = useState(null);
+        const [popoverSearch, setPopoverSearch] = useState('');
+        const [newLabelName, setNewLabelName] = useState('');
+        const [newLocation, setNewLocation] = useState('');
         const scrollRef = useRef(null);
+        const sidebarRef = useRef(null);
         
-        // Mevcut listenin task listesi (önceki/sonraki için)
-        // Bu veriyi props'tan almak gerekebilir ama şimdilik globalden alıyoruz
-        // ya da 'task' prop'undan id'ye göre buluyoruz.
-        // En temiz yöntem: App'ten 'tasks' prop'u almak.
-        // H2L.App'te tasks prop'u zaten geçiliyor olmalı. Eğer yoksa eklenmeli.
-        // Şu an 'tasks' prop'u yok, o yüzden globalden almayı deneyeceğiz veya
-        // App.js'yi güncellememiz gerekecek. Şimdilik varsayım yapalım.
-        // App.js'de TaskDetailModal çağrılırken tasks={activeTasks} geçilmeli.
-        // Eğer yoksa navigate fonksiyonunu kullanamayız.
-        
-        // Önceki/Sonraki Görev Bulma
-        const findSiblingTask = (direction) => {
-            // Bu fonksiyonun çalışması için 'allTasks' listesine ihtiyacımız var.
-            // App.js'deki modal çağrısına 'tasks' prop'unu eklemelisin.
-            // Şimdilik window.H2L.currentTasks gibi bir global hack veya prop bekliyoruz.
-            // En iyisi 'tasks' prop'unu beklemek.
-            
-            // Varsayalım ki 'tasks' prop olarak geldi (App.js güncellenmeli)
-            // Eğer gelmediyse işlem yapma
-            /* NOT: App.js'de TaskDetailModal'a tasks={activeTasks} prop'u eklenmeli.
-               Şu anki kodda bu yoksa çalışmaz. 
-            */
-        };
+        // NAVIGASYON MANTIĞI
+        const currentIndex = tasks.findIndex(t => t.id === task.id);
+        const prevTask = currentIndex > 0 ? tasks[currentIndex - 1] : null;
+        const nextTask = currentIndex !== -1 && currentIndex < tasks.length - 1 ? tasks[currentIndex + 1] : null;
 
         const updateField = (fields) => onUpdate(task.id, fields);
 
-        useEffect(() => {
+        const loadComments = () => {
             apiFetch({ path: `/h2l/v1/comments?task_id=${task.id}` }).then(setComments);
+        };
+
+        useEffect(() => {
+            loadComments();
+            setActivePopup(null); // Görev değiştiğinde popup'ları kapat
         }, [task.id]);
 
-        // Scroll Listener
         useEffect(() => {
             const handleScroll = () => {
                 if (scrollRef.current) {
@@ -281,34 +310,221 @@
             };
             const div = scrollRef.current;
             if (div) div.addEventListener('scroll', handleScroll);
-            return () => { if (div) div.removeEventListener('scroll', handleScroll); };
-        }, []);
+            
+            // Dışarı tıklama kontrolü (Popup kapatma)
+            const handleClickOutside = (e) => {
+                if (activePopup && !e.target.closest('.h2l-popover-menu') && !e.target.closest('.clickable-trigger')) {
+                    setActivePopup(null);
+                }
+            };
+            document.addEventListener('mousedown', handleClickOutside);
 
-        const handleAddComment = (content) => { /* ... */ };
-        const handleDeleteComment = (cid) => { /* ... */ };
-        const handleUpdateComment = (cid, newContent) => { /* ... */ };
-        const scrollToComments = () => { /* ... */ };
+            return () => { 
+                if (div) div.removeEventListener('scroll', handleScroll); 
+                document.removeEventListener('mousedown', handleClickOutside);
+            };
+        }, [activePopup]);
+
+        const handleAddComment = (content) => { 
+            apiFetch({ path: '/h2l/v1/comments', method: 'POST', data: { task_id: task.id, content } })
+                .then((newComment) => {
+                    setComments([...comments, newComment]);
+                });
+        };
+
+        const handleDeleteComment = (cid) => { 
+            apiFetch({ path: `/h2l/v1/comments/${cid}`, method: 'DELETE' })
+                .then(() => {
+                    setComments(comments.filter(c => c.id !== cid));
+                });
+        };
+
+        const handleUpdateComment = (cid, newContent) => { 
+            apiFetch({ path: `/h2l/v1/comments/${cid}`, method: 'POST', data: { content: newContent } })
+                .then((updatedComment) => {
+                    setComments(comments.map(c => c.id === cid ? updatedComment : c));
+                });
+        };
+
+        const handleDuplicateTask = () => {
+            if(onAdd) {
+                const duplicateData = {
+                    title: task.title,
+                    content: task.content,
+                    project_id: task.project_id,
+                    section_id: task.section_id,
+                    priority: task.priority,
+                    labels: task.labels ? task.labels.map(l => l.name) : [],
+                    status: 'in_progress'
+                };
+                onAdd(duplicateData);
+                setActivePopup(null);
+            }
+        };
+
+        const handleCopyLink = () => {
+            const url = `${window.location.origin}/gorevler/gorev/${task.id}`;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => alert('Link kopyalandı!'));
+            } else {
+                // Fallback
+                const ta = document.createElement("textarea");
+                ta.value = url;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand("copy");
+                document.body.removeChild(ta);
+                alert('Link kopyalandı!');
+            }
+            setActivePopup(null);
+        };
+
+        const scrollToComments = () => { 
+            if (scrollRef.current) {
+                scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+            }
+        };
 
         const currentProject = projects.find(p => p.id == task.project_id) || {};
-        const currentSection = sections.find(s => s.id == task.section_id);
-        const smartDate = getSmartDateDisplay(task.due_date, !!task.recurrence_rule);
         const assignee = users.find(u => u.id == (task.assignees && task.assignees[0]));
+        const currentStatusObj = TASK_STATUSES[task.status] || TASK_STATUSES['in_progress'];
 
-        const SidebarItem = ({ label, value, icon, color, onClick, isClickable = true }) => el('div', { className: 'h2l-tm-sidebar-group' },
+        // --- POPOVER RENDERERS ---
+        const renderProjectMenu = () => {
+            const filtered = projects.filter(p => p.title.toLowerCase().includes(popoverSearch.toLowerCase()));
+            return el('div', { className: 'h2l-popover-menu right-aligned' },
+                el('div', { className: 'h2l-popover-header' }, 
+                    el('input', { className: 'h2l-search-input', placeholder: 'Proje ara...', value: popoverSearch, onChange: e => setPopoverSearch(e.target.value), autoFocus: true, onClick:e=>e.stopPropagation() })
+                ),
+                el('div', { className: 'h2l-popover-list' },
+                    filtered.map(p => el('div', { key: p.id, className: 'h2l-menu-item', onClick: () => { updateField({ projectId: p.id }); setActivePopup(null); } },
+                        el('span', { style: { color: p.color, marginRight: 8 } }, '#'),
+                        p.title,
+                        parseInt(task.project_id) === parseInt(p.id) && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } })
+                    ))
+                )
+            );
+        };
+
+        const renderAssigneeMenu = () => {
+            // Proje üyelerini filtrele
+            let eligibleUsers = users;
+            if (currentProject) {
+                let mgrs = currentProject.managers || [];
+                if (typeof mgrs === 'string') mgrs = JSON.parse(mgrs);
+                const pMembers = [parseInt(currentProject.owner_id), ...mgrs.map(id => parseInt(id))].filter(Boolean);
+                if (pMembers.length > 0) eligibleUsers = users.filter(u => pMembers.includes(parseInt(u.id)));
+            }
+            const filtered = eligibleUsers.filter(u => u.name.toLowerCase().includes(popoverSearch.toLowerCase()));
+            
+            return el('div', { className: 'h2l-popover-menu right-aligned' },
+                el('div', { className: 'h2l-popover-header' }, 
+                    el('input', { className: 'h2l-search-input', placeholder: 'Kişi ara...', value: popoverSearch, onChange: e => setPopoverSearch(e.target.value), autoFocus: true, onClick:e=>e.stopPropagation() })
+                ),
+                el('div', { className: 'h2l-popover-list' },
+                    el('div', { className: 'h2l-menu-item', onClick: () => { updateField({ assignees: [] }); setActivePopup(null); } }, el(Icon, { name: 'user-xmark', style: { marginRight: 8 } }), 'Atanmamış'),
+                    filtered.map(u => {
+                        const isAssigned = task.assignees && task.assignees.map(Number).includes(Number(u.id));
+                        return el('div', { key: u.id, className: 'h2l-menu-item', onClick: () => { updateField({ assignees: [u.id] }); setActivePopup(null); } },
+                            el(Avatar, { userId: u.id, users, size: 20, style:{marginRight:8} }),
+                            u.name,
+                            isAssigned && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } })
+                        );
+                    })
+                )
+            );
+        };
+
+        const renderStatusMenu = () => {
+            return el('div', { className: 'h2l-popover-menu right-aligned' },
+                el('div', { className: 'h2l-popover-list' },
+                    Object.entries(TASK_STATUSES).map(([key, val]) => 
+                        el('div', { key: key, className: 'h2l-menu-item', onClick: () => { updateField({ status: key }); setActivePopup(null); } },
+                            el(Icon, { name: val.icon, style: { color: val.color, marginRight: 8 } }),
+                            val.label,
+                            task.status === key && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } })
+                        )
+                    )
+                )
+            );
+        };
+
+        const renderLabelMenu = () => {
+            const filtered = labels.filter(l => l.name.toLowerCase().includes(popoverSearch.toLowerCase()));
+            const currentLabels = task.labels ? task.labels.map(l => l.name) : [];
+            
+            return el('div', { className: 'h2l-popover-menu right-aligned', style: { width: 220 } },
+                el('div', { className: 'h2l-popover-header' }, 
+                    el('input', { className: 'h2l-search-input', placeholder: 'Etiket ara...', value: popoverSearch, onChange: e => setPopoverSearch(e.target.value), autoFocus: true, onClick:e=>e.stopPropagation() })
+                ),
+                el('div', { className: 'h2l-popover-list' },
+                    filtered.map(l => {
+                        const isSelected = currentLabels.includes(l.name);
+                        return el('div', { key: l.id, className: 'h2l-menu-item', onClick: (e) => { 
+                            e.stopPropagation(); 
+                            const newLabels = isSelected ? currentLabels.filter(n => n !== l.name) : [...currentLabels, l.name];
+                            updateField({ labels: newLabels });
+                        } },
+                            el(Icon, { name: 'tag', style: { color: l.color || '#808080', marginRight: 8, fontSize: 12 } }),
+                            l.name,
+                            isSelected && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f', fontSize: 12 } })
+                        );
+                    }),
+                    filtered.length === 0 && popoverSearch.trim() !== '' && el('div', { className: 'h2l-menu-item', onClick: () => { 
+                        const newLabels = [...currentLabels, popoverSearch];
+                        updateField({ labels: newLabels });
+                        setPopoverSearch('');
+                    } }, el(Icon, { name: 'plus', style: { marginRight: 8 } }), `"${popoverSearch}" oluştur`)
+                )
+            );
+        };
+
+        const renderLocationMenu = () => {
+            return el('div', { className: 'h2l-popover-menu right-aligned', style: { padding: 10 } },
+                el('div', { className: 'h2l-menu-title', style: { margin: '0 0 5px 0' } }, 'Konum Düzenle'),
+                el('input', { 
+                    className: 'h2l-input', style: { width: '100%', fontSize: 13 }, 
+                    placeholder: 'Konum adı...', defaultValue: task.location || '',
+                    onChange: e => setNewLocation(e.target.value),
+                    onKeyDown: e => { if(e.key === 'Enter') { updateField({ location: newLocation }); setActivePopup(null); } },
+                    autoFocus: true, onClick: e => e.stopPropagation()
+                }),
+                el('div', { style: { marginTop: 8, textAlign: 'right' } }, 
+                    el('button', { className: 'h2l-btn primary small', onClick: () => { updateField({ location: newLocation }); setActivePopup(null); } }, 'Kaydet')
+                )
+            );
+        };
+
+        const renderActionsMenu = () => {
+            return el('div', { className: 'h2l-popover-menu right-aligned top-aligned' },
+                el('div', { className: 'h2l-menu-item', onClick: handleCopyLink }, el(Icon, { name: 'link', style:{marginRight:10, color:'#666'} }), 'Bağlantıyı kopyala'),
+                el('div', { className: 'h2l-menu-item', onClick: handleDuplicateTask }, el(Icon, { name: 'copy', style:{marginRight:10, color:'#666'} }), 'Kopya oluştur'),
+                el('div', { className: 'h2l-menu-separator' }),
+                el('div', { className: 'h2l-menu-item text-danger', onClick: () => { if(confirm('Görevi silmek istediğinize emin misiniz?')) onDelete(task.id); } }, el(Icon, { name: 'trash', style:{marginRight:10} }), 'Görevi Sil')
+            );
+        };
+
+        const SidebarRow = ({ label, value, icon, color, onClick, activeKey, renderPopupContent, isClickable = true }) => el('div', { className: 'h2l-tm-sidebar-group', style: { position: 'relative' } },
             el('div', { className: 'h2l-tm-sb-label' }, label),
-            el('div', { className: `h2l-tm-sb-value ${isClickable?'clickable':''}`, onClick: isClickable ? onClick : null },
+            el('div', { 
+                className: `h2l-tm-sb-value clickable-trigger ${isClickable?'clickable':''}`, 
+                onClick: isClickable ? (e) => { 
+                    e.stopPropagation(); 
+                    setPopoverSearch(''); 
+                    setNewLocation(task.location || '');
+                    setActivePopup(activePopup === activeKey ? null : activeKey); 
+                } : null 
+            },
                 icon && el(Icon, { name: icon, style: { color: color || '#777', marginRight: 8, fontSize: 14 } }),
-                // Özel Öncelik Gösterimi (Circle)
                 label === 'Öncelik' && el('div', { className: 'h2l-priority-circle', style: { backgroundColor: color } }),
-                // Özel Atanan Gösterimi (Avatar)
                 label === 'Atanan kişi' && !icon && el(Avatar, { userId: task.assignees[0], users, size: 24, style:{marginRight:8} }),
                 
                 el('div', { style: { display: 'flex', flexDirection: 'column', lineHeight: 1.2 } },
                     el('span', { style: { color: color || '#202020' } }, value),
-                    // Öncelik alanında proje adını göster
                     label === 'Öncelik' && el('span', { style: { fontSize: 11, color: '#888', marginTop: 2 } }, currentProject.title)
                 )
-            )
+            ),
+            (activePopup === activeKey && renderPopupContent) && renderPopupContent()
         );
 
         return el('div', { className: 'h2l-detail-overlay', onClick: onClose },
@@ -317,21 +533,39 @@
                 /* HEADER */
                 el('div', { className: 'h2l-tm-header' },
                     el('div', { className: 'h2l-tm-breadcrumb' },
-                        // SCROLL ANIMASYONU: Proje Adı -> Görev Adı
                         el('span', { className: `h2l-tm-proj-name ${isScrolled ? 'hidden-up' : ''}` }, 
                             el('span', { style: { color: currentProject.color || '#888', marginRight: 8 } }, '#'),
                             currentProject.title || 'Inbox'
                         ),
                         el('div', { className: `h2l-tm-task-name-scroll ${isScrolled ? 'visible-up' : ''}` }, 
-                            // HTML etiketlerini temizle
                             task.title.replace(/<[^>]*>/g, '')
                         )
                     ),
                     el('div', { className: 'h2l-tm-header-actions' },
-                        // TODO: Sonraki/Önceki görev fonksiyonları burada çağrılacak
-                        el('button', { className: 'h2l-icon-btn', title: 'Önceki' }, el(Icon, { name: 'chevron-up' })),
-                        el('button', { className: 'h2l-icon-btn', title: 'Sonraki' }, el(Icon, { name: 'chevron-down' })),
+                        // ÖNCEKİ GÖREV
+                        el('button', { 
+                            className: 'h2l-icon-btn', 
+                            title: 'Önceki', 
+                            disabled: !prevTask,
+                            style: { opacity: !prevTask ? 0.3 : 1, cursor: !prevTask ? 'default' : 'pointer' },
+                            onClick: () => prevTask && navigate('/gorev/' + prevTask.id)
+                        }, el(Icon, { name: 'chevron-up' })),
+                        
+                        // SONRAKİ GÖREV
+                        el('button', { 
+                            className: 'h2l-icon-btn', 
+                            title: 'Sonraki', 
+                            disabled: !nextTask,
+                            style: { opacity: !nextTask ? 0.3 : 1, cursor: !nextTask ? 'default' : 'pointer' },
+                            onClick: () => nextTask && navigate('/gorev/' + nextTask.id)
+                        }, el(Icon, { name: 'chevron-down' })),
+                        
                         el('div', { className: 'h2l-sep-v' }),
+                        // DIĞER MENÜSÜ
+                        el('div', { style:{position:'relative'} },
+                            el('button', { className: 'h2l-icon-btn clickable-trigger', onClick: () => setActivePopup(activePopup === 'actions' ? null : 'actions') }, el(Icon, { name: 'ellipsis' })),
+                            activePopup === 'actions' && renderActionsMenu()
+                        ),
                         el('button', { className: 'h2l-icon-btn', onClick: onClose }, el(Icon, { name: 'xmark', style: { fontSize: 18 } }))
                     )
                 ),
@@ -366,6 +600,11 @@
                                         el('span', null, 'Yorumlar'),
                                         el('span', { className: 'h2l-tm-badge' }, comments.length)
                                     ),
+                                    // YORUM YOKSA SİLİK UYARI
+                                    comments.length === 0 && el('div', { 
+                                        style: { color: '#ccc', fontSize: '13px', padding: '20px 0', textAlign: 'center', fontStyle: 'italic' } 
+                                    }, 'Henüz yorum yapılmamıştır'),
+
                                     comments.map(c => el(CommentItem, { 
                                         key: c.id, 
                                         comment: c, 
@@ -389,31 +628,93 @@
                     ),
 
                     /* RIGHT SIDEBAR */
-                    el('div', { className: 'h2l-tm-sidebar' },
+                    el('div', { className: 'h2l-tm-sidebar', ref: sidebarRef },
                         el('div', { className: 'h2l-tm-sidebar-inner' },
-                            el(SidebarItem, { label: 'Proje', value: currentProject.title || 'Projesiz', icon: 'hashtag', color: currentProject.color }),
-                            el(SidebarItem, { label: 'Atanan kişi', value: assignee ? assignee.name : 'Atanmamış', icon: assignee ? null : 'user' }),
-                            el(SidebarItem, { label: 'Tarih', value: smartDate ? smartDate.text : 'Tarih Yok', icon: smartDate ? smartDate.icon : 'calendar', color: smartDate ? smartDate.color : null }),
-                            el(SidebarItem, { label: 'Son Tarih', value: 'Son tarih ekle', icon: 'clock', color: '#aaa', isClickable: true }),
-                            
-                            // ÖNCELİK ALANI (GÜNCELLENMİŞ)
-                            el(SidebarItem, { 
-                                label: 'Öncelik', 
-                                value: `P${task.priority}`, 
-                                icon: null, // İkonu özel olarak render ediyoruz
-                                color: getPriorityColor(task.priority), 
-                                onClick: () => updateField({ priority: task.priority === 1 ? 4 : task.priority - 1 }) 
+                            // PROJE
+                            el(SidebarRow, { 
+                                label: 'Proje', 
+                                value: currentProject.title || 'Projesiz', 
+                                icon: 'hashtag', 
+                                color: currentProject.color,
+                                activeKey: 'project',
+                                renderPopupContent: renderProjectMenu
                             }),
                             
+                            // ATANAN KİŞİ
+                            el(SidebarRow, { 
+                                label: 'Atanan kişi', 
+                                value: assignee ? assignee.name : 'Atanmamış', 
+                                icon: assignee ? null : 'user',
+                                activeKey: 'assignee',
+                                renderPopupContent: renderAssigneeMenu
+                            }),
+                            
+                            // TARİH (Datepicker)
                             el('div', { className: 'h2l-tm-sidebar-group' },
-                                el('div', { className: 'h2l-tm-sb-label', style:{display:'flex', justifyContent:'space-between'} }, 'Etiketler', el(Icon, { name: 'plus', style: { fontSize: 12, cursor: 'pointer' } })),
-                                el('div', { className: 'h2l-tm-tags-container' },
-                                    (task.labels && task.labels.length > 0) ? task.labels.map(l => el('span', { key: l.id || l, className: 'h2l-tm-tag' }, (typeof l === 'string' ? l : l.name), el(Icon,{name:'xmark', style:{marginLeft:5, fontSize:10, cursor:'pointer'}}))) : el('span', { className: 'h2l-tm-no-val' }, 'Etiket yok')
+                                el('div', { className: 'h2l-tm-sb-label' }, 'Tarih'),
+                                el('div', { className: 'h2l-tm-sb-value', style: { padding: 0 } },
+                                    // DÜZELTME: repeat prop'u eklendi
+                                    el(SidebarDatePicker, { 
+                                        date: task.due_date, 
+                                        repeat: task.recurrence_rule,
+                                        onChange: (d, r) => updateField({ dueDate: d, repeat: r }) 
+                                    })
                                 )
                             ),
+                            
+                            // ÖNCELİK
+                            el(SidebarRow, { 
+                                label: 'Öncelik', 
+                                value: `P${task.priority}`, 
+                                icon: null, 
+                                color: getPriorityColor(task.priority), 
+                                activeKey: 'priority',
+                                renderPopupContent: () => el('div', { className: 'h2l-popover-menu right-aligned' }, [1, 2, 3, 4].map(p => el('div', { key: p, className: 'h2l-menu-item', onClick: () => { updateField({ priority: p }); setActivePopup(null); } }, el(Icon, { name: 'flag', style: { color: getPriorityColor(p), marginRight: 8 } }), `Öncelik ${p}`, task.priority === p && el(Icon, { name: 'check', style: { marginLeft: 'auto', color: '#db4c3f' } }))))
+                            }),
+                            
+                            // HATIRLATICI
+                            el(SidebarRow, { 
+                                label: 'Hatırlatıcılar', 
+                                value: task.reminder_enabled ? 'Açık' : 'Kapalı', 
+                                icon: 'bell', 
+                                color: task.reminder_enabled ? '#db4c3f' : '#aaa', 
+                                isClickable: true,
+                                onClick: () => updateField({ reminder_enabled: !task.reminder_enabled })
+                            }),
+
+                            // DURUM (STATUS)
+                            el(SidebarRow, { 
+                                label: 'Durum', 
+                                value: currentStatusObj.label, 
+                                icon: currentStatusObj.icon, 
+                                color: currentStatusObj.color,
+                                activeKey: 'status',
+                                renderPopupContent: renderStatusMenu
+                            }),
+
+                            // ETİKETLER
+                            el('div', { className: 'h2l-tm-sidebar-group', style:{position:'relative'} },
+                                el('div', { className: 'h2l-tm-sb-label', style:{display:'flex', justifyContent:'space-between'} }, 'Etiketler', 
+                                    el(Icon, { name: 'plus', style: { fontSize: 12, cursor: 'pointer' }, className: 'clickable-trigger', onClick: (e) => { e.stopPropagation(); setPopoverSearch(''); setActivePopup(activePopup==='labels'?null:'labels'); } })
+                                ),
+                                el('div', { className: 'h2l-tm-tags-container' },
+                                    (task.labels && task.labels.length > 0) ? task.labels.map(l => el('span', { key: l.id || l, className: 'h2l-tm-tag' }, (typeof l === 'string' ? l : l.name), el(Icon,{name:'xmark', style:{marginLeft:5, fontSize:10, cursor:'pointer'}, onClick: (e) => { e.stopPropagation(); updateField({ labels: task.labels.map(lbl=>lbl.name).filter(n => n !== (l.name || l)) }); } }))) : el('span', { className: 'h2l-tm-no-val' }, 'Etiket yok')
+                                ),
+                                activePopup === 'labels' && renderLabelMenu()
+                            ),
+                            
                             el('div', { className: 'h2l-tm-sb-separator' }),
-                            el(SidebarItem, { label: 'Hatırlatıcılar', value: 'Hatırlatıcı ekle', icon: 'bell', color: '#aaa', isClickable: false }),
-                            el(SidebarItem, { label: 'Konum', value: 'Konum ekle', icon: 'location-dot', color: '#aaa', isClickable: false }),
+                            
+                            // KONUM
+                            el(SidebarRow, { 
+                                label: 'Konum', 
+                                value: task.location || 'Konum ekle', 
+                                icon: 'location-dot', 
+                                color: task.location ? '#202020' : '#aaa', 
+                                activeKey: 'location',
+                                renderPopupContent: renderLocationMenu
+                            }),
+                            
                             el('div', { className: 'h2l-tm-sb-separator' }),
                             el('div', { className: 'h2l-tm-meta-info' }, `Oluşturuldu: ${task.created_at.split(' ')[0]}`)
                         )
