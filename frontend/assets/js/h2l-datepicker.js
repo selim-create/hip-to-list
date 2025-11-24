@@ -31,13 +31,12 @@
             this.daysLong = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 
             this.activeMenu = null;
-            this.popup = null; // Popup referansı
+            this.popup = null;
 
             this.init();
         }
 
         renderBaseHTML() {
-            // Tetikleyici buton (Trigger) wrapper içinde kalır
             this.wrapper.innerHTML = `
                 <div class="td-trigger-btn">
                     <span class="td-icon-holder">
@@ -55,7 +54,6 @@
         }
 
         createPopup() {
-            // Popup'ı oluştur ama henüz DOM'a ekleme (açılınca body'ye ekleyeceğiz)
             this.popup = document.createElement('div');
             this.popup.className = 'td-popup';
             this.popup.innerHTML = `
@@ -108,30 +106,24 @@
                 this.toggle(); 
             });
             
-            // Popup içinde tıklamaları durdur, dışarı tıklayınca kapanmasın
             this.popup.addEventListener('click', (e) => e.stopPropagation());
             
             this.outsideClickHandler = (e) => {
-                // Popup açıksa ve tıklanan yer popup, menü veya trigger değilse kapat
                 const isClickInside = this.popup.contains(e.target) || 
                                       (this.activeMenu && this.activeMenu.contains(e.target)) ||
                                       this.trigger.contains(e.target);
-                
-                if (!isClickInside) {
-                    this.close();
-                }
+                if (!isClickInside) { this.close(); }
             };
             
-            // Pencere boyutu değişirse konumu güncelle
             this.resizeHandler = () => {
-                if (this.popup.classList.contains('active')) {
-                    this.updatePosition();
-                }
+                if (this.popup.classList.contains('active')) { this.updatePosition(); }
+                // Ekran kaydırıldığında veya yeniden boyutlandırıldığında alt menüleri kapat (kopmaları önlemek için)
+                if (this.activeMenu) { this.closeMenu(); }
             };
 
             document.addEventListener('click', this.outsideClickHandler);
             window.addEventListener('resize', this.resizeHandler);
-            window.addEventListener('scroll', this.resizeHandler, true); // Capture phase ile tüm scroll'ları yakala
+            window.addEventListener('scroll', this.resizeHandler, true);
 
             this.popup.querySelectorAll('.td-nav-btn[data-nav]').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -164,9 +156,7 @@
         toggle() { this.popup.classList.contains('active') ? this.close() : this.open(); }
         
         open() {
-            // Popup'ı body'ye taşı
             document.body.appendChild(this.popup);
-            
             this.renderCalendar();
             this.noDateShortcut.style.display = this.selectedDate ? 'flex' : 'none';
             this.popup.classList.add('active');
@@ -176,35 +166,22 @@
         updatePosition() {
             const rect = this.trigger.getBoundingClientRect();
             const popupRect = this.popup.getBoundingClientRect();
-            
             let top = rect.bottom + 5;
             let left = rect.left;
             
-            // Ekranın altına taşıyor mu kontrol et
-            if (top + popupRect.height > window.innerHeight) {
-                top = rect.top - popupRect.height - 5; // Üste aç
-            }
-            
-            // Sağa taşıyor mu?
-            if (left + popupRect.width > window.innerWidth) {
-                left = window.innerWidth - popupRect.width - 10;
-            }
+            if (top + popupRect.height > window.innerHeight) { top = rect.top - popupRect.height - 5; }
+            if (left + popupRect.width > window.innerWidth) { left = window.innerWidth - popupRect.width - 10; }
 
             this.popup.style.position = 'fixed';
             this.popup.style.top = `${top}px`;
             this.popup.style.left = `${left}px`;
-            this.popup.style.zIndex = '2147483647'; // En üstte
+            this.popup.style.zIndex = '2147483647';
         }
 
         close() {
             if (this.popup) {
                 this.popup.classList.remove('active');
-                // Kapatınca DOM'dan temizlemek yerine gizliyoruz, çünkü referansları kaybetmek istemeyiz
-                // Ama z-index sorunları için remove etmek daha güvenli olabilir. Şimdilik sadece class kaldırıyoruz.
-                // Eğer başka bir sayfaya geçilirse destroy() çağrılmalı.
-                if (this.popup.parentNode === document.body) {
-                    document.body.removeChild(this.popup);
-                }
+                if (this.popup.parentNode === document.body) { document.body.removeChild(this.popup); }
             }
             this.closeMenu();
         }
@@ -216,6 +193,7 @@
             }
         }
 
+        // --- GÜNCELLENEN CREATEMENU (AKILLI KONUMLANDIRMA) ---
         createMenu(triggerEl) {
             this.closeMenu();
             const menu = document.createElement('div');
@@ -223,12 +201,27 @@
             document.body.appendChild(menu);
             this.activeMenu = menu;
             
+            // triggerEl: butonun kendisidir (this.btnTime veya this.btnRepeat)
             const rect = triggerEl.getBoundingClientRect();
+            const menuWidth = 200; // Tahmini genişlik (veya ölçülebilir)
+            const menuHeight = 220; // Tahmini yükseklik
+
+            let left = rect.left;
+            let top = rect.bottom + 5;
+
+            // Sağa taşıyorsa sola yasla
+            if (left + menuWidth > window.innerWidth) {
+                left = window.innerWidth - menuWidth - 10;
+            }
+
+            // Aşağı taşıyorsa yukarı aç
+            if (top + menuHeight > window.innerHeight) {
+                top = rect.top - menuHeight - 5;
+            }
             
-            // Scroll hesaplamalarını kaldırıp 'fixed' kullanarak viewport'a göre konumlandırıyoruz
             menu.style.position = 'fixed';
-            menu.style.left = rect.left + 'px';
-            menu.style.top = (rect.bottom + 5) + 'px';
+            menu.style.left = left + 'px';
+            menu.style.top = top + 'px';
             menu.style.zIndex = '2147483647';
             
             return menu;
@@ -339,7 +332,6 @@
                 this.iconHolder.innerHTML = result.icon;
             }
             
-            // Popup açıksa takvimi güncelle (seçili günü boyamak için)
             if(document.body.contains(this.popup) && this.popup.classList.contains('active')) {
                 this.renderCalendar();
             }
@@ -363,7 +355,7 @@
             const diffTime = date - this.today;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
             if (this.isSameDay(date, this.today)) return { text: "Bugün", class: "is-today", icon: this.getDynamicCalendarIcon(date.getDate()) };
-            if (this.isSameDay(date, tomorrow)) return { text: "Yarın", class: "is-tomorrow", icon: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-13h-2v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>` };
+            if (this.isSameDay(date, tomorrow)) return { text: "Yarın", class: "is-tomorrow", icon: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-13h-2v6l5.25 3.15.75-1.23-4-2.37V7z" opacity="0"/><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>` };
             if (diffDays > 0 && diffDays < 7) return { text: this.daysLong[date.getDay()], class: "is-next-week", icon: this.getDynamicCalendarIcon(date.getDate()) };
             return { text: `${date.getDate()} ${this.months[date.getMonth()].substring(0,3)}`, class: "is-date", icon: this.getDynamicCalendarIcon(date.getDate()) };
         }

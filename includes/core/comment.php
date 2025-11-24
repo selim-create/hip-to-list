@@ -1,6 +1,6 @@
 <?php
 /**
- * Yorum (Comment) İşlemleri
+ * Yorum (Comment) İşlemleri ve Mention Algılama
  */
 
 class H2L_Comment {
@@ -27,38 +27,68 @@ class H2L_Comment {
         $inserted = $wpdb->insert( $this->table, $data, array( '%d', '%d', '%s', '%s' ) );
 
         if ( $inserted ) {
-            // Log Activity
-            if ( class_exists('H2L_Activity') ) {
-                // H2L_Activity::log('task', $task_id, 'comment_added');
-            }
-            
             $comment_id = $wpdb->insert_id;
+            
+            if ( class_exists('H2L_Activity') ) {
+                H2L_Activity::log('task', $task_id, 'comment_added', ['comment_id' => $comment_id]);
+            }
+
+            // Mention Bildirimleri (Parametre olarak raw $content gönderiliyor)
+            $this->process_mentions($task_id, $content);
+
             return $this->get( $comment_id );
         }
 
         return false;
     }
 
-    // YENİ: Yorum Güncelleme
+    /**
+     * Metindeki @mentions'ları bul ve bildirim gönder
+     */
+    private function process_mentions( $task_id, $content ) {
+        // DÜZELTME: Regex artık tire (-) ve nokta (.) karakterlerini de içeriyor.
+        // Örn: @ali-veli, @ahmet.yilmaz
+        if ( preg_match_all( '/@([\w\-\.\u00C0-\u017F]+)/u', $content, $matches ) ) {
+            $usernames = array_unique( $matches[1] );
+            $mentioned_ids = [];
+
+            foreach ( $usernames as $username ) {
+                $user = get_user_by( 'login', $username );
+                
+                if ( ! $user ) {
+                    // Slug araması (display_name araması yerine slug daha güvenilir olabilir)
+                    $user = get_user_by( 'slug', $username );
+                }
+
+                if ( ! $user ) {
+                    // Son çare display_name araması
+                    $users = get_users( array(
+                        'search'         => $username,
+                        'search_columns' => array( 'display_name' ),
+                        'number'         => 1
+                    ) );
+                    if ( ! empty( $users ) ) {
+                        $user = $users[0];
+                    }
+                }
+
+                if ( $user ) {
+                    $mentioned_ids[] = $user->ID;
+                }
+            }
+
+            if ( ! empty( $mentioned_ids ) && class_exists('H2L_Reminder') ) {
+                $reminder = new H2L_Reminder();
+                $reminder->send_mention_notification( $task_id, $mentioned_ids, $content );
+            }
+        }
+    }
+
     public function update( $id, $content ) {
         global $wpdb;
-        
-        $data = array(
-            'content' => wp_kses_post( $content )
-        );
-        
-        $updated = $wpdb->update( 
-            $this->table, 
-            $data, 
-            array( 'id' => $id ), 
-            array( '%s' ), 
-            array( '%d' ) 
-        );
-
-        if ( $updated !== false ) {
-            return $this->get( $id );
-        }
-        return false;
+        $data = array( 'content' => wp_kses_post( $content ) );
+        $updated = $wpdb->update( $this->table, $data, array( 'id' => $id ), array( '%s' ), array( '%d' ) );
+        return $updated !== false ? $this->get( $id ) : false;
     }
 
     public function get_by_task( $task_id ) {
@@ -67,9 +97,6 @@ class H2L_Comment {
         return $wpdb->get_results( $wpdb->prepare( $sql, $task_id ) );
     }
 
-    /**
-     * Görev bazlı yorum sayısını getir
-     */
     public function count_by_task( $task_id ) {
         global $wpdb;
         $sql = "SELECT COUNT(*) FROM {$this->table} WHERE task_id = %d";

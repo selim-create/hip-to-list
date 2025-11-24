@@ -1,7 +1,7 @@
 <?php
 /**
  * REST API - Frontend Veri Yönetimi (CRUD)
- * Heartbeat Endpoint Eklendi.
+ * Proje Yöneticisi Bildirimi Eklendi.
  */
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -27,16 +27,50 @@ add_action( 'rest_api_init', function () {
     register_rest_route( 'h2l/v1', '/sections(?:/(?P<id>\d+))?', array('methods' => ['POST', 'DELETE'], 'callback' => 'h2l_api_manage_section', 'permission_callback' => function () { return is_user_logged_in(); }) );
     register_rest_route( 'h2l/v1', '/reorder', array('methods' => 'POST', 'callback' => 'h2l_api_reorder_items', 'permission_callback' => function () { return is_user_logged_in(); }) );
     
-    // YENİ: Manuel Tetikleme Uç Noktası (Heartbeat)
+    // Heartbeat
     register_rest_route( 'h2l/v1', '/trigger-reminders', array(
         'methods' => 'POST',
         'callback' => 'h2l_api_trigger_reminders',
         'permission_callback' => function () { return is_user_logged_in(); }
     ) );
+
+    // BİLDİRİM UÇLARI
+    register_rest_route( 'h2l/v1', '/notifications', array(
+        array('methods' => 'GET', 'callback' => 'h2l_api_get_notifications', 'permission_callback' => function () { return is_user_logged_in(); })
+    ) );
+    register_rest_route( 'h2l/v1', '/notifications/read', array(
+        array('methods' => 'POST', 'callback' => 'h2l_api_read_notifications', 'permission_callback' => function () { return is_user_logged_in(); })
+    ) );
 });
 
+function h2l_api_get_notifications() {
+    h2l_set_nocache_headers();
+    if ( ! class_exists('H2L_Notification') ) return [];
+    
+    $user_id = get_current_user_id();
+    $notify = new H2L_Notification();
+    
+    return rest_ensure_response([
+        'list' => $notify->get_notifications($user_id),
+        'unread_count' => $notify->get_unread_count($user_id)
+    ]);
+}
+
+function h2l_api_read_notifications($request) {
+    if ( ! class_exists('H2L_Notification') ) return [];
+    $notify = new H2L_Notification();
+    $params = $request->get_json_params();
+    
+    if ( isset($params['all']) && $params['all'] ) {
+        $notify->mark_all_read(get_current_user_id());
+    } elseif ( isset($params['id']) ) {
+        $notify->mark_as_read(intval($params['id']));
+    }
+    
+    return h2l_api_get_notifications();
+}
+
 function h2l_api_trigger_reminders() {
-    // Bu fonksiyon JS tarafından her dakika çağrılır
     if ( class_exists( 'H2L_Reminder' ) ) {
         $reminder = new H2L_Reminder();
         $reminder->process_queue();
@@ -116,7 +150,14 @@ function h2l_api_get_init_data( $request ) {
         $sections = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->prefix}h2l_sections WHERE project_id IN ($ids_placeholder) ORDER BY sort_order ASC", $visible_project_ids));
     }
     $labels = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_labels ORDER BY name ASC");
-    $users = array_map(function($u) { return ['id' => $u->ID, 'name' => $u->display_name, 'avatar' => h2l_get_user_profile_picture_url($u->ID)]; }, get_users());
+    $users = array_map(function($u) { 
+        return [
+            'id' => $u->ID, 
+            'name' => $u->display_name, 
+            'username' => $u->user_login, // Mention için gerekli
+            'avatar' => h2l_get_user_profile_picture_url($u->ID)
+        ]; 
+    }, get_users());
     return rest_ensure_response( array('folders' => $folders, 'projects' => $visible_projects, 'sections' => $sections, 'tasks' => $tasks, 'users' => $users, 'labels' => $labels, 'uid' => $uid) );
 }
 
@@ -151,7 +192,13 @@ function h2l_api_manage_task($request) {
     
     if ($method === 'DELETE') { $wpdb->update($table, ['status' => 'trash'], ['id' => $id]); return ['success' => true]; }
     
+    $new_assignees_for_notify = []; 
+
     if ($id) {
+        $old_assignees_json = $wpdb->get_var($wpdb->prepare("SELECT assignee_ids FROM $table WHERE id = %d", $id));
+        $old_assignees = !empty($old_assignees_json) ? json_decode($old_assignees_json) : [];
+        if(!is_array($old_assignees)) $old_assignees = [];
+
         $data = [];
         if (isset($params['title'])) $data['title'] = wp_kses_post((string)$params['title']);
         if (isset($params['content'])) $data['content'] = wp_kses_post((string)$params['content']);
@@ -171,21 +218,31 @@ function h2l_api_manage_task($request) {
             $old_due = $wpdb->get_var($wpdb->prepare("SELECT due_date FROM $table WHERE id = %d", $id));
             if ($new_due !== $old_due) $data['reminder_sent'] = 0;
         }
-        if (isset($params['assignees'])) $data['assignee_ids'] = json_encode($params['assignees']);
+        
+        if (isset($params['assignees'])) {
+            $data['assignee_ids'] = json_encode($params['assignees']);
+            $new_assignees_for_notify = array_diff($params['assignees'], $old_assignees);
+        }
+
         if (isset($params['sortOrder'])) $data['sort_order'] = intval($params['sortOrder']);
         
         if (!empty($data)) { $wpdb->update($table, $data, ['id'=>$id]); }
         $new_id = $id;
+
     } else {
         $project_id = intval($params['projectId'] ?? 0);
         $max_sort = $wpdb->get_var($wpdb->prepare("SELECT MAX(sort_order) FROM $table WHERE project_id = %d", $project_id));
+        
+        $assignees = isset($params['assignees']) ? $params['assignees'] : [];
+        $new_assignees_for_notify = $assignees; 
+
         $data = [
             'title' => wp_kses_post((string)($params['title'] ?? '')), 
             'content' => wp_kses_post((string)($params['content'] ?? '')),
             'project_id' => $project_id, 'section_id' => intval($params['sectionId'] ?? 0),
             'priority' => intval($params['priority'] ?? 4), 'status' => sanitize_text_field((string)($params['status'] ?? 'open')),
             'due_date' => !empty($params['dueDate']) ? sanitize_text_field((string)$params['dueDate']) : null,
-            'assignee_ids' => json_encode($params['assignees'] ?? []),
+            'assignee_ids' => json_encode($assignees),
             'reminder_enabled' => 0, 
             'reminder_sent' => 0, 'created_at' => current_time('mysql'),
             'sort_order' => $max_sort ? $max_sort + 1 : 0
@@ -193,6 +250,12 @@ function h2l_api_manage_task($request) {
         $wpdb->insert($table, $data); 
         $new_id = $wpdb->insert_id; 
     }
+
+    if ( !empty($new_assignees_for_notify) && class_exists('H2L_Reminder') ) {
+        $reminder = new H2L_Reminder();
+        $reminder->send_assignment_notification($new_id, $new_assignees_for_notify);
+    }
+
     if (isset($params['labels']) && is_array($params['labels'])) {
         if (count($params['labels']) > 3) { $params['labels'] = array_slice($params['labels'], 0, 3); }
         $wpdb->delete($table_task_labels, ['task_id' => $new_id]);
@@ -203,6 +266,7 @@ function h2l_api_manage_task($request) {
             $wpdb->insert($table_task_labels, ['task_id' => $new_id, 'label_id' => $label_id]);
         }
     }
+
     $task = $wpdb->get_row($wpdb->prepare("SELECT t.*, (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_comments c WHERE c.task_id = t.id) as comment_count FROM $table t WHERE id=%d", $new_id));
     $task->labels = $wpdb->get_results($wpdb->prepare("SELECT l.* FROM {$wpdb->prefix}h2l_task_labels tl JOIN {$wpdb->prefix}h2l_labels l ON tl.label_id = l.id WHERE tl.task_id = %d", $new_id));
     $task->assignees = !empty($task->assignee_ids) ? json_decode((string)$task->assignee_ids) : [];
@@ -250,7 +314,18 @@ function h2l_api_manage_project($request) {
         $wpdb->update($table_projects, ['status' => 'trash'], ['id' => $id]); 
         return ['success' => true]; 
     }
+    
+    $new_managers_notify = [];
+
     if ($id) { 
+        // GÜNCELLEME
+        $old_managers = [];
+        $current_proj = $wpdb->get_row($wpdb->prepare("SELECT managers FROM $table_projects WHERE id = %d", $id));
+        if ($current_proj && !empty($current_proj->managers)) {
+            $old_managers = json_decode($current_proj->managers, true);
+            if(!is_array($old_managers)) $old_managers = [];
+        }
+
         $data = [];
         if (isset($params['title'])) $data['title'] = sanitize_text_field((string)$params['title']);
         if (isset($params['folderId'])) $data['folder_id'] = intval($params['folderId']);
@@ -258,17 +333,24 @@ function h2l_api_manage_project($request) {
         if (isset($params['viewType'])) $data['view_type'] = sanitize_text_field((string)$params['viewType']);
         if (isset($params['managers'])) {
             $managers = $params['managers'];
+            // Özel klasör kontrolü
             if (isset($params['folderId'])) {
                 $folder = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_folders WHERE id = %d", $params['folderId']));
                 if ($folder && $folder->access_type === 'private') { $managers = []; }
             }
             $clean_managers = array_map('strval', $managers);
             $data['managers'] = json_encode($clean_managers);
+            
+            // Yeni eklenen yöneticileri bul
+            $new_managers_notify = array_diff($clean_managers, $old_managers);
         }
         if (isset($params['is_favorite'])) $data['is_favorite'] = !empty($params['is_favorite']) ? 1 : 0;
+        
         if (!empty($data)) { $wpdb->update($table_projects, $data, ['id' => $id]); }
         $new_id = $id; 
+
     } else { 
+        // YENİ EKLEME
         $folder_id = intval($params['folderId'] ?? 0);
         $managers = $params['managers'] ?? [];
         if ($folder_id > 0) {
@@ -279,7 +361,17 @@ function h2l_api_manage_project($request) {
         $data = [ 'title' => sanitize_text_field((string)($params['title'] ?? '')), 'folder_id' => $folder_id, 'color' => sanitize_hex_color((string)($params['color'] ?? '#808080')), 'view_type' => sanitize_text_field((string)($params['viewType'] ?? 'list')), 'managers' => json_encode($clean_managers), 'is_favorite' => !empty($params['is_favorite']) ? 1 : 0, 'owner_id' => $current_user_id, 'created_at' => current_time('mysql'), 'status' => 'active' ];
         $wpdb->insert($table_projects, $data); 
         $new_id = $wpdb->insert_id; 
+        
+        // Yeni projede eklenen herkes "yeni"dir
+        $new_managers_notify = $clean_managers;
     }
+
+    // YÖNETİCİ BİLDİRİMİ GÖNDER
+    if ( !empty($new_managers_notify) && class_exists('H2L_Reminder') ) {
+        $reminder = new H2L_Reminder();
+        $reminder->send_project_invite_notification($new_id, $new_managers_notify);
+    }
+
     return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_projects WHERE id=%d", $new_id));
 }
 

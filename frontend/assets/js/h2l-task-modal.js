@@ -186,6 +186,7 @@
     const CommentInput = ({ onSend, currentUser, users, scrollToView }) => {
         const [isExpanded, setIsExpanded] = useState(false);
         const [text, setText] = useState('');
+        const [mentionState, setMentionState] = useState({ isOpen: false, query: '', triggerIndex: -1 });
         const textareaRef = useRef(null);
 
         const handleFocus = () => {
@@ -198,24 +199,111 @@
             onSend(text);
             setText('');
             setIsExpanded(false);
+            setMentionState({ isOpen: false, query: '', triggerIndex: -1 });
         };
 
         const handleCancel = () => {
             setText('');
             setIsExpanded(false);
+            setMentionState({ isOpen: false, query: '', triggerIndex: -1 });
         };
 
+        const handleInput = (e) => {
+            const val = e.target.value;
+            setText(val);
+            
+            const sel = e.target.selectionStart;
+            // Geriye doğru @ işareti ara
+            let found = false;
+            // İmleçten geriye doğru son @ işaretini bulana kadar tara
+            for (let i = sel - 1; i >= 0; i--) {
+                if (val[i] === '@') {
+                    // @ işaretinden önceki karakter boşluk veya satır başı olmalı
+                    if (i === 0 || /\s/.test(val[i-1])) {
+                        const query = val.substring(i + 1, sel);
+                        // Query içinde boşluk olmamalı (isim araması tek kelime veya slug üzerinden)
+                        if (!/\s/.test(query)) {
+                            setMentionState({ isOpen: true, query, triggerIndex: i });
+                            found = true;
+                        }
+                    }
+                    break;
+                }
+            }
+            if (!found) setMentionState({ isOpen: false, query: '', triggerIndex: -1 });
+        };
+
+        const insertMention = (user) => {
+            const beforeMention = text.substring(0, mentionState.triggerIndex);
+            // @kullaniciAdi şeklinde ekle
+            const insertion = `@${user.username || user.name.replace(/\s+/g, '')} `; 
+            // Trigger index'ten sonraki ilk boşluğa veya sona kadar olan kısmı değiştir
+            // Ancak şu an query kadar kısmı değiştirmemiz yeterli çünkü imleç oradaydı
+            const afterCursor = text.substring(textareaRef.current.selectionStart);
+            
+            const newText = beforeMention + insertion + afterCursor;
+            setText(newText);
+            setMentionState({ isOpen: false, query: '', triggerIndex: -1 });
+            
+            // İmleci düzelt (React state update asenkron olduğu için setTimeout gerekebilir)
+            setTimeout(() => {
+                if(textareaRef.current) {
+                    textareaRef.current.focus();
+                    const newPos = beforeMention.length + insertion.length;
+                    textareaRef.current.setSelectionRange(newPos, newPos);
+                }
+            }, 0);
+        };
+
+        const filteredUsers = mentionState.isOpen 
+            ? users.filter(u => 
+                (u.name && u.name.toLowerCase().includes(mentionState.query.toLowerCase())) ||
+                (u.username && u.username.toLowerCase().includes(mentionState.query.toLowerCase()))
+              ).slice(0, 5)
+            : [];
+
         return el('div', { className: `h2l-tm-footer-inner ${isExpanded ? 'expanded' : ''}` },
-            el('div', { className: 'h2l-tm-comment-input-wrapper' },
+            el('div', { className: 'h2l-tm-comment-input-wrapper', style: { position: 'relative' } },
                 el(Avatar, { userId: currentUser.ID, users: users, size: 32 }),
                 el('div', { className: 'h2l-tm-input-box' },
+                    // MENTION POPUP
+                    (mentionState.isOpen && filteredUsers.length > 0) && el('div', { className: 'h2l-mention-popup', style: { bottom: '100%', left: 40 } },
+                        el('div', { className: 'h2l-mention-list' },
+                            filteredUsers.map(u => 
+                                el('div', { key: u.id, className: 'h2l-mention-item', onClick: () => insertMention(u) },
+                                    el(Avatar, { userId: u.id, users, size: 24 }),
+                                    el('div', null, 
+                                        el('strong', null, u.name),
+                                        u.username && el('span', { style: { marginLeft: 6 } }, `@${u.username}`)
+                                    )
+                                )
+                            )
+                        )
+                    ),
+
                     el('textarea', { 
                         ref: textareaRef,
                         placeholder: 'Yorum yaz...', 
                         value: text, 
-                        onChange: e => setText(e.target.value),
+                        onChange: handleInput,
                         onFocus: handleFocus,
-                        onKeyDown: e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }
+                        onKeyDown: e => { 
+                            if(e.key === 'Enter' && !e.shiftKey) { 
+                                e.preventDefault(); 
+                                // Eğer mention menüsü açıksa ve bir seçim varsa (ilkini seç)
+                                if (mentionState.isOpen && filteredUsers.length > 0) {
+                                    insertMention(filteredUsers[0]);
+                                } else {
+                                    handleSend();
+                                }
+                            } 
+                            if (e.key === 'Escape') {
+                                if(mentionState.isOpen) {
+                                    setMentionState({ ...mentionState, isOpen: false });
+                                    e.stopPropagation();
+                                }
+                            }
+                        }
                     }),
                     !isExpanded && el('div', { className: 'h2l-tm-collapsed-icon' }, el(Icon, {name:'paperclip'})),
                     isExpanded && el('div', { className: 'h2l-tm-input-toolbar' },
@@ -638,7 +726,7 @@
                             })
                         )
                     ),
-
+                    
                     /* RIGHT SIDEBAR */
                     el('div', { className: 'h2l-tm-sidebar' },
                         el('div', { className: 'h2l-tm-sidebar-inner' },
