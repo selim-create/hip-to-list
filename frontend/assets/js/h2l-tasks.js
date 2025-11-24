@@ -14,140 +14,77 @@
     window.H2L = window.H2L || {};
     window.H2L.Tasks = window.H2L.Tasks || {};
 
-    // DRAG & DROP STATE (Global)
     let currentDraggedId = null;
-    let currentDraggedType = null; // 'task' | 'section'
+    let currentDraggedType = null; 
 
-    // --- 0. HELPER: SMART DATE FORMATTER ---
+    // --- HELPERS ---
     const getSmartDateDisplay = (dateStr, isRecurring = false) => {
         if (!dateStr) return null;
         const date = new Date(dateStr);
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        
-        const target = new Date(date);
-        target.setHours(0,0,0,0); 
-        
+        const today = new Date(); today.setHours(0,0,0,0);
+        const target = new Date(date); target.setHours(0,0,0,0); 
         const diffTime = target - today;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
         const dayNames = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
         const hasTime = dateStr.includes(' ') && !dateStr.endsWith('00:00:00');
         const timeStr = hasTime ? dateStr.split(' ')[1].substring(0, 5) : '';
-
-        let text = '';
-        let color = '#e67e22'; // Varsayılan Gelecek Tarih Rengi
-        let icon = 'calendar';
-
-        if (diffDays === 0) {
-            text = 'Bugün';
-            color = '#058527'; // Yeşil
-            icon = 'calendar-day';
-        } else if (diffDays === 1) {
-            text = 'Yarın';
-            color = '#e67e22'; // Turuncu
-            icon = 'sun';
-        } else if (diffDays === -1) {
-            text = 'Dün';
-            color = '#d1453b'; // Kırmızı
-        } else if (diffDays < -1) {
-            text = target.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
-            color = '#d1453b'; 
-        } else if (diffDays > 1 && diffDays < 7) {
-            text = dayNames[target.getDay()];
-            color = '#692fc2'; // Mor
-            icon = 'calendar-week';
-        } else {
-            text = target.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
-            if (target.getFullYear() !== today.getFullYear()) {
-                text += ` ${target.getFullYear()}`;
-            }
-            color = '#e67e22';
-        }
-
-        return { 
-            text: timeStr ? `${text} ${timeStr}` : text, 
-            color, 
-            icon,
-            isRecurring 
-        };
+        let text = ''; let color = '#e67e22'; let icon = 'calendar';
+        if (diffDays === 0) { text = 'Bugün'; color = '#058527'; icon = 'calendar-day'; } 
+        else if (diffDays === 1) { text = 'Yarın'; color = '#e67e22'; icon = 'sun'; } 
+        else if (diffDays === -1) { text = 'Dün'; color = '#d1453b'; } 
+        else if (diffDays < -1) { text = target.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }); color = '#d1453b'; } 
+        else if (diffDays > 1 && diffDays < 7) { text = dayNames[target.getDay()]; color = '#692fc2'; icon = 'calendar-week'; } 
+        else { text = target.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }); if (target.getFullYear() !== today.getFullYear()) { text += ` ${target.getFullYear()}`; } color = '#e67e22'; }
+        return { text: timeStr ? `${text} ${timeStr}` : text, color, icon, isRecurring };
     };
 
-    // --- 1. DELETE CONFIRM MODAL ---
+    const getDateString = (offsetDays) => {
+        const d = new Date(); d.setDate(d.getDate() + offsetDays);
+        return d.toISOString().split('T')[0];
+    };
+
+    // --- TOAST NOTIFICATION ---
+    const Toast = ({ message, onClose }) => {
+        useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
+        return el('div', { 
+            style: { position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#333', color: '#fff', padding: '10px 20px', borderRadius: 5, zIndex: 99999, fontSize: 13, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' } 
+        }, message);
+    };
+
     const DeleteTaskModal = ({ task, onClose, onConfirm }) => {
         return el('div', { className: 'h2l-detail-overlay', style: { zIndex: 20050 }, onClick: onClose },
             el('div', { className: 'h2l-confirm-modal', onClick: e => e.stopPropagation() },
-                el('div', { style: { textAlign: 'center', marginBottom: 10 } },
-                    el(Icon, { name: 'triangle-exclamation', style: { fontSize: 40, color: '#d1453b' } })
-                ),
+                el('div', { style: { textAlign: 'center', marginBottom: 10 } }, el(Icon, { name: 'triangle-exclamation', style: { fontSize: 40, color: '#d1453b' } })),
                 el('h3', { className: 'h2l-confirm-title', style: { textAlign: 'center' } }, 'Görevi sil?'),
-                el('p', { className: 'h2l-confirm-desc', style: { textAlign: 'center' } }, 
-                    el('strong', null, task.title.replace(/<[^>]*>/g, '')), 
-                    ' görevi kalıcı olarak silinecek.'
-                ),
-                el('div', { className: 'h2l-confirm-footer', style: { justifyContent: 'center' } },
-                    el('button', { className: 'h2l-btn', onClick: onClose }, 'İptal'),
-                    el('button', { className: 'h2l-btn danger-filled', onClick: onConfirm }, 'Evet, Sil')
-                )
+                el('p', { className: 'h2l-confirm-desc', style: { textAlign: 'center' } }, el('strong', null, task.title.replace(/<[^>]*>/g, '')), ' görevi kalıcı olarak silinecek.'),
+                el('div', { className: 'h2l-confirm-footer', style: { justifyContent: 'center' } }, el('button', { className: 'h2l-btn', onClick: onClose }, 'İptal'), el('button', { className: 'h2l-btn danger-filled', onClick: onConfirm }, 'Evet, Sil'))
             )
         );
     };
 
-    // --- 2. TASK ROW (DRAGGABLE) ---
     const TaskRow = ({ task, users, projects = [], sections = [], onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask, labels, navigate }) => {
         const [isEditing, setIsEditing] = useState(false);
+        const [editorOpenMenu, setEditorOpenMenu] = useState(null); // Editör açıldığında hangi menü aktif olsun
         const [isStatusHovered, setIsStatusHovered] = useState(false);
         const [isMenuOpen, setIsMenuOpen] = useState(false);
         const [isAssigneeMenuOpen, setIsAssigneeMenuOpen] = useState(false);
         const [showDeleteModal, setShowDeleteModal] = useState(false);
         const [assigneeSearch, setAssigneeSearch] = useState('');
-        const [dragOverState, setDragOverState] = useState(null); // 'top' | 'bottom' | null
+        const [dragOverState, setDragOverState] = useState(null);
+        const [toastMsg, setToastMsg] = useState(null);
 
         const hoverTimeoutRef = useRef(null);
         const menuRef = useRef(null);
         const assigneeRef = useRef(null);
         
-        // Drag Event Handlers (TASK)
-        const handleDragStart = (e) => {
-            currentDraggedId = task.id;
-            currentDraggedType = 'task'; // SÜRÜKLENEN TÜRÜ BELİRLE
-            e.dataTransfer.effectAllowed = 'move';
-            setTimeout(() => e.target.classList.add('h2l-is-dragging'), 0);
-        };
-
-        const handleDragEnd = (e) => {
-            currentDraggedId = null;
-            currentDraggedType = null;
-            e.target.classList.remove('h2l-is-dragging');
-            setDragOverState(null);
-        };
-
-        const handleDragOver = (e) => {
-            e.preventDefault(); 
-            if (currentDraggedId === task.id || currentDraggedType !== 'task') return; // Sadece task ise izin ver
-
-            const rect = e.currentTarget.getBoundingClientRect();
-            const midY = rect.top + rect.height / 2;
-            setDragOverState(e.clientY < midY ? 'top' : 'bottom');
-        };
-
-        const handleDragLeave = () => {
-            setDragOverState(null);
-        };
-
-        const handleDrop = (e) => {
-            e.preventDefault();
-            setDragOverState(null);
-            if (currentDraggedId && currentDraggedId !== task.id && onMoveTask && currentDraggedType === 'task') {
-                const position = dragOverState === 'top' ? 'before' : 'after';
-                onMoveTask(currentDraggedId, task.id, position);
-            }
-        };
+        const handleDragStart = (e) => { currentDraggedId = task.id; currentDraggedType = 'task'; e.dataTransfer.effectAllowed = 'move'; setTimeout(() => e.target.classList.add('h2l-is-dragging'), 0); };
+        const handleDragEnd = (e) => { currentDraggedId = null; currentDraggedType = null; e.target.classList.remove('h2l-is-dragging'); setDragOverState(null); };
+        const handleDragOver = (e) => { e.preventDefault(); if (currentDraggedId === task.id || currentDraggedType !== 'task') return; const rect = e.currentTarget.getBoundingClientRect(); const midY = rect.top + rect.height / 2; setDragOverState(e.clientY < midY ? 'top' : 'bottom'); };
+        const handleDragLeave = () => { setDragOverState(null); };
+        const handleDrop = (e) => { e.preventDefault(); setDragOverState(null); if (currentDraggedId && currentDraggedId !== task.id && onMoveTask && currentDraggedType === 'task') { const position = dragOverState === 'top' ? 'before' : 'after'; onMoveTask(currentDraggedId, task.id, position); } };
 
         let assignee = null;
-        if (task.assignees && task.assignees.length > 0) { 
-            assignee = users.find(u => parseInt(u.id) === parseInt(task.assignees[0])); 
-        }
+        if (task.assignees && task.assignees.length > 0) { assignee = users.find(u => parseInt(u.id) === parseInt(task.assignees[0])); }
         
         const smartDate = getSmartDateDisplay(task.due_date, !!task.recurrence_rule);
         const highlightClass = (highlightToday && smartDate && smartDate.text.includes('Bugün')) ? 'h2l-highlight-today' : '';
@@ -168,10 +105,36 @@
             onUpdateTask(task.id, { assignees: newIds });
         };
 
+        const handleDuplicate = () => {
+            const copy = { ...task };
+            delete copy.id; delete copy.created_at; delete copy.updated_at; delete copy.comment_count;
+            onAddTask(copy);
+            setIsMenuOpen(false);
+        };
+
+        const handleCopyLink = () => {
+            const url = `${window.location.origin}/gorevler/gorev/${task.id}`;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => setToastMsg('Bağlantı kopyalandı!'));
+            } else {
+                const ta = document.createElement("textarea"); ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
+                setToastMsg('Bağlantı kopyalandı!');
+            }
+            setIsMenuOpen(false);
+        };
+
+        // --- EDIT MODE ---
         if (isEditing) {
             const editData = { ...task, dueDate: task.due_date ? task.due_date.split(' ')[0] : '' };
-            // TaskEditor'e 'labels' verisini geçirin
-            return el('div', { style: { marginLeft: 28, marginBottom: 10 } }, el(TaskEditor, { mode: 'edit', initialData: editData, users, projects, sections, onSave: (updatedData) => { onUpdateTask(task.id, updatedData); setIsEditing(false); }, onCancel: () => setIsEditing(false), labels })); 
+            return el('div', { style: { marginLeft: 28, marginBottom: 10 } }, 
+                el(TaskEditor, { 
+                    mode: 'edit', initialData: editData, users, projects, sections, 
+                    initialOpenMenu: editorOpenMenu, // <-- Seçili menü ile aç
+                    onSave: (updatedData) => { onUpdateTask(task.id, updatedData); setIsEditing(false); setEditorOpenMenu(null); }, 
+                    onCancel: () => { setIsEditing(false); setEditorOpenMenu(null); }, 
+                    labels 
+                })
+            ); 
         }
         
         const renderStatusMenu = () => {
@@ -200,17 +163,21 @@
         };
 
         const renderMoreMenu = () => {
-            return el('div', { className: 'h2l-popover-menu top-right', style: { width: 250, paddingBottom: 8 }, onClick: e => e.stopPropagation() },
-                el('div', { className: 'h2l-menu-item', onClick: () => { setIsMenuOpen(false); }, title: 'Bu göreve bir alt görev ekle' }, el(Icon, { name: 'arrow-turn-down-right', style:{marginRight:10, color:'#666', fontSize:14} }), 'Alt görev ekle'),
+            return el('div', { className: 'h2l-popover-menu top-aligned', style: { width: 250, paddingBottom: 8 }, onClick: e => e.stopPropagation() },
+                // 1. ALT GÖREV EKLE: Modalı açarak ekleme yapar
+                el('div', { className: 'h2l-menu-item', onClick: () => { setIsMenuOpen(false); onTaskClick(task); }, title: 'Bu göreve bir alt görev ekle' }, el(Icon, { name: 'arrow-turn-down-right', style:{marginRight:10, color:'#666', fontSize:14} }), 'Alt görev ekle'),
                 el('div', { className: 'h2l-menu-separator' }),
+                
+                // 2. TARİH KISAYOLLARI
                 el('span', { className: 'h2l-menu-label' }, 'Tarih'),
                 el('div', { className: 'h2l-menu-row' },
-                    el('div', { className: 'h2l-menu-icon-btn', title: 'Bugün', onClick: () => { setIsMenuOpen(false); } }, el(Icon, {name:'calendar-day', style:{color:'#058527'}})),
-                    el('div', { className: 'h2l-menu-icon-btn', title: 'Yarın', onClick: () => { setIsMenuOpen(false); } }, el(Icon, {name:'sun', style:{color:'#ad6200'}})),
-                    el('div', { className: 'h2l-menu-icon-btn', title: 'Hafta Sonu', onClick: () => { setIsMenuOpen(false); } }, el(Icon, {name:'couch', style:{color:'#246fe0'}})),
-                    el('div', { className: 'h2l-menu-icon-btn', title: 'Gelecek Hafta', onClick: () => { setIsMenuOpen(false); } }, el(Icon, {name:'calendar-week', style:{color:'#692fc2'}})),
-                    el('div', { className: 'h2l-menu-icon-btn', title: 'Tarih Yok', onClick: () => { setIsMenuOpen(false); } }, el(Icon, {name:'ban', style:{color:'#808080'}}))
+                    el('div', { className: 'h2l-menu-icon-btn', title: 'Bugün', onClick: () => { onUpdateTask(task.id, {dueDate: getDateString(0)}); setIsMenuOpen(false); } }, el(Icon, {name:'calendar-day', style:{color:'#058527'}})),
+                    el('div', { className: 'h2l-menu-icon-btn', title: 'Yarın', onClick: () => { onUpdateTask(task.id, {dueDate: getDateString(1)}); setIsMenuOpen(false); } }, el(Icon, {name:'sun', style:{color:'#ad6200'}})),
+                    el('div', { className: 'h2l-menu-icon-btn', title: 'Gelecek Hafta', onClick: () => { onUpdateTask(task.id, {dueDate: getDateString(7)}); setIsMenuOpen(false); } }, el(Icon, {name:'calendar-week', style:{color:'#692fc2'}})),
+                    el('div', { className: 'h2l-menu-icon-btn', title: 'Tarih Yok', onClick: () => { onUpdateTask(task.id, {dueDate: null}); setIsMenuOpen(false); } }, el(Icon, {name:'ban', style:{color:'#808080'}}))
                 ),
+                
+                // 3. ÖNCELİK (Çalışıyor)
                 el('span', { className: 'h2l-menu-label' }, 'Öncelik'),
                 el('div', { className: 'h2l-menu-row' },
                     el('div', { className: 'h2l-menu-icon-btn p1', title: 'Öncelik 1', onClick: () => { onUpdateTask(task.id, {priority:1}); setIsMenuOpen(false); } }, el(Icon, {name:'flag'})),
@@ -219,13 +186,23 @@
                     el('div', { className: 'h2l-menu-icon-btn p4', title: 'Öncelik 4', onClick: () => { onUpdateTask(task.id, {priority:4}); setIsMenuOpen(false); } }, el(Icon, {name:'flag'}))
                 ),
                 el('div', { className: 'h2l-menu-separator' }),
-                el('div', { className: 'h2l-menu-item', title: 'Hatırlatıcı ekle' }, el(Icon, { name: 'bell', style:{marginRight:10, color:'#666', fontSize:14} }), 'Hatırlatıcı'),
-                el('div', { className: 'h2l-menu-item', title: 'Etiketleri yönet' }, el(Icon, { name: 'tag', style:{marginRight:10, color:'#666', fontSize:14} }), 'Etiketler'),
-                el('div', { className: 'h2l-menu-item', title: 'Konum ekle' }, el(Icon, { name: 'location-dot', style:{marginRight:10, color:'#666', fontSize:14} }), 'Konum'),
+                el('div', { className: 'h2l-menu-item', title: 'Hatırlatıcı ekle (Yapım Aşamasında)', style:{opacity:0.5} }, el(Icon, { name: 'bell', style:{marginRight:10, color:'#666', fontSize:14} }), 'Hatırlatıcı'),
+                
+                // 5. ETİKETLER: Editörü etiket menüsüyle aç
+                el('div', { className: 'h2l-menu-item', title: 'Etiketleri yönet', onClick: () => { setIsMenuOpen(false); setEditorOpenMenu('labels_menu'); setIsEditing(true); } }, el(Icon, { name: 'tag', style:{marginRight:10, color:'#666', fontSize:14} }), 'Etiketler'),
+                
+                // 5. KONUM: Editörü konum menüsüyle aç
+                el('div', { className: 'h2l-menu-item', title: 'Konum ekle', onClick: () => { setIsMenuOpen(false); setEditorOpenMenu('location_menu'); setIsEditing(true); } }, el(Icon, { name: 'location-dot', style:{marginRight:10, color:'#666', fontSize:14} }), 'Konum'),
                 el('div', { className: 'h2l-menu-separator' }),
-                el('div', { className: 'h2l-menu-item', title: 'Başka projeye taşı' }, el(Icon, { name: 'arrow-right-to-bracket', style:{marginRight:10, color:'#666', fontSize:14} }), 'Taşı'),
-                el('div', { className: 'h2l-menu-item', title: 'Görevin kopyasını oluştur' }, el(Icon, { name: 'copy', style:{marginRight:10, color:'#666', fontSize:14} }), 'Kopya oluştur'),
-                el('div', { className: 'h2l-menu-item', title: 'Bağlantıyı panoya kopyala' }, el(Icon, { name: 'link', style:{marginRight:10, color:'#666', fontSize:14} }), 'Görev bağlantısını kopyala')
+                
+                // 6. TAŞI: Editörü proje menüsüyle aç
+                el('div', { className: 'h2l-menu-item', title: 'Başka projeye taşı', onClick: () => { setIsMenuOpen(false); setEditorOpenMenu('project'); setIsEditing(true); } }, el(Icon, { name: 'arrow-right-to-bracket', style:{marginRight:10, color:'#666', fontSize:14} }), 'Taşı'),
+                
+                // 7. KOPYA OLUŞTUR
+                el('div', { className: 'h2l-menu-item', title: 'Görevin kopyasını oluştur', onClick: handleDuplicate }, el(Icon, { name: 'copy', style:{marginRight:10, color:'#666', fontSize:14} }), 'Kopya oluştur'),
+                
+                // 8. BAĞLANTIYI KOPYALA
+                el('div', { className: 'h2l-menu-item', title: 'Bağlantıyı panoya kopyala', onClick: handleCopyLink }, el(Icon, { name: 'link', style:{marginRight:10, color:'#666', fontSize:14} }), 'Görev bağlantısını kopyala')
             );
         };
 
@@ -239,7 +216,6 @@
 
         return el('div', { 
             className: rowClassName, 
-            // GÜNCELLEME: Navigasyon fonksiyonunu çağır
             onClick: () => onTaskClick ? onTaskClick(task) : null,
             draggable: true,
             onDragStart: handleDragStart,
@@ -248,6 +224,7 @@
             onDragLeave: handleDragLeave,
             onDrop: handleDrop
         },
+            toastMsg && el(Toast, { message: toastMsg, onClose: () => setToastMsg(null) }),
             showDeleteModal && el(DeleteTaskModal, { task, onClose: () => setShowDeleteModal(false), onConfirm: () => { onDeleteTask(task.id); setShowDeleteModal(false); } }),
             
             el('div', { className: 'h2l-task-left', onMouseEnter: handleMouseEnter, onMouseLeave: handleMouseLeave },
@@ -266,7 +243,6 @@
                     (task.labels && task.labels.length > 0) && task.labels.map(lbl => {
                         const isString = typeof lbl === 'string';
                         const labelName = isString ? lbl : lbl.name;
-                        // Mevcut 'labels' listesinden slug'ı bulmaya çalış
                         const foundLabel = labels ? labels.find(l => l.name === labelName) : null;
                         const labelSlug = foundLabel ? foundLabel.slug : (isString ? labelName.toLowerCase() : lbl.slug);
 
@@ -302,31 +278,21 @@
         );
     };
 
-    // --- 3. QUICK ADD CONTAINER (GÜNCELLENMİŞ) ---
     const QuickAddContainer = ({ sectionId, projectId, users, projects, sections, onAdd, labels }) => {
         const [isOpen, setIsOpen] = useState(false);
         if (!isOpen) return el('div', { style: { marginLeft: 28 } }, el(QuickAddTrigger, { onOpen: () => setIsOpen(true) }));
-        
-        // YENİ: Editöre başlangıç verisi olarak mevcut proje ve bölümü gönderiyoruz
         const initData = { project_id: projectId, section_id: sectionId };
-
         return el('div', { style: { marginLeft: 28 } },
-            // TaskEditor'e 'labels' verisini geçirin
             el(TaskEditor, {
                 mode: 'add', users, projects, sections, activeProjectId: projectId,
-                initialData: initData, // <-- EKLENDİ
-                onSave: (data) => { 
-                    // DÜZELTME: Burada ...data, projectId sıralaması yerine sadece data gönderiyoruz.
-                    // Böylece editörde seçilen proje (data.projectId) geçerli olur.
-                    onAdd(data); 
-                },
+                initialData: initData,
+                onSave: (data) => { onAdd(data); },
                 onCancel: () => setIsOpen(false),
                 labels
             })
         );
     };
 
-    // --- 4. SECTION GROUP (DRAGGABLE) ---
     const SectionGroup = ({ section, tasks, users, projects, sections, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, highlightToday, onUpdateSection, onDeleteSection, onMoveTask, onMoveSection, labels, navigate }) => {
         const [isOpen, setIsOpen] = useState(true);
         const [isEditing, setIsEditing] = useState(false);
@@ -334,7 +300,7 @@
         const [isMenuOpen, setIsMenuOpen] = useState(false);
         const [showDeleteModal, setShowDeleteModal] = useState(false); 
         const [dragOver, setDragOver] = useState(false);
-        const [sectionDragOverState, setSectionDragOverState] = useState(null); // For section reordering
+        const [sectionDragOverState, setSectionDragOverState] = useState(null); 
         const menuRef = useRef(null);
 
         useEffect(() => {
@@ -345,62 +311,11 @@
 
         const handleSaveName = () => { if (secName.trim() && secName !== section.name) { onUpdateSection(section.id, { name: secName, projectId: section.project_id }); } else { setSecName(section.name); } setIsEditing(false); };
 
-        // SECTION DRAG EVENTS
-        const handleSectionDragStart = (e) => {
-            // Eğer editör açıksa sürüklemeyi engelle
-            if (isEditing) {
-                e.preventDefault();
-                return;
-            }
-            // Sadece section-header'dan sürüklendiğinde
-            currentDraggedId = section.id;
-            currentDraggedType = 'section';
-            e.dataTransfer.effectAllowed = 'move';
-            setTimeout(() => e.target.closest('.h2l-section-container').classList.add('h2l-section-is-dragging'), 0);
-        };
-
-        const handleSectionDragEnd = (e) => {
-            currentDraggedId = null;
-            currentDraggedType = null;
-            e.target.closest('.h2l-section-container').classList.remove('h2l-section-is-dragging');
-            setSectionDragOverState(null);
-        };
-
-        const handleContainerDragOver = (e) => {
-            e.preventDefault();
-            
-            if (currentDraggedType === 'section') {
-                // Section Reordering Logic
-                if (currentDraggedId === section.id) return;
-                const rect = e.currentTarget.getBoundingClientRect();
-                const midY = rect.top + rect.height / 2;
-                setSectionDragOverState(e.clientY < midY ? 'top' : 'bottom');
-                e.stopPropagation();
-            } else if (currentDraggedType === 'task') {
-                // Task Dropping Logic (Empty Section)
-                if (tasks.length === 0 && !dragOver) setDragOver(true);
-            }
-        };
-
-        const handleContainerDrop = (e) => {
-            e.preventDefault();
-            setDragOver(false);
-            
-            if (currentDraggedType === 'section' && currentDraggedId !== section.id && onMoveSection) {
-                e.stopPropagation();
-                setSectionDragOverState(null);
-                const position = sectionDragOverState === 'top' ? 'before' : 'after';
-                onMoveSection(currentDraggedId, section.id, position);
-            } else if (currentDraggedType === 'task' && tasks.length === 0 && currentDraggedId && onMoveTask) {
-                // Boş bölüme görev bırakma
-                onMoveTask(currentDraggedId, null, null, section.id);
-            }
-        };
-
-        const handleContainerDragLeave = () => {
-            setDragOver(false);
-            setSectionDragOverState(null);
-        };
+        const handleSectionDragStart = (e) => { if (isEditing) { e.preventDefault(); return; } currentDraggedId = section.id; currentDraggedType = 'section'; e.dataTransfer.effectAllowed = 'move'; setTimeout(() => e.target.closest('.h2l-section-container').classList.add('h2l-section-is-dragging'), 0); };
+        const handleSectionDragEnd = (e) => { currentDraggedId = null; currentDraggedType = null; e.target.closest('.h2l-section-container').classList.remove('h2l-section-is-dragging'); setSectionDragOverState(null); };
+        const handleContainerDragOver = (e) => { e.preventDefault(); if (currentDraggedType === 'section') { if (currentDraggedId === section.id) return; const rect = e.currentTarget.getBoundingClientRect(); const midY = rect.top + rect.height / 2; setSectionDragOverState(e.clientY < midY ? 'top' : 'bottom'); e.stopPropagation(); } else if (currentDraggedType === 'task') { if (tasks.length === 0 && !dragOver) setDragOver(true); } };
+        const handleContainerDrop = (e) => { e.preventDefault(); setDragOver(false); if (currentDraggedType === 'section' && currentDraggedId !== section.id && onMoveSection) { e.stopPropagation(); setSectionDragOverState(null); const position = sectionDragOverState === 'top' ? 'before' : 'after'; onMoveSection(currentDraggedId, section.id, position); } else if (currentDraggedType === 'task' && tasks.length === 0 && currentDraggedId && onMoveTask) { onMoveTask(currentDraggedId, null, null, section.id); } };
+        const handleContainerDragLeave = () => { setDragOver(false); setSectionDragOverState(null); };
 
         if (isEditing) {
             return el('div', { className: 'h2l-section-edit-mode' },
@@ -419,7 +334,6 @@
             onDragLeave: handleContainerDragLeave,
             onDrop: handleContainerDrop
         },
-            // HEADER (Draggable Handle)
             el('div', { 
                 className: 'h2l-section-header-row',
                 draggable: true,
@@ -439,12 +353,11 @@
                     )
                 )
             ),
-            isOpen && tasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask, labels, navigate })), // <-- NAVIGATE BURADA İLETİLİYOR
+            isOpen && tasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask, labels, navigate })), 
             isOpen && el(QuickAddContainer, { sectionId: section.id, projectId: section.project_id, users, projects, sections, onAdd: onAddTask, labels })
         );
     };
 
-    // --- SECTION ADD ---
     const SectionAdd = ({ onAdd }) => {
         const [isEditing, setIsEditing] = useState(false);
         const [name, setName] = useState('');
@@ -453,150 +366,58 @@
         return el('div', { className: 'h2l-section-add-form' }, el('form', { onSubmit: handleSubmit }, el('input', { className: 'h2l-section-input', autoFocus: true, placeholder: 'Bölüm adı', value: name, onChange: e => setName(e.target.value), onBlur: () => !name.trim() && setIsEditing(false) }), el('div', { className: 'h2l-form-actions' }, el('button', { type:'submit', className: 'h2l-btn primary', disabled:!name.trim() }, 'Bölüm ekle'), el('button', { type:'button', className: 'h2l-btn', onClick: () => setIsEditing(false) }, 'İptal'))));
     };
 
-    // --- DELETE SECTION MODAL ---
-    const DeleteSectionModal = ({ section, taskCount, onClose, onConfirm }) => {
-        return el('div', { className: 'h2l-detail-overlay', style: { zIndex: 20010 }, onClick: onClose },
-            el('div', { className: 'h2l-confirm-modal', onClick: e => e.stopPropagation() },
-                el('h3', { className: 'h2l-confirm-title' }, 'Bölüm silinsin mi?'),
-                el('p', { className: 'h2l-confirm-desc' }, el('strong', null, section.name), ` bölümü ve ${taskCount} görevi kalıcı olarak silinecek.`),
-                el('div', { className: 'h2l-confirm-footer' },
-                    el('button', { className: 'h2l-btn', onClick: onClose }, 'İptal'),
-                    el('button', { className: 'h2l-btn danger-filled', onClick: onConfirm }, 'Sil')
-                )
-            )
-        );
-    };
-
-    // --- 5. LIST VIEW ---
     const ListView = ({ project, tasks, sections, users, projects = [], onUpdateTask, onDeleteTask, onAddTask, onAddSection, onTaskClick, showCompleted, highlightToday, onUpdateSection, onDeleteSection, labels, navigate }) => {
         const [localTasks, setLocalTasks] = useState(tasks);
         const [localSections, setLocalSections] = useState(sections);
 
-        useEffect(() => {
-            // Sort tasks by sort_order initially
-            const sorted = [...tasks].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-            setLocalTasks(sorted);
-        }, [tasks]);
-
-        useEffect(() => {
-            const sortedSecs = [...sections].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-            setLocalSections(sortedSecs);
-        }, [sections]);
+        useEffect(() => { const sorted = [...tasks].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)); setLocalTasks(sorted); }, [tasks]);
+        useEffect(() => { const sortedSecs = [...sections].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)); setLocalSections(sortedSecs); }, [sections]);
 
         const isVirtualView = project.id === 0;
-        
         let visibleTasks = [...localTasks]; 
-
-        // 1. Parent Task Filtresi: Sadece ana görevleri göster (parent_task_id = 0 veya null)
         visibleTasks = visibleTasks.filter(t => !t.parent_task_id || t.parent_task_id == 0);
-
-        if (!showCompleted) { 
-            visibleTasks = visibleTasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled'); 
-        }
-
-        // Sorting Logic for Render
+        if (!showCompleted) { visibleTasks = visibleTasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled'); }
         visibleTasks.sort((a, b) => {
             const isADone = a.status === 'completed' || a.status === 'cancelled';
             const isBDone = b.status === 'completed' || b.status === 'cancelled';
-            if (isADone && !isBDone) return 1;
-            if (!isADone && isBDone) return -1;
-            // Sort by sort_order
+            if (isADone && !isBDone) return 1; if (!isADone && isBDone) return -1;
             return (a.sort_order || 0) - (b.sort_order || 0); 
         });
 
-        // Bölümsüz Görevler (Section ID = 0)
         const rootTasks = visibleTasks.filter(t => !t.section_id || t.section_id == 0);
 
         const handleMoveTask = (draggedId, targetId, position, targetSectionId = null) => {
             const draggedTaskIndex = localTasks.findIndex(t => t.id === draggedId);
             if (draggedTaskIndex === -1) return;
-
             const newTasks = [...localTasks];
             const [draggedTask] = newTasks.splice(draggedTaskIndex, 1);
-
-            // Update Section ID if moved to empty section
-            if (targetSectionId !== null) {
-                draggedTask.section_id = targetSectionId;
-                // Add to end of section
-                newTasks.push(draggedTask);
-            } else if (targetId) {
-                // Find target index in the current visual list (not raw list)
+            if (targetSectionId !== null) { draggedTask.section_id = targetSectionId; newTasks.push(draggedTask); } 
+            else if (targetId) {
                 const targetIndex = newTasks.findIndex(t => t.id === targetId);
                 if (targetIndex !== -1) {
-                    // Also update section_id to match target
                     draggedTask.section_id = newTasks[targetIndex].section_id;
-                    
-                    if (position === 'before') {
-                        newTasks.splice(targetIndex, 0, draggedTask);
-                    } else {
-                        newTasks.splice(targetIndex + 1, 0, draggedTask);
-                    }
+                    if (position === 'before') { newTasks.splice(targetIndex, 0, draggedTask); } else { newTasks.splice(targetIndex + 1, 0, draggedTask); }
                 }
             }
-
-            // Re-calculate sort_order for all tasks in the affected section(s)
-            newTasks.forEach((t, index) => {
-                t.sort_order = index;
-            });
-
-            // Optimistic Update
+            newTasks.forEach((t, index) => { t.sort_order = index; });
             setLocalTasks(newTasks);
-
-            // Call API to save order
-            const itemsToUpdate = newTasks.map(t => ({
-                id: t.id,
-                order: t.sort_order,
-                section_id: t.section_id
-            }));
-
-            apiFetch({
-                path: '/h2l/v1/reorder',
-                method: 'POST',
-                data: { type: 'task', items: itemsToUpdate }
-            }).catch(err => {
-                console.error("Reorder failed:", err);
-                setLocalTasks(tasks); 
-            });
+            const itemsToUpdate = newTasks.map(t => ({ id: t.id, order: t.sort_order, section_id: t.section_id }));
+            apiFetch({ path: '/h2l/v1/reorder', method: 'POST', data: { type: 'task', items: itemsToUpdate } }).catch(err => { console.error("Reorder failed:", err); setLocalTasks(tasks); });
         };
 
         const handleMoveSection = (draggedId, targetId, position) => {
             const draggedIndex = localSections.findIndex(s => s.id === draggedId);
             const targetIndex = localSections.findIndex(s => s.id === targetId);
             if (draggedIndex === -1 || targetIndex === -1) return;
-
             const newSections = [...localSections];
             const [draggedSection] = newSections.splice(draggedIndex, 1);
-            
-            // Insert at new position
-            // Since we spliced, indices might shift. But targetIndex refers to old array.
-            // Simple way: if moving down, we need to adjust target index.
-            // Let's re-find target index in modified array? No, splice messes it up.
-            // Better approach: swap or insert logic.
-            
-            // Re-calculate insertion index based on current state
             let insertIndex = newSections.findIndex(s => s.id === targetId);
             if (position === 'after') insertIndex++;
-            
             newSections.splice(insertIndex, 0, draggedSection);
-
-            // Re-index sort_order
-            newSections.forEach((s, index) => {
-                s.sort_order = index;
-            });
-
+            newSections.forEach((s, index) => { s.sort_order = index; });
             setLocalSections(newSections);
-
-            // API Call
-            const itemsToUpdate = newSections.map(s => ({
-                id: s.id,
-                order: s.sort_order
-            }));
-
-            apiFetch({
-                path: '/h2l/v1/reorder',
-                method: 'POST',
-                data: { type: 'section', items: itemsToUpdate }
-            }).catch(err => console.error(err));
+            const itemsToUpdate = newSections.map(s => ({ id: s.id, order: s.sort_order }));
+            apiFetch({ path: '/h2l/v1/reorder', method: 'POST', data: { type: 'section', items: itemsToUpdate } }).catch(err => console.error(err));
         };
 
         return el('div', { className: 'h2l-list-view' },
@@ -609,9 +430,9 @@
                     key: t.id, task: t, users, projects, sections, 
                     onUpdateTask, onDeleteTask, onTaskClick, highlightToday, 
                     onMoveTask: handleMoveTask, onAddTask,
-                    labels, navigate // <-- NAVIGATE BURADA İLETİLİYOR
+                    labels, navigate 
                 })), 
-                el(QuickAddContainer, { sectionId: 0, projectId: project.id, users, projects: projects.length ? projects : [project], sections, onAdd: onAddTask, labels }) // <-- EKLENDİ
+                el(QuickAddContainer, { sectionId: 0, projectId: project.id, users, projects: projects.length ? projects : [project], sections, onAdd: onAddTask, labels }) 
             ),
             !isVirtualView && localSections.map(s => {
                 const sTasks = visibleTasks.filter(t => parseInt(t.section_id) === parseInt(s.id));
@@ -621,7 +442,7 @@
                     onUpdateSection, onDeleteSection, 
                     onMoveTask: handleMoveTask,
                     onMoveSection: handleMoveSection,
-                    labels, navigate // <-- NAVIGATE BURADA İLETİLİYOR
+                    labels, navigate 
                 });
             }),
             !isVirtualView && el(SectionAdd, { onAdd: onAddSection })

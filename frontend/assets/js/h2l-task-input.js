@@ -701,7 +701,7 @@
         return el('div', { className: 'h2l-tooltip-popover', style: { left: position.left, top: position.top }, onMouseDown: e => e.stopPropagation() }, renderButtons());
     };
 
-    const TaskEditor = ({ mode = 'add', initialData = {}, users = [], projects = [], sections = [], activeProjectId = 0, onSave, onCancel, labels = [] }) => {
+    const TaskEditor = ({ mode = 'add', initialData = {}, users = [], projects = [], sections = [], activeProjectId = 0, onSave, onCancel, labels = [], initialOpenMenu = null }) => {
         const [title, setTitle] = useState(initialData.title || '');
         const [description, setDescription] = useState(initialData.content || '');
         const [currentPlaceholder, setCurrentPlaceholder] = useState(mode === 'add' ? getRandomPlaceholder() : 'Görev adını yazın… @selim bugün 15:00');
@@ -717,7 +717,7 @@
         const [sectionId, setSectionId] = useState(initialData.section_id || null);
         
         // Yeni State'ler
-        const [activePopup, setActivePopup] = useState(null);
+        const [activePopup, setActivePopup] = useState(initialOpenMenu || null);
         const [tooltipState, setTooltipState] = useState(null);
         const [pasteLines, setPasteLines] = useState(null);
         const [assigneeSearch, setAssigneeSearch] = useState('');
