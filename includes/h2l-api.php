@@ -31,146 +31,114 @@ add_action( 'rest_api_init', function () {
     register_rest_route( 'h2l/v1', '/notifications/read', array(array('methods' => 'POST', 'callback' => 'h2l_api_read_notifications', 'permission_callback' => function () { return is_user_logged_in(); })) );
     register_rest_route( 'h2l/v1', '/crm-search', array('methods' => 'GET', 'callback' => 'h2l_api_search_crm_objects', 'permission_callback' => function () { return is_user_logged_in(); }) );
 
+    // --- YENİ EKLENEN ENDPOINTLER ---
+    // 1. Dosya Yükleme
+    register_rest_route( 'h2l/v1', '/upload', array(
+        'methods' => 'POST',
+        'callback' => 'h2l_api_upload_file',
+        'permission_callback' => function () { return is_user_logged_in(); }
+    ));
+    // 2. Aktivite Loglarını Çekme
+    register_rest_route( 'h2l/v1', '/activity/(?P<type>[a-zA-Z0-9_-]+)/(?P<id>\d+)', array(
+        'methods' => 'GET',
+        'callback' => 'h2l_api_get_activity_logs',
+        'permission_callback' => function () { return is_user_logged_in(); }
+    ));
+
     // --- TOPLANTI ASİSTANI ENDPOINTLERİ ---
-    register_rest_route( 'h2l/v1', '/meetings', array(
-        'methods' => 'GET',
-        'callback' => 'h2l_api_get_meetings',
-        'permission_callback' => function () { return is_user_logged_in(); }
-    ));
-    register_rest_route( 'h2l/v1', '/meetings/start', array(
-        'methods' => 'POST',
-        'callback' => 'h2l_api_start_meeting',
-        'permission_callback' => function () { return is_user_logged_in(); }
-    ));
-    register_rest_route( 'h2l/v1', '/meetings/(?P<id>\d+)/finish', array(
-        'methods' => 'POST',
-        'callback' => 'h2l_api_finish_meeting',
-        'permission_callback' => function () { return is_user_logged_in(); }
-    ));
-    register_rest_route( 'h2l/v1', '/meetings/(?P<id>\d+)', array(
-        'methods' => 'GET',
-        'callback' => 'h2l_api_get_meeting_detail',
-        'permission_callback' => function () { return is_user_logged_in(); }
-    ));
+    register_rest_route( 'h2l/v1', '/meetings', array('methods' => 'GET','callback' => 'h2l_api_get_meetings','permission_callback' => function () { return is_user_logged_in(); }));
+    register_rest_route( 'h2l/v1', '/meetings/start', array('methods' => 'POST','callback' => 'h2l_api_start_meeting','permission_callback' => function () { return is_user_logged_in(); }));
+    register_rest_route( 'h2l/v1', '/meetings/(?P<id>\d+)/finish', array('methods' => 'POST','callback' => 'h2l_api_finish_meeting','permission_callback' => function () { return is_user_logged_in(); }));
+    register_rest_route( 'h2l/v1', '/meetings/(?P<id>\d+)', array('methods' => 'GET','callback' => 'h2l_api_get_meeting_detail','permission_callback' => function () { return is_user_logged_in(); }));
 });
 
-// --- TOPLANTI API FONKSİYONLARI ---
+// --- YENİ FONKSİYON: DOSYA YÜKLEME ---
+function h2l_api_upload_file($request) {
+    if (empty($_FILES['file'])) {
+        return new WP_Error('no_file', 'Dosya bulunamadı.', array('status' => 400));
+    }
 
-function h2l_api_get_meetings() {
-    if ( ! class_exists('H2L_Meeting') ) require_once H2L_PATH . 'includes/core/meeting.php';
-    $m = new H2L_Meeting();
-    return rest_ensure_response( $m->get_all( get_current_user_id() ) );
-}
-
-function h2l_api_start_meeting($request) {
-    if ( ! class_exists('H2L_Meeting') ) require_once H2L_PATH . 'includes/core/meeting.php';
-    $params = $request->get_json_params();
-    $m = new H2L_Meeting();
-    $id = $m->start( 
-        sanitize_text_field($params['title']), 
-        sanitize_text_field($params['related_object_type'] ?? ''), 
-        intval($params['related_object_id'] ?? 0) 
+    $file = $_FILES['file'];
+    
+    // Güvenlik kontrolü: Sadece belirli dosya tiplerine izin ver
+    $allowed_mimes = array(
+        'jpg|jpeg|jpe' => 'image/jpeg',
+        'gif' => 'image/gif',
+        'png' => 'image/png',
+        'pdf' => 'application/pdf',
+        'doc|docx' => 'application/msword',
+        'xls|xlsx' => 'application/vnd.ms-excel'
     );
-    return rest_ensure_response( ['id' => $id, 'success' => true] );
-}
-
-function h2l_api_finish_meeting($request) {
-    if ( ! class_exists('H2L_Meeting') ) require_once H2L_PATH . 'includes/core/meeting.php';
-    $params = $request->get_json_params();
-    $id = $request->get_param('id');
-    $m = new H2L_Meeting();
     
-    // Transcript büyük metin olabilir, varsayılan sanitizasyon yetersiz kalabilir
-    // Ancak güvenlik için kses veya benzeri bir temizlik şart.
-    // Şimdilik basit text sanitizasyonu.
-    $transcript = $params['transcript'] ?? '';
-    
-    $result = $m->finish( $id, $transcript, intval($params['duration_seconds']) );
-    return rest_ensure_response( $result );
-}
-
-function h2l_api_get_meeting_detail($request) {
-    if ( ! class_exists('H2L_Meeting') ) require_once H2L_PATH . 'includes/core/meeting.php';
-    $m = new H2L_Meeting();
-    $id = $request->get_param('id');
-    return rest_ensure_response( $m->get($id) );
-}
-
-// ... Mevcut diğer fonksiyonlar (h2l_api_search_crm_objects, h2l_api_get_notifications vb.) aynen kalacak ...
-// Kopyala yapıştır sırasında eski kodların kaybolmaması için bu dosya tam haliyle verilmelidir ancak
-// sınırlandırma nedeniyle sadece eklenen kısımları yukarıda gösterdim. 
-// Aşağıda dosyanın tam halini birleştiriyorum.
-
-function h2l_api_search_crm_objects($request) {
-    h2l_set_nocache_headers();
-    $term = sanitize_text_field($request->get_param('term'));
-    $type = sanitize_text_field($request->get_param('type'));
-    if (empty($term) || strlen($term) < 2) return [];
-    
-    $args = [
-        's' => $term,
-        'post_type' => $type ? $type : 'any',
-        'posts_per_page' => 20,
-        'post_status' => 'publish'
-    ];
-    $query = new WP_Query($args);
-    $results = [];
-    foreach ($query->posts as $post) {
-        $pt_obj = get_post_type_object($post->post_type);
-        $pt_label = $pt_obj ? $pt_obj->labels->singular_name : $post->post_type;
-        $results[] = [ 'id' => $post->ID, 'title' => $post->post_title, 'type' => $post->post_type, 'type_label' => $pt_label, 'link' => get_permalink($post->ID) ];
+    $file_info = wp_check_filetype($file['name'], $allowed_mimes);
+    if (!$file_info['ext']) {
+        return new WP_Error('invalid_type', 'Bu dosya türüne izin verilmiyor.', array('status' => 400));
     }
-    return rest_ensure_response($results);
-}
 
-function h2l_api_get_notifications() {
-    h2l_set_nocache_headers();
-    if ( ! class_exists('H2L_Notification') ) return [];
-    $notify = new H2L_Notification();
-    $user_id = get_current_user_id();
-    return rest_ensure_response([ 'list' => $notify->get_notifications($user_id), 'unread_count' => $notify->get_unread_count($user_id) ]);
-}
+    require_once(ABSPATH . 'wp-admin/includes/file.php');
+    $upload_overrides = array('test_form' => false);
+    $movefile = wp_handle_upload($file, $upload_overrides);
 
-function h2l_api_read_notifications($request) {
-    if ( ! class_exists('H2L_Notification') ) return [];
-    $notify = new H2L_Notification();
-    $params = $request->get_json_params();
-    if ( isset($params['all']) && $params['all'] ) { $notify->mark_all_read(get_current_user_id()); } 
-    elseif ( isset($params['id']) ) { $notify->mark_as_read(intval($params['id'])); }
-    return h2l_api_get_notifications();
-}
-
-function h2l_api_trigger_reminders() {
-    if ( class_exists( 'H2L_Reminder' ) ) {
-        $reminder = new H2L_Reminder();
-        $reminder->process_queue();
-        return rest_ensure_response(['success' => true, 'message' => 'Reminder check triggered']);
-    }
-    return rest_ensure_response(['success' => false]);
-}
-
-function h2l_get_user_profile_picture_url( $user_id ) {
-    $avatar_html = get_avatar( $user_id, 96 );
-    if ( preg_match( '/src=["\']([^"\']+)["\']/', $avatar_html, $matches ) ) { return html_entity_decode( $matches[1] ); }
-    return get_avatar_url( $user_id );
-}
-
-function h2l_hydrate_task_crm_data($task) {
-    if (!empty($task->related_object_id) && !empty($task->related_object_type)) {
-        $p = get_post($task->related_object_id);
-        if ($p) {
-            $task->related_object_title = $p->post_title;
-            $task->related_object_link = get_permalink($p->ID);
-        } else {
-            $task->related_object_title = 'Silinmiş Kayıt';
-            $task->related_object_link = '#';
-        }
+    if ($movefile && !isset($movefile['error'])) {
+        // Dosyayı medya kütüphanesine ekle (isteğe bağlı ama iyi pratik)
+        $attachment = array(
+            'guid'           => $movefile['url'],
+            'post_mime_type' => $movefile['type'],
+            'post_title'     => preg_replace('/\.[^.]+$/', '', basename($file['name'])),
+            'post_content'   => '',
+            'post_status'    => 'inherit'
+        );
+        $attach_id = wp_insert_attachment($attachment, $movefile['file']);
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'url' => $movefile['url'],
+            'id' => $attach_id,
+            'name' => basename($file['name']),
+            'type' => $movefile['type']
+        ));
     } else {
-        $task->related_object_title = null;
-        $task->related_object_link = null;
+        return new WP_Error('upload_error', $movefile['error'], array('status' => 500));
     }
-    return $task;
 }
+
+// --- YENİ FONKSİYON: AKTİVİTE LOGLARI ---
+function h2l_api_get_activity_logs($request) {
+    $type = $request->get_param('type');
+    $id = $request->get_param('id');
+    
+    if (!class_exists('H2L_Activity')) require_once H2L_PATH . 'includes/core/activity.php';
+    
+    $activity = new H2L_Activity();
+    $logs = $activity->get_logs($type, $id);
+    
+    // Logları formatla
+    $formatted_logs = array_map(function($log) {
+        return [
+            'id' => $log->id,
+            'message' => H2L_Activity::format_message($log),
+            'actor_name' => $log->actor_name,
+            'created_at' => $log->created_at,
+            'avatar' => h2l_get_user_profile_picture_url($log->actor_id)
+        ];
+    }, $logs);
+
+    return rest_ensure_response($formatted_logs);
+}
+
+// ... Mevcut Toplantı Fonksiyonları ...
+function h2l_api_get_meetings() { if ( ! class_exists('H2L_Meeting') ) require_once H2L_PATH . 'includes/core/meeting.php'; $m = new H2L_Meeting(); return rest_ensure_response( $m->get_all( get_current_user_id() ) ); }
+function h2l_api_start_meeting($request) { if ( ! class_exists('H2L_Meeting') ) require_once H2L_PATH . 'includes/core/meeting.php'; $params = $request->get_json_params(); $m = new H2L_Meeting(); $id = $m->start( sanitize_text_field($params['title']), sanitize_text_field($params['related_object_type'] ?? ''), intval($params['related_object_id'] ?? 0) ); return rest_ensure_response( ['id' => $id, 'success' => true] ); }
+function h2l_api_finish_meeting($request) { if ( ! class_exists('H2L_Meeting') ) require_once H2L_PATH . 'includes/core/meeting.php'; $params = $request->get_json_params(); $id = $request->get_param('id'); $m = new H2L_Meeting(); $transcript = $params['transcript'] ?? ''; $result = $m->finish( $id, $transcript, intval($params['duration_seconds']) ); return rest_ensure_response( $result ); }
+function h2l_api_get_meeting_detail($request) { if ( ! class_exists('H2L_Meeting') ) require_once H2L_PATH . 'includes/core/meeting.php'; $m = new H2L_Meeting(); $id = $request->get_param('id'); return rest_ensure_response( $m->get($id) ); }
+
+// ... Mevcut Yardımcı Fonksiyonlar ...
+function h2l_api_search_crm_objects($request) { h2l_set_nocache_headers(); $term = sanitize_text_field($request->get_param('term')); $type = sanitize_text_field($request->get_param('type')); if (empty($term) || strlen($term) < 2) return []; $args = [ 's' => $term, 'post_type' => $type ? $type : 'any', 'posts_per_page' => 20, 'post_status' => 'publish' ]; $query = new WP_Query($args); $results = []; foreach ($query->posts as $post) { $pt_obj = get_post_type_object($post->post_type); $pt_label = $pt_obj ? $pt_obj->labels->singular_name : $post->post_type; $results[] = [ 'id' => $post->ID, 'title' => $post->post_title, 'type' => $post->post_type, 'type_label' => $pt_label, 'link' => get_permalink($post->ID) ]; } return rest_ensure_response($results); }
+function h2l_api_get_notifications() { h2l_set_nocache_headers(); if ( ! class_exists('H2L_Notification') ) return []; $notify = new H2L_Notification(); $user_id = get_current_user_id(); return rest_ensure_response([ 'list' => $notify->get_notifications($user_id), 'unread_count' => $notify->get_unread_count($user_id) ]); }
+function h2l_api_read_notifications($request) { if ( ! class_exists('H2L_Notification') ) return []; $notify = new H2L_Notification(); $params = $request->get_json_params(); if ( isset($params['all']) && $params['all'] ) { $notify->mark_all_read(get_current_user_id()); } elseif ( isset($params['id']) ) { $notify->mark_as_read(intval($params['id'])); } return h2l_api_get_notifications(); }
+function h2l_api_trigger_reminders() { if ( class_exists( 'H2L_Reminder' ) ) { $reminder = new H2L_Reminder(); $reminder->process_queue(); return rest_ensure_response(['success' => true, 'message' => 'Reminder check triggered']); } return rest_ensure_response(['success' => false]); }
+function h2l_get_user_profile_picture_url( $user_id ) { $avatar_html = get_avatar( $user_id, 96 ); if ( preg_match( '/src=["\']([^"\']+)["\']/', $avatar_html, $matches ) ) { return html_entity_decode( $matches[1] ); } return get_avatar_url( $user_id ); }
+function h2l_hydrate_task_crm_data($task) { if (!empty($task->related_object_id) && !empty($task->related_object_type)) { $p = get_post($task->related_object_id); if ($p) { $task->related_object_title = $p->post_title; $task->related_object_link = get_permalink($p->ID); } else { $task->related_object_title = 'Silinmiş Kayıt'; $task->related_object_link = '#'; } } else { $task->related_object_title = null; $task->related_object_link = null; } return $task; }
 
 function h2l_api_get_tasks($request) {
     h2l_set_nocache_headers(); 
@@ -295,6 +263,7 @@ function h2l_api_reorder_items($request) {
     return ['success' => true];
 }
 
+// --- GÜNCELLENMİŞ GÖREV YÖNETİMİ (Tekrarlı Görev ve Log Mantığı ile) ---
 function h2l_api_manage_task($request) {
     global $wpdb; 
     $table = $wpdb->prefix . 'h2l_tasks';
@@ -304,24 +273,69 @@ function h2l_api_manage_task($request) {
     $id = $request->get_param('id'); 
     $params = $request->get_json_params();
     
-    if ($method === 'DELETE') { $wpdb->update($table, ['status' => 'trash'], ['id' => $id]); return ['success' => true]; }
+    if (!class_exists('H2L_Activity')) require_once H2L_PATH . 'includes/core/activity.php';
+    if (!class_exists('H2L_Task')) require_once H2L_PATH . 'includes/core/task.php';
+
+    if ($method === 'DELETE') { 
+        $wpdb->update($table, ['status' => 'trash'], ['id' => $id]); 
+        H2L_Activity::log('task', $id, 'deleted');
+        return ['success' => true]; 
+    }
     
     $new_assignees_for_notify = []; 
 
     if ($id) {
-        $old_assignees_json = $wpdb->get_var($wpdb->prepare("SELECT assignee_ids FROM $table WHERE id = %d", $id));
-        $old_assignees = !empty($old_assignees_json) ? json_decode($old_assignees_json) : [];
+        $old_task = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id));
+        $old_assignees = !empty($old_task->assignee_ids) ? json_decode($old_task->assignee_ids) : [];
         if(!is_array($old_assignees)) $old_assignees = [];
 
         $data = [];
-        if (isset($params['title'])) $data['title'] = wp_kses_post((string)$params['title']);
-        if (isset($params['content'])) $data['content'] = wp_kses_post((string)$params['content']);
-        if (isset($params['projectId'])) $data['project_id'] = intval($params['projectId']);
-        if (isset($params['sectionId'])) $data['section_id'] = intval($params['sectionId']);
-        if (isset($params['parent_task_id'])) $data['parent_task_id'] = intval($params['parent_task_id']);
+        $changed_fields = [];
+
+        if (isset($params['title']) && $params['title'] !== $old_task->title) { $data['title'] = wp_kses_post((string)$params['title']); $changed_fields[] = 'title'; }
+        if (isset($params['content']) && $params['content'] !== $old_task->content) { $data['content'] = wp_kses_post((string)$params['content']); $changed_fields[] = 'content'; }
+        if (isset($params['projectId']) && intval($params['projectId']) !== intval($old_task->project_id)) { $data['project_id'] = intval($params['projectId']); $changed_fields[] = 'project_id'; }
+        if (isset($params['sectionId']) && intval($params['sectionId']) !== intval($old_task->section_id)) { $data['section_id'] = intval($params['sectionId']); $changed_fields[] = 'section_id'; }
+        if (isset($params['priority']) && intval($params['priority']) !== intval($old_task->priority)) { $data['priority'] = intval($params['priority']); $changed_fields[] = 'priority'; }
         
-        if (isset($params['priority'])) $data['priority'] = intval($params['priority']);
-        if (isset($params['status'])) $data['status'] = sanitize_text_field((string)$params['status']);
+        // TEKRARLI GÖREV KAYDI
+        if (array_key_exists('repeat', $params)) {
+            $new_repeat = !empty($params['repeat']) ? sanitize_text_field((string)$params['repeat']) : null;
+            if ($new_repeat !== $old_task->recurrence_rule) {
+                $data['recurrence_rule'] = $new_repeat;
+                $changed_fields[] = 'recurrence_rule';
+            }
+        }
+
+        // STATUS GÜNCELLEME & TEKRARLI GÖREV MANTIĞI
+        if (isset($params['status'])) {
+            $new_status = sanitize_text_field((string)$params['status']);
+            
+            // Eğer görev tamamlandıysa ve tekrarlıysa
+            if ($new_status === 'completed' && !empty($old_task->recurrence_rule)) {
+                $task_helper = new H2L_Task();
+                $next_task = $task_helper->handle_recurring_completion($old_task);
+                // handle_recurring_completion orijinal görevi tamamlar ve yenisini oluşturur
+                // Bu durumda orijinal görevi "completed" olarak güncellemeye devam edebiliriz
+                $data['status'] = 'completed';
+                $data['completed_at'] = current_time('mysql');
+                $data['recurrence_rule'] = null; // Orijinal görev artık tekrar etmez (zincir bitti)
+                
+                // Yeni görevi frontend'e haber vermek için yanıtı özelleştirmek gerekebilir ama 
+                // şimdilik basitçe orijinali güncelleyelim. Frontend listeyi yenileyecektir.
+            } else {
+                $data['status'] = $new_status;
+                if ($new_status === 'completed') {
+                    $data['completed_at'] = current_time('mysql');
+                }
+            }
+            
+            if ($new_status !== $old_task->status) {
+                $changed_fields[] = 'status';
+                H2L_Activity::log('task', $id, $new_status === 'completed' ? 'completed' : 'updated', ['new_status' => $new_status]);
+            }
+        }
+        
         if (isset($params['location'])) $data['location'] = sanitize_text_field((string)$params['location']);
         
         if (isset($params['reminder_enabled'])) {
@@ -331,13 +345,19 @@ function h2l_api_manage_task($request) {
         if (array_key_exists('dueDate', $params)) {
             $new_due = !empty($params['dueDate']) ? sanitize_text_field((string)$params['dueDate']) : null;
             $data['due_date'] = $new_due;
-            $old_due = $wpdb->get_var($wpdb->prepare("SELECT due_date FROM $table WHERE id = %d", $id));
-            if ($new_due !== $old_due) $data['reminder_sent'] = 0;
+            if ($new_due !== $old_task->due_date) {
+                $data['reminder_sent'] = 0;
+                $changed_fields[] = 'due_date';
+            }
         }
         
         if (isset($params['assignees'])) {
             $data['assignee_ids'] = json_encode($params['assignees']);
             $new_assignees_for_notify = array_diff($params['assignees'], $old_assignees);
+            if (!empty($new_assignees_for_notify)) {
+                $changed_fields[] = 'assignees';
+                H2L_Activity::log('task', $id, 'assigned', ['assignees' => $new_assignees_for_notify]);
+            }
         }
 
         if (isset($params['sortOrder'])) $data['sort_order'] = intval($params['sortOrder']);
@@ -346,10 +366,16 @@ function h2l_api_manage_task($request) {
         if (isset($params['related_object_type'])) $data['related_object_type'] = sanitize_text_field($params['related_object_type']);
         if (isset($params['related_object_id'])) $data['related_object_id'] = intval($params['related_object_id']);
 
-        if (!empty($data)) { $wpdb->update($table, $data, ['id'=>$id]); }
+        if (!empty($data)) { 
+            $wpdb->update($table, $data, ['id'=>$id]); 
+            if(!in_array('status', $changed_fields) && !in_array('assignees', $changed_fields) && !empty($changed_fields)) {
+                H2L_Activity::log('task', $id, 'updated', ['changed_fields' => $changed_fields]);
+            }
+        }
         $new_id = $id;
 
     } else {
+        // YENİ GÖREV
         $project_id = intval($params['projectId'] ?? 0);
         $max_sort = $wpdb->get_var($wpdb->prepare("SELECT MAX(sort_order) FROM $table WHERE project_id = %d", $project_id));
         
@@ -365,17 +391,20 @@ function h2l_api_manage_task($request) {
             'priority' => intval($params['priority'] ?? 4), 
             'status' => sanitize_text_field((string)($params['status'] ?? 'open')),
             'due_date' => !empty($params['dueDate']) ? sanitize_text_field((string)$params['dueDate']) : null,
+            'recurrence_rule' => !empty($params['repeat']) ? sanitize_text_field((string)$params['repeat']) : null, // TEKRAR KURALI EKLENDI
             'assignee_ids' => json_encode($assignees),
-            'reminder_enabled' => 0, 
-            'reminder_sent' => 0, 
+            'reminder_enabled' => !empty($params['reminder_enabled']) ? 1 : 0, 
+            'reminder_sent' => 0,
             'created_at' => current_time('mysql'),
             'sort_order' => $max_sort ? $max_sort + 1 : 0,
             'related_object_type' => sanitize_text_field($params['related_object_type'] ?? ''),
             'related_object_id' => intval($params['related_object_id'] ?? 0),
-            'meeting_id' => intval($params['meeting_id'] ?? 0) // YENİ
+            'meeting_id' => intval($params['meeting_id'] ?? 0)
         ];
         $wpdb->insert($table, $data); 
         $new_id = $wpdb->insert_id; 
+        
+        H2L_Activity::log('task', $new_id, 'created');
     }
 
     if ( !empty($new_assignees_for_notify) && class_exists('H2L_Reminder') ) {
@@ -420,7 +449,23 @@ function h2l_api_manage_comments($request) {
             return rest_ensure_response($updated_comment);
         } else {
             if(empty($params['task_id']) || empty($params['content'])) return new WP_Error('invalid_data', 'Missing data', ['status'=>400]);
+            // YENİ: Dosya desteği (comments class'ı update edilmeli ama şimdilik extra data ile)
+            // Comment sınıfı add metodunda files_json parametresi kabul etmiyorsa, comment eklendikten sonra update edebiliriz.
+            // Ama ideal olan Comment sınıfını güncellemektir. Şimdilik API içinde update yapalım.
+            
+            $files_json = isset($params['files']) ? json_encode($params['files']) : null;
+            
             $comment = $comment_cls->add($params['task_id'], (string)$params['content']);
+            
+            if ($comment && $files_json) {
+                global $wpdb;
+                $wpdb->update(
+                    $wpdb->prefix . 'h2l_comments',
+                    array('files_json' => $files_json),
+                    array('id' => $comment->id)
+                );
+                $comment->files_json = $files_json;
+            }
             return rest_ensure_response($comment);
         }
     }
@@ -440,6 +485,7 @@ function h2l_api_manage_project($request) {
         $project = $wpdb->get_row($wpdb->prepare("SELECT owner_id FROM $table_projects WHERE id = %d", $id));
         if ($project && $project->owner_id != $current_user_id) { return new WP_Error('forbidden', 'Sadece proje sahibi silebilir.', ['status'=>403]); }
         $wpdb->update($table_projects, ['status' => 'trash'], ['id' => $id]); 
+        H2L_Activity::log('project', $id, 'deleted');
         return ['success' => true]; 
     }
     $new_managers_notify = [];
@@ -471,7 +517,10 @@ function h2l_api_manage_project($request) {
             if ($is_fav) { $wpdb->replace($table_favs, ['user_id' => $current_user_id, 'project_id' => $id, 'created_at' => current_time('mysql')]); } 
             else { $wpdb->delete($table_favs, ['user_id' => $current_user_id, 'project_id' => $id]); }
         }
-        if (!empty($data)) { $wpdb->update($table_projects, $data, ['id' => $id]); }
+        if (!empty($data)) { 
+            $wpdb->update($table_projects, $data, ['id' => $id]); 
+            H2L_Activity::log('project', $id, 'updated');
+        }
         $new_id = $id; 
     } else { 
         $folder_id = intval($params['folderId'] ?? 0);
@@ -489,6 +538,7 @@ function h2l_api_manage_project($request) {
             $wpdb->replace($table_favs, ['user_id' => $current_user_id, 'project_id' => $new_id, 'created_at' => current_time('mysql')]);
         }
         $new_managers_notify = $clean_managers;
+        H2L_Activity::log('project', $new_id, 'created');
     }
     if ( !empty($new_managers_notify) && class_exists('H2L_Reminder') ) {
         $reminder = new H2L_Reminder();

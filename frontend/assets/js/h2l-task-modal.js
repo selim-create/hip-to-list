@@ -189,23 +189,161 @@
         );
     };
 
+    // --- YENİ: AKTİVİTE LOG BİLEŞENİ ---
+    const ActivityLog = ({ taskId }) => {
+        const [logs, setLogs] = useState([]);
+        const [loading, setLoading] = useState(true);
+
+        useEffect(() => {
+            apiFetch({ path: `/h2l/v1/activity/task/${taskId}` })
+                .then(res => { setLogs(res); setLoading(false); })
+                .catch(() => setLoading(false));
+        }, [taskId]);
+
+        // Log mesajlarını temizle
+        const formatLogMessage = (msg) => {
+            if(!msg) return '';
+            const map = {
+                'recurrence_rule': 'Tekrar Kuralı',
+                'due_date': 'Tarih',
+                'assignees': 'Atananlar',
+                'status': 'Durum',
+                'priority': 'Öncelik',
+                'content': 'Açıklama',
+                'title': 'Başlık',
+                'project_id': 'Proje',
+                'section_id': 'Bölüm'
+            };
+            let newMsg = msg;
+            Object.keys(map).forEach(key => {
+                newMsg = newMsg.replace(key, map[key]);
+            });
+            return newMsg;
+        };
+
+        if (loading) return el('div', { style:{padding:'20px', textAlign:'center', color:'#999'} }, 'Yükleniyor...');
+        if (logs.length === 0) return el('div', { style:{padding:'20px', textAlign:'center', color:'#999', fontStyle:'italic'} }, 'Henüz aktivite yok.');
+
+        return el('div', { className: 'h2l-activity-list' },
+            logs.map(log => 
+                el('div', { key: log.id, className: 'h2l-activity-item' },
+                    el('img', { src: log.avatar, className: 'h2l-act-avatar' }),
+                    el('div', { className: 'h2l-act-content' },
+                        el('div', { className: 'h2l-act-msg' }, formatLogMessage(log.message)),
+                        el('div', { className: 'h2l-act-time' }, new Date(log.created_at).toLocaleString('tr-TR'))
+                    )
+                )
+            )
+        );
+    };
+
+    // --- GÜNCELLENMİŞ YORUM BİLEŞENİ (DOSYA GÖSTERİMİ İLE) ---
     const CommentItem = ({ comment, user, onDelete, onUpdate }) => {
         const [isEditing, setIsEditing] = useState(false);
         const [editContent, setEditContent] = useState(comment.content);
+        
+        // JSON parse hatasını önlemek için try-catch kullanılabilir veya basit kontrol
+        let files = [];
+        try {
+            files = comment.files_json ? JSON.parse(comment.files_json) : [];
+        } catch(e) { files = []; }
+
         const handleSave = () => { if (editContent.trim() !== comment.content) { onUpdate(comment.id, editContent); } setIsEditing(false); };
-        if (isEditing) { return el('div', { className: 'h2l-tm-comment-row editing' }, el(Avatar, { userId: comment.user_id, users: [user], size: 28 }), el('div', { className: 'h2l-tm-comment-bubble editing' }, el('textarea', { className: 'h2l-tm-comment-editor', value: editContent, onChange: (e) => setEditContent(e.target.value), autoFocus: true }), el('div', { className: 'h2l-tm-comment-actions-bar' }, el('button', { className: 'h2l-btn-cancel small', onClick: () => setIsEditing(false) }, 'İptal'), el('button', { className: 'h2l-btn-save small', onClick: handleSave, disabled: !editContent.trim() }, 'Güncelle')))); }
-        return el('div', { className: 'h2l-tm-comment-row' }, el(Avatar, { userId: comment.user_id, users: [user], size: 28 }), el('div', { className: 'h2l-tm-comment-bubble' }, el('div', { className: 'h2l-tm-comment-meta' }, el('strong', null, user ? user.name : 'Bilinmeyen'), el('span', null, comment.created_at.split('T')[0]), (window.h2lFrontendSettings.currentUser.ID == comment.user_id) && el('div', { className: 'h2l-tm-comment-actions' }, el('button', { title: 'Düzenle', onClick: () => setIsEditing(true) }, el(Icon, { name: 'pen' })), el('button', { title: 'Sil', onClick: () => { if(confirm('Yorum silinsin mi?')) onDelete(comment.id); } }, el(Icon, { name: 'trash' })))), el('div', { className: 'h2l-tm-comment-text', dangerouslySetInnerHTML: { __html: comment.content } })));
+        
+        return el('div', { className: 'h2l-tm-comment-row' }, 
+            el(Avatar, { userId: comment.user_id, users: [user], size: 28 }), 
+            el('div', { className: 'h2l-tm-comment-bubble' }, 
+                el('div', { className: 'h2l-tm-comment-meta' }, 
+                    el('strong', null, user ? user.name : 'Bilinmeyen'), 
+                    el('span', null, comment.created_at.split('T')[0]), 
+                    (window.h2lFrontendSettings.currentUser.id == comment.user_id) && el('div', { className: 'h2l-tm-comment-actions' }, el('button', { title: 'Düzenle', onClick: () => setIsEditing(true) }, el(Icon, { name: 'pen' })), el('button', { title: 'Sil', onClick: () => { if(confirm('Silinsin mi?')) onDelete(comment.id); } }, el(Icon, { name: 'trash' })))
+                ),
+                isEditing 
+                    ? el('div', null, 
+                        el('textarea', { className: 'h2l-tm-comment-editor', value: editContent, onChange: (e) => setEditContent(e.target.value), autoFocus: true }), 
+                        el('div', { className: 'h2l-tm-comment-actions-bar' }, el('button', { className: 'h2l-btn-cancel small', onClick: () => setIsEditing(false) }, 'İptal'), el('button', { className: 'h2l-btn-save small', onClick: handleSave }, 'Güncelle'))
+                      )
+                    : el('div', { className: 'h2l-tm-comment-text', dangerouslySetInnerHTML: { __html: comment.content } }),
+                
+                // Dosya Ekleri
+                files.length > 0 && el('div', { className: 'h2l-comment-files' },
+                    files.map((f, i) => el('a', { key: i, href: f.url, target: '_blank', className: 'h2l-file-attachment' },
+                        el(Icon, { name: f.type.includes('image') ? 'image' : 'file', style:{marginRight:6} }),
+                        f.name
+                    ))
+                )
+            )
+        );
     };
 
+    // --- GÜNCELLENMİŞ INPUT (DOSYA YÜKLEME İLE) ---
     const CommentInput = ({ onSend, currentUser, users, scrollToView }) => {
-        const [isExpanded, setIsExpanded] = useState(false); const [text, setText] = useState(''); const [mentionState, setMentionState] = useState({ isOpen: false, query: '', triggerIndex: -1 }); const textareaRef = useRef(null);
-        const handleFocus = () => { setIsExpanded(true); if (scrollToView) scrollToView(); };
-        const handleSend = () => { if (!text.trim()) return; onSend(text); setText(''); setIsExpanded(false); setMentionState({ isOpen: false, query: '', triggerIndex: -1 }); };
-        const handleCancel = () => { setText(''); setIsExpanded(false); setMentionState({ isOpen: false, query: '', triggerIndex: -1 }); };
-        const handleInput = (e) => { const val = e.target.value; setText(val); const sel = e.target.selectionStart; let found = false; for (let i = sel - 1; i >= 0; i--) { if (val[i] === '@') { if (i === 0 || /\s/.test(val[i-1])) { const query = val.substring(i + 1, sel); if (!/\s/.test(query)) { setMentionState({ isOpen: true, query, triggerIndex: i }); found = true; } } break; } } if (!found) setMentionState({ isOpen: false, query: '', triggerIndex: -1 }); };
-        const insertMention = (user) => { const beforeMention = text.substring(0, mentionState.triggerIndex); const insertion = `@${user.username || user.name.replace(/\s+/g, '')} `; const afterCursor = text.substring(textareaRef.current.selectionStart); const newText = beforeMention + insertion + afterCursor; setText(newText); setMentionState({ isOpen: false, query: '', triggerIndex: -1 }); setTimeout(() => { if(textareaRef.current) { textareaRef.current.focus(); const newPos = beforeMention.length + insertion.length; textareaRef.current.setSelectionRange(newPos, newPos); } }, 0); };
-        const filteredUsers = mentionState.isOpen ? users.filter(u => (u.name && u.name.toLowerCase().includes(mentionState.query.toLowerCase())) || (u.username && u.username.toLowerCase().includes(mentionState.query.toLowerCase()))).slice(0, 5) : [];
-        return el('div', { className: `h2l-tm-footer-inner ${isExpanded ? 'expanded' : ''}` }, el('div', { className: 'h2l-tm-comment-input-wrapper', style: { position: 'relative' } }, el(Avatar, { userId: currentUser.ID, users: users, size: 32 }), el('div', { className: 'h2l-tm-input-box' }, (mentionState.isOpen && filteredUsers.length > 0) && el('div', { className: 'h2l-mention-popup', style: { bottom: '100%', left: 40 } }, el('div', { className: 'h2l-mention-list' }, filteredUsers.map(u => el('div', { key: u.id, className: 'h2l-mention-item', onClick: () => insertMention(u) }, el(Avatar, { userId: u.id, users, size: 24 }), el('div', null, el('strong', null, u.name), u.username && el('span', { style: { marginLeft: 6 } }, `@${u.username}`)))))), el('textarea', { ref: textareaRef, placeholder: 'Yorum yaz...', value: text, onChange: handleInput, onFocus: handleFocus, onKeyDown: e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (mentionState.isOpen && filteredUsers.length > 0) { insertMention(filteredUsers[0]); } else { handleSend(); } } if (e.key === 'Escape') { if(mentionState.isOpen) { setMentionState({ ...mentionState, isOpen: false }); e.stopPropagation(); } } } }), !isExpanded && el('div', { className: 'h2l-tm-collapsed-icon' }, el(Icon, {name:'paperclip'})), isExpanded && el('div', { className: 'h2l-tm-input-toolbar' }, el('div', { className: 'h2l-tm-input-tools' }, el('button', { className: 'h2l-icon-btn small', title: 'Dosya ekle' }, el(Icon, { name: 'paperclip' })), el('button', { className: 'h2l-icon-btn small', title: 'Emoji' }, el(Icon, { name: 'face-smile' }))), el('div', { className: 'h2l-tm-input-buttons' }, el('button', { className: 'h2l-btn-cancel', onClick: handleCancel }, 'İptal'), el('button', { className: 'h2l-btn-save', onClick: handleSend, disabled: !text.trim() }, 'Yorum yap'))))));
+        const [isExpanded, setIsExpanded] = useState(false); 
+        const [text, setText] = useState(''); 
+        const [files, setFiles] = useState([]);
+        const [uploading, setUploading] = useState(false);
+        const fileInputRef = useRef(null);
+
+        const handleSend = () => { 
+            if (!text.trim() && files.length === 0) return; 
+            onSend(text, files); 
+            setText(''); setFiles([]); setIsExpanded(false); 
+        };
+
+        const handleFileUpload = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            setUploading(true);
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            apiFetch({
+                path: '/h2l/v1/upload',
+                method: 'POST',
+                body: formData
+            }).then(res => {
+                setFiles([...files, res]);
+                setUploading(false);
+            }).catch(err => {
+                alert('Dosya yüklenemedi: ' + (err.message || 'Hata'));
+                setUploading(false);
+            });
+        };
+
+        return el('div', { className: `h2l-tm-footer-inner ${isExpanded ? 'expanded' : ''}` }, 
+            el('div', { className: 'h2l-tm-comment-input-wrapper' }, 
+                // DÜZELTME: currentUser.ID yerine currentUser.id kullanıldı
+                el(Avatar, { userId: currentUser.id, users: users, size: 32 }), 
+                el('div', { className: 'h2l-tm-input-box' }, 
+                    el('textarea', { placeholder: 'Yorum yaz...', value: text, onChange: e => setText(e.target.value), onFocus: () => setIsExpanded(true) }), 
+                    // Dosya Önizleme
+                    files.length > 0 && el('div', { className: 'h2l-upload-preview-area' },
+                        files.map((f, i) => el('div', { key: i, className: 'h2l-upload-chip' }, 
+                            el(Icon, {name: 'paperclip'}), ' ', f.name,
+                            el(Icon, {name: 'xmark', className: 'remove-file', onClick: () => setFiles(files.filter((_, idx) => idx !== i))})
+                        ))
+                    ),
+                    !isExpanded && el('div', { className: 'h2l-tm-collapsed-icon' }, el(Icon, {name:'paperclip'})), 
+                    isExpanded && el('div', { className: 'h2l-tm-input-toolbar' }, 
+                        el('div', { className: 'h2l-tm-input-tools' }, 
+                            el('input', { type: 'file', ref: fileInputRef, style: {display:'none'}, onChange: handleFileUpload }),
+                            el('button', { 
+                                className: 'h2l-icon-btn small', 
+                                title: 'Dosya ekle', 
+                                onClick: () => fileInputRef.current.click(),
+                                disabled: uploading 
+                            }, uploading ? el(Icon,{name:'spinner', className:'fa-spin'}) : el(Icon, { name: 'paperclip' })), 
+                            el('button', { className: 'h2l-icon-btn small', title: 'Emoji' }, el(Icon, { name: 'face-smile' }))
+                        ), 
+                        el('div', { className: 'h2l-tm-input-buttons' }, 
+                            el('button', { className: 'h2l-btn-cancel', onClick: () => setIsExpanded(false) }, 'İptal'), 
+                            el('button', { className: 'h2l-btn-save', onClick: handleSend, disabled: (!text.trim() && files.length === 0) || uploading }, 'Yorum yap')
+                        )
+                    )
+                )
+            )
+        );
     };
 
     const TaskContentEditor = ({ title, description, onSave, placeholderTitle, placeholderDesc }) => {
@@ -225,7 +363,7 @@
         return el('div', { className: 'h2l-unified-editor view', onClick: () => setIsEditing(true) }, el('div', { className: 'h2l-view-title', dangerouslySetInnerHTML: { __html: title || placeholderTitle } }), el('div', { className: 'h2l-view-desc h2l-rich-content', style: { display: description ? 'block' : 'none' }, dangerouslySetInnerHTML: { __html: description } }), !description && el('div', { className: 'h2l-view-desc placeholder' }, placeholderDesc));
     };
 
-    const SubtaskRow = ({ task, onUpdate, onDelete, onOpen }) => {
+    const SubtaskRow = ({ task, onUpdate, onDelete }) => {
         const [isCompleted, setIsCompleted] = useState(task.status === 'completed');
         const toggleComplete = () => { const newStatus = isCompleted ? 'in_progress' : 'completed'; setIsCompleted(!isCompleted); onUpdate(task.id, { status: newStatus }); };
         return el('div', { className: 'h2l-subtask-row' }, 
@@ -237,7 +375,7 @@
                 suppressContentEditableWarning: true,
                 dangerouslySetInnerHTML: { __html: task.title }
             }), 
-            el('div', { className: 'h2l-subtask-actions' }, el(Icon, { name: 'arrow-up-right-from-square', style: { cursor: 'pointer', color: '#888', marginRight: 10, fontSize: 12 }, title: 'Görevi Aç', onClick: (e) => { e.stopPropagation(); onOpen(); } }), el(Icon, { name: 'xmark', style: { cursor: 'pointer', color: '#ccc' }, title: 'Sil', onClick: () => onDelete(task.id) }))
+            el('div', { className: 'h2l-subtask-actions' }, el(Icon, { name: 'xmark', style: { cursor: 'pointer', color: '#ccc' }, title: 'Sil', onClick: () => onDelete(task.id) }))
         );
     };
 
@@ -250,26 +388,20 @@
         const [popoverSearch, setPopoverSearch] = useState('');
         const [newLocation, setNewLocation] = useState('');
         const [showSubtaskInput, setShowSubtaskInput] = useState(false);
-        const scrollRef = useRef(null);
         
+        // YENİ: TAB STATE
+        const [activeTab, setActiveTab] = useState('comments'); // 'comments' or 'activity'
+
+        const scrollRef = useRef(null);
         const currentIndex = tasks.findIndex(t => t.id === task.id);
         const prevTask = currentIndex > 0 ? tasks[currentIndex - 1] : null;
         const nextTask = currentIndex !== -1 && currentIndex < tasks.length - 1 ? tasks[currentIndex + 1] : null;
 
         const updateField = (fields) => onUpdate(task.id, fields);
-
         const loadComments = () => { apiFetch({ path: `/h2l/v1/comments?task_id=${task.id}` }).then(setComments); };
-        
-        const loadSubtasks = () => {
-            apiFetch({ path: `/h2l/v1/tasks?parent_task_id=${task.id}` }).then(setSubtasks);
-        };
+        const loadSubtasks = () => { apiFetch({ path: `/h2l/v1/tasks?parent_task_id=${task.id}` }).then(setSubtasks); };
 
-        useEffect(() => {
-            loadComments();
-            loadSubtasks();
-            setActivePopup(null);
-            setShowSubtaskInput(false);
-        }, [task.id]);
+        useEffect(() => { loadComments(); loadSubtasks(); setActivePopup(null); setShowSubtaskInput(false); setActiveTab('comments'); }, [task.id]);
 
         useEffect(() => {
             const handleScroll = () => { if (scrollRef.current) { setIsScrolled(scrollRef.current.scrollTop > 40); } };
@@ -279,20 +411,16 @@
             return () => { if (div) div.removeEventListener('scroll', handleScroll); document.removeEventListener('mousedown', handleClickOutside); };
         }, [activePopup]);
 
-        const handleAddComment = (content) => { apiFetch({ path: '/h2l/v1/comments', method: 'POST', data: { task_id: task.id, content } }).then((newComment) => { setComments([...comments, newComment]); }); };
+        const handleAddComment = (content, files = []) => { 
+            apiFetch({ path: '/h2l/v1/comments', method: 'POST', data: { task_id: task.id, content, files } })
+                .then((newComment) => { setComments([...comments, newComment]); }); 
+        };
         const handleDeleteComment = (cid) => { apiFetch({ path: `/h2l/v1/comments/${cid}`, method: 'DELETE' }).then(() => { setComments(comments.filter(c => c.id !== cid)); }); };
         const handleUpdateComment = (cid, newContent) => { apiFetch({ path: `/h2l/v1/comments/${cid}`, method: 'POST', data: { content: newContent } }).then((updatedComment) => { setComments(comments.map(c => c.id === cid ? updatedComment : c)); }); };
 
-        const handleAddSubtask = (data) => {
-            const subtaskData = { ...data, parent_task_id: task.id, project_id: task.project_id };
-            onAdd(subtaskData).then(() => {
-                loadSubtasks(); 
-                // Görev eklendikten sonra input açık kalsın ki art arda ekleme yapılabilsin
-            });
-        };
-
-        const handleUpdateSubtask = (sid, data) => { onUpdate(sid, data).then(() => loadSubtasks()); };
-        const handleDeleteSubtask = (sid) => { if(confirm('Alt görevi silmek istiyor musunuz?')) { onDelete(sid).then(() => loadSubtasks()); } };
+        const handleAddSubtask = (data) => { onAdd({ ...data, parent_task_id: task.id, project_id: task.project_id }).then(loadSubtasks); };
+        const handleUpdateSubtask = (sid, data) => { onUpdate(sid, data).then(loadSubtasks); };
+        const handleDeleteSubtask = (sid) => { if(confirm('Silinsin mi?')) onDelete(sid).then(loadSubtasks); };
         const handleDuplicateTask = () => { if(onAdd) { const duplicateData = { title: task.title, content: task.content, project_id: task.project_id, section_id: task.section_id, priority: task.priority, labels: task.labels ? task.labels.map(l => l.name) : [], status: 'in_progress' }; onAdd(duplicateData); setActivePopup(null); } };
         const handleCopyLink = () => { const url = `${window.location.origin}/gorevler/gorev/${task.id}`; if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(url).then(() => alert('Link kopyalandı!')); } else { const ta = document.createElement("textarea"); ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); alert('Link kopyalandı!'); } setActivePopup(null); };
         const scrollToComments = () => { if (scrollRef.current) { scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }); } };
@@ -325,7 +453,18 @@
                 const pMembers = [parseInt(currentProject.owner_id), ...mgrs.map(id => parseInt(id))].filter(Boolean);
                 if (pMembers.length > 0) eligibleUsers = users.filter(u => pMembers.includes(parseInt(u.id)));
             }
-            const filtered = eligibleUsers.filter(u => u.name.toLowerCase().includes(popoverSearch.toLowerCase()));
+            
+            // DÜZELTME: Atanmış kullanıcıları en başa al
+            const currentAssignees = task.assignees ? task.assignees.map(Number) : [];
+            
+            const filtered = eligibleUsers.filter(u => u.name.toLowerCase().includes(popoverSearch.toLowerCase()))
+                .sort((a, b) => {
+                    const aSel = currentAssignees.includes(Number(a.id));
+                    const bSel = currentAssignees.includes(Number(b.id));
+                    if (aSel && !bSel) return -1;
+                    if (!aSel && bSel) return 1;
+                    return a.name.localeCompare(b.name);
+                });
             
             return el('div', { className: 'h2l-popover-menu right-aligned', style: { width: 260 } },
                 el('div', { className: 'h2l-popover-header' }, 
@@ -333,7 +472,6 @@
                 ),
                 el('div', { className: 'h2l-popover-list' },
                     filtered.map(u => {
-                        const currentAssignees = task.assignees ? task.assignees.map(Number) : [];
                         const isAssigned = currentAssignees.includes(Number(u.id));
                         return el('div', { 
                             key: u.id, 
@@ -378,7 +516,9 @@
             const filtered = labels.filter(l => l.name.toLowerCase().includes(popoverSearch.toLowerCase()));
             const currentLabels = task.labels ? task.labels.map(l => l.name) : [];
             
-            return el('div', { className: 'h2l-popover-menu right-aligned', style: { width: 220 } },
+            // YENİ: Etiket menüsü için kapsayıcıyı (h2l-tm-sidebar-group) relative yapıyoruz.
+            // Bu sayede absolute olan popover menu doğru konumlanır.
+            return el('div', { className: 'h2l-popover-menu right-aligned', style: { width: 220, position: 'absolute', right: 0, top: '100%', zIndex: 1000 } },
                 el('div', { className: 'h2l-popover-header' }, 
                     el('input', { className: 'h2l-search-input', placeholder: 'Etiket ara...', value: popoverSearch, onChange: e => setPopoverSearch(e.target.value), autoFocus: true, onClick:e=>e.stopPropagation() })
                 ),
@@ -466,13 +606,10 @@
                                             key: st.id, 
                                             task: st, 
                                             onUpdate: handleUpdateSubtask, 
-                                            onDelete: handleDeleteSubtask,
-                                            onOpen: () => navigate('/gorev/' + st.id)
+                                            onDelete: handleDeleteSubtask
                                         }))
                                     ),
                                     !showSubtaskInput && el('div', { className: 'h2l-tm-add-subtask', onClick: () => setShowSubtaskInput(true) }, el(Icon, {name:'plus'}), ' Alt görev ekle'),
-                                    
-                                    // --- DÜZELTİLDİ: QuickAddContainer yerine doğrudan TaskEditor ---
                                     showSubtaskInput && el('div', { className: 'h2l-subtask-editor-wrapper', style: { marginTop: 10 } }, 
                                         el(TaskEditor, { 
                                             mode: 'add',
@@ -489,10 +626,19 @@
                                     )
                                 ),
                                 
+                                /* TABS: COMMENTS & ACTIVITY */
                                 el('div', { className: 'h2l-tm-activity-stream' },
-                                    el('div', { className: 'h2l-tm-comments-header' }, el('span', null, 'Yorumlar'), el('span', { className: 'h2l-tm-badge' }, comments.length)),
-                                    comments.length === 0 && el('div', { style: { color: '#ccc', fontSize: '13px', padding: '20px 0', textAlign: 'center', fontStyle: 'italic' } }, 'Henüz yorum yapılmamıştır'),
-                                    comments.map(c => el(CommentItem, { key: c.id, comment: c, user: users.find(u => u.id == c.user_id), onDelete: handleDeleteComment, onUpdate: handleUpdateComment }))
+                                    el('div', { className: 'h2l-tm-tabs' },
+                                        el('button', { className: `h2l-tab-btn ${activeTab === 'comments' ? 'active' : ''}`, onClick: () => setActiveTab('comments') }, 'Yorumlar', el('span', { className: 'h2l-tm-badge' }, comments.length)),
+                                        el('button', { className: `h2l-tab-btn ${activeTab === 'activity' ? 'active' : ''}`, onClick: () => setActiveTab('activity') }, 'Aktivite Günlüğü')
+                                    ),
+                                    
+                                    activeTab === 'comments' && el('div', null,
+                                        comments.length === 0 && el('div', { style: { color: '#ccc', fontSize: '13px', padding: '20px 0', textAlign: 'center', fontStyle: 'italic' } }, 'Henüz yorum yapılmamıştır'),
+                                        comments.map(c => el(CommentItem, { key: c.id, comment: c, user: users.find(u => u.id == c.user_id), onDelete: handleDeleteComment, onUpdate: handleUpdateComment }))
+                                    ),
+
+                                    activeTab === 'activity' && el(ActivityLog, { taskId: task.id })
                                 )
                             )
                         ),
@@ -517,7 +663,18 @@
                             el('div', { className: 'h2l-tm-sidebar-group' }, el('div', { className: 'h2l-tm-sb-label' }, 'Öncelik'), el(SidebarPrioritySelector, { priority: task.priority, onChange: (p) => updateField({ priority: p }) })),
                             el(SidebarRow, { label: 'Hatırlatıcılar', value: (task.reminder_enabled == 1) ? 'Açık' : 'Kapalı', icon: 'bell', color: (task.reminder_enabled == 1) ? '#db4c3f' : '#aaa', isClickable: true, onTogglePopup: () => updateField({ reminder_enabled: (task.reminder_enabled == 1) ? 0 : 1 }) }),
                             el(SidebarRow, { label: 'Durum', value: currentStatusObj.label, icon: currentStatusObj.icon, color: currentStatusObj.color, activeKey: activePopup === 'status' ? 'status' : null, onTogglePopup: () => setActivePopup(activePopup === 'status' ? null : 'status'), renderPopupContent: renderStatusMenu }),
-                            el('div', { className: 'h2l-tm-sidebar-group' }, el('div', { className: 'h2l-tm-sb-label' }, 'Etiketler', el(Icon, { name: 'plus', style: { fontSize: 12, cursor: 'pointer' }, className: 'clickable-trigger', onClick: (e) => { e.stopPropagation(); setPopoverSearch(''); setActivePopup(activePopup==='labels'?null:'labels'); } })), el('div', { className: 'h2l-tm-tags-container' }, (task.labels && task.labels.length > 0) ? task.labels.map(l => el('span', { key: l.id || l, className: 'h2l-tm-tag' }, (typeof l === 'string' ? l : l.name), el(Icon,{name:'xmark', style:{marginLeft:5, fontSize:10, cursor:'pointer'}, onClick: (e) => { e.stopPropagation(); updateField({ labels: task.labels.map(lbl=>lbl.name).filter(n => n !== (l.name || l)) }); } }))) : el('span', { className: 'h2l-tm-no-val' }, 'Etiket yok')), activePopup === 'labels' && renderLabelMenu()),
+                            // DÜZELTME: Etiket artı ikonu sağa yaslandı ve tıklanabilir hale getirildi
+                            // Ve kapsayıcıya position: relative eklendi
+                            el('div', { className: 'h2l-tm-sidebar-group', style: { position: 'relative' } }, 
+                                el('div', { className: 'h2l-tm-sb-label', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }, 
+                                    'Etiketler', 
+                                    el(Icon, { name: 'plus', style: { fontSize: 12, cursor: 'pointer' }, className: 'clickable-trigger', onClick: (e) => { e.stopPropagation(); setPopoverSearch(''); setActivePopup(activePopup==='labels'?null:'labels'); } })
+                                ), 
+                                el('div', { className: 'h2l-tm-tags-container' }, 
+                                    (task.labels && task.labels.length > 0) ? task.labels.map(l => el('span', { key: l.id || l, className: 'h2l-tm-tag' }, (typeof l === 'string' ? l : l.name), el(Icon,{name:'xmark', style:{marginLeft:5, fontSize:10, cursor:'pointer'}, onClick: (e) => { e.stopPropagation(); updateField({ labels: task.labels.map(lbl=>lbl.name).filter(n => n !== (l.name || l)) }); } }))) : el('span', { className: 'h2l-tm-no-val' }, 'Etiket yok')
+                                ),
+                                activePopup === 'labels' && renderLabelMenu()
+                            ),
                             el('div', { className: 'h2l-tm-sb-separator' }),
                             el(SidebarRow, { label: 'Konum', value: task.location || 'Konum ekle', icon: 'location-dot', color: task.location ? '#202020' : '#aaa', activeKey: activePopup === 'location' ? 'location' : null, onTogglePopup: () => { setNewLocation(task.location || ''); setActivePopup(activePopup === 'location' ? null : 'location'); }, renderPopupContent: renderLocationMenu }),
                             el('div', { className: 'h2l-tm-sb-separator' }),
