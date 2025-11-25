@@ -13,7 +13,8 @@
             color: initialData?.color || '#808080',
             folderId: getFolderId(initialData || {}),
             view_type: initialData?.view_type || 'list',
-            is_favorite: initialData?.is_favorite || false,
+            // DÜZELTME: Hem boolean hem de 1/0 değerlerini destekle
+            is_favorite: initialData ? (initialData.is_favorite === true || initialData.is_favorite == 1) : false,
             description: initialData?.description || '',
             managers: initialData?.managers || []
         });
@@ -22,29 +23,22 @@
         const ownerId = initialData ? parseInt(initialData.owner_id) : (window.h2lFrontendSettings ? parseInt(window.h2lFrontendSettings.currentUser.ID) : 0);
         const currentManagerIds = Array.isArray(form.managers) ? form.managers.map(id => parseInt(id)) : [];
         
-        // --- ÖZEL KLASÖR KONTROLÜ ---
         const selectedFolder = folders ? folders.find(f => parseInt(f.id) === parseInt(form.folderId)) : null;
         const isPrivateFolder = selectedFolder && selectedFolder.access_type === 'private';
 
-        // --- KULLANICI SIRALAMA MANTIĞI ---
         const sortedUsers = [...users].sort((a, b) => {
             const aid = parseInt(a.id);
             const bid = parseInt(b.id);
-
             if (aid === ownerId) return -1;
             if (bid === ownerId) return 1;
-
             const aIsMgr = currentManagerIds.includes(aid);
             const bIsMgr = currentManagerIds.includes(bid);
-            
             if (aIsMgr && !bIsMgr) return -1;
             if (!aIsMgr && bIsMgr) return 1;
-
             return a.name.localeCompare(b.name);
         });
 
         const handleSave = () => {
-            // Eğer özel klasör seçildiyse, yönetici listesini temizle
             const dataToSave = { ...form };
             if (isPrivateFolder) {
                 dataToSave.managers = [];
@@ -81,7 +75,6 @@
                     ),
                     el('div', { className: 'h2l-form-group' }, 
                         el('label', {className:'h2l-label'}, 'Yöneticiler'),
-                        // ÖZEL KLASÖR KONTROLÜ: Eğer özelse MultiSelect yerine uyarı göster
                         isPrivateFolder 
                             ? el('div', { className: 'h2l-info-box', style: { padding: '10px', background: '#fff3cd', color: '#856404', borderRadius: '4px', fontSize: '13px', display:'flex', alignItems:'center', gap:'8px' } }, 
                                 el(Icon, {name:'lock'}), 'Bu proje özel bir klasörde olduğu için üye eklenemez.')
@@ -92,8 +85,8 @@
                                 ownerId: ownerId 
                             })
                     ),
-                    el('div', { className: 'h2l-form-group switch-row' },
-                        el('label', { className: 'h2l-switch' },
+                    el('div', { className: 'h2l-form-group switch-row', onClick: () => setForm(f => ({...f, is_favorite: !f.is_favorite})), style: { cursor: 'pointer' } },
+                        el('div', { className: 'h2l-switch', onClick: e => e.stopPropagation() },
                             el('input', { type: 'checkbox', checked: form.is_favorite, onChange: e => setForm({...form, is_favorite: e.target.checked}) }),
                             el('span', { className: 'h2l-slider round' })
                         ),
@@ -121,7 +114,6 @@
         );
     };
 
-    // --- KLASÖR MODALI ---
     const FolderModal = ({ onClose, onSave, onDelete, initialData }) => {
         const [form, setForm] = useState({ id: initialData?.id, name: initialData?.name || '', access_type: initialData?.access_type || 'private', description: initialData?.description || '' });
         const MAX_CHAR = 120;
@@ -149,7 +141,7 @@
     };
 
     // --- DASHBOARD (PROJELER LİSTESİ) ---
-    const ProjectsDashboard = ({ data, navigate, onAction }) => {
+    const ProjectsDashboard = ({ data, navigate, onAction, onToggleFavorite }) => {
         const [search, setSearch] = useState('');
         const [filterTab, setFilterTab] = useState('all');
         const [showFavorites, setShowFavorites] = useState(false); 
@@ -166,18 +158,31 @@
         const projects = Array.isArray(data.projects) ? data.projects : [];
         const folders = Array.isArray(data.folders) ? data.folders : [];
         
+        // 1. İsim Arama
         let filteredProjects = projects.filter(p => p.title.toLowerCase().includes(search.toLowerCase()));
         
-        if (showFavorites) {
-            filteredProjects = filteredProjects.filter(p => parseInt(p.is_favorite) === 1);
+        // 2. Tab Filtreleme
+        if (filterTab === 'joined') {
+            filteredProjects = filteredProjects.filter(p => p.is_member === true);
+        } else if (filterTab === 'not_joined') {
+            filteredProjects = filteredProjects.filter(p => p.is_member === false);
         }
 
+        // 3. Favori Filtreleme (DÜZELTİLDİ: Boolean kontrolü)
+        if (showFavorites) {
+            filteredProjects = filteredProjects.filter(p => p.is_favorite === true || p.is_favorite == 1);
+        }
+
+        // Gruplama
         const rootProjects = filteredProjects.filter(p => parseInt(getFolderId(p)) === 0);
         const folderGroups = folders.map(f => ({...f, projects: filteredProjects.filter(p => parseInt(getFolderId(p)) === parseInt(f.id)) }));
 
         const ProjectRow = ({ project, nested }) => {
             const total = project.total_count || 0;
             const completed = project.completed_count || 0;
+            // DÜZELTME: API'den gelen boolean değeri doğru işle
+            const isFav = project.is_favorite === true || project.is_favorite == 1;
+            const isMember = project.is_member === true;
             
             const managers = (project.managers || []).map(uid => 
                 data.users.find(u => parseInt(u.id) === parseInt(uid))
@@ -186,7 +191,8 @@
             return el('div', { className: `h2l-row-item ${nested ? 'nested' : ''}`, onClick: () => navigate(`/proje/${project.id}`) },
                 el('div', { className: 'h2l-cell-name' }, 
                     el('span', { className: 'h2l-hash', style: { color: project.color } }, '#'), 
-                    el('span', { className: 'h2l-row-title' }, project.title),
+                    el('span', { className: 'h2l-row-title', style: { opacity: isMember ? 1 : 0.6 } }, project.title),
+                    !isMember && el(Icon, { name: 'lock', style: { fontSize: 12, color: '#ccc', marginLeft: 6 }, title: 'Erişim izniniz yok' }),
                     managers.length > 0 && el('div', { className: 'h2l-row-avatars' },
                         managers.slice(0, 4).map((u, index) => 
                             el(Avatar, { 
@@ -200,11 +206,20 @@
                     )
                 ),
                 el('div', { className: 'h2l-cell-right' }, 
+                    // FAVORİ BUTONU
+                    el('div', { 
+                        className: `h2l-row-fav ${isFav ? 'active' : ''}`, 
+                        onClick: e => { e.stopPropagation(); if(onToggleFavorite) onToggleFavorite(project); } 
+                    },
+                        el(Icon, { name: isFav ? 'star' : 'star', style: { color: isFav ? '#f1c40f' : '#ccc', fontSize: 13 } })
+                    ),
+                    // STATS
                     el('div', { className: 'h2l-cell-stats' }, 
                         el(Icon, { name: 'check-circle', style: { marginRight: 6, color:'#ccc' } }), 
                         `${completed} / ${total}`
                     ), 
-                    el('div', { className: 'h2l-cell-actions', onClick: e => e.stopPropagation() }, 
+                    // MENÜ
+                    isMember && el('div', { className: 'h2l-cell-actions', onClick: e => e.stopPropagation() }, 
                         el(Icon, { name: 'ellipsis', onClick: () => onAction('edit_project', project) })
                     )
                 )
@@ -214,7 +229,7 @@
         return el('div', { className: 'h2l-dashboard' },
             el('div', { className: 'h2l-header-area' }, 
                 el('div', { className: 'h2l-title-box' }, 
-                    el('span', { className: 'h2l-project-count-badge' }, projects.length), 
+                    el('span', { className: 'h2l-project-count-badge' }, filteredProjects.length), 
                     el('h1', null, 'Projeler')
                 )
             ),
@@ -225,8 +240,8 @@
                         el('button', { className: filterTab==='all'?'active':'', onClick:()=>setFilterTab('all') }, 'Tümü'), 
                         el('button', { className: filterTab==='joined'?'active':'', onClick:()=>setFilterTab('joined') }, 'Katıldığım projeler'), 
                         el('button', { className: filterTab==='not_joined'?'active':'', onClick:()=>setFilterTab('not_joined') }, 'Katılmadığım projeler'),
-                        el('div', { className: 'switch-row', style: { marginLeft: 15, display: 'inline-flex', marginTop: 0 } },
-                            el('label', { className: 'h2l-switch', style: { width: 30, height: 18 } },
+                        el('div', { className: 'switch-row', style: { marginLeft: 15, display: 'inline-flex', marginTop: 0 }, onClick: () => setShowFavorites(!showFavorites) },
+                            el('label', { className: 'h2l-switch', style: { width: 30, height: 18 }, onClick: e => e.stopPropagation() },
                                 el('input', { type: 'checkbox', checked: showFavorites, onChange: e => setShowFavorites(e.target.checked) }),
                                 el('span', { className: 'h2l-slider round' })
                             ),

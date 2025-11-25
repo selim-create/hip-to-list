@@ -41,8 +41,31 @@
 .h2l-row-desc { font-size: 12px; color: #27ae60; margin-top: 4px; }
 .h2l-cell-right { display: flex; align-items: center; gap: 25px; }
 .h2l-cell-stats { font-size: 13px; color: #666; display: flex; align-items: center; min-width: 40px; }
-.h2l-cell-actions { color: #999; opacity: 0; padding: 5px; }
+
+/* Menü (Ellipsis) */
+.h2l-cell-actions { color: #999; opacity: 0; padding: 5px; transition: opacity 0.2s; }
 .h2l-row-item:hover .h2l-cell-actions { opacity: 1; }
+
+/* YENİ: Favori Butonu Stili (h2l-cell-stats yerine) */
+.h2l-row-fav { 
+    color: #ccc; 
+    opacity: 0; 
+    padding: 5px; 
+    transition: all 0.2s; 
+    cursor: pointer; 
+    display: flex; 
+    align-items: center; 
+}
+.h2l-row-item:hover .h2l-row-fav,
+.h2l-row-fav.active { 
+    opacity: 1; 
+}
+.h2l-row-fav:hover i { 
+    color: #f1c40f !important; 
+}
+.h2l-row-fav.active i { 
+    color: #f1c40f !important; 
+}
 
 /* Proje Satırı Avatar Grubu */
 .h2l-row-avatars { display: flex; align-items: center; margin-left: 12px; }

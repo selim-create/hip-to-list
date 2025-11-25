@@ -42,7 +42,7 @@
         );
     };
 
-    window.H2L.Sidebar = ({ navigate, activeView, counts, projects, labels, isCollapsed, toggleCollapse, isMobileOpen, closeMobile, onAddProject, onOpenSettings, onOpenHelp }) => {
+    window.H2L.Sidebar = ({ navigate, activeView, counts, projects, labels, isCollapsed, toggleCollapse, isMobileOpen, closeMobile, onAddProject, onOpenSettings, onOpenHelp, onToggleFavorite }) => {
         
         const isActive = (type, id = null) => {
             if (type === 'inbox' && activeView.type === 'project_detail' && activeView.isInbox) return true;
@@ -53,8 +53,8 @@
             return false;
         };
 
-        const favoriteProjects = projects.filter(p => parseInt(p.is_favorite) === 1);
-        const otherProjects = projects.filter(p => parseInt(p.is_favorite) !== 1 && (!p.slug || p.slug !== 'inbox-project'));
+        const favoriteProjects = projects.filter(p => p.is_favorite === true);
+        const otherProjects = projects.filter(p => (!p.slug || p.slug !== 'inbox-project') && !p.is_favorite);
 
         const handleNavigation = (path) => {
             navigate(path);
@@ -86,7 +86,7 @@
                     el(SidebarItem, { icon: 'calendar-day', label: 'Bugün', count: counts.today, color: '#058527', isActive: isActive('today'), isCollapsed, onClick: () => handleNavigation('/bugun') }),
                     el(SidebarItem, { icon: 'calendar-week', label: 'Yaklaşan', count: counts.upcoming, color: '#692fc2', isActive: isActive('upcoming'), isCollapsed, onClick: () => handleNavigation('/yaklasan') }),
                     
-                    // YENİ: Etiketler & Filtreler Menüsü (Ayrı Sayfa)
+                    // Etiketler & Filtreler Menüsü
                     el(SidebarItem, { 
                         icon: 'tags', 
                         label: 'Etiketler & Filtreler', 
@@ -94,6 +94,16 @@
                         isActive: isActive('filters_labels'), 
                         isCollapsed, 
                         onClick: () => handleNavigation('/filtreler-etiketler') 
+                    }),
+
+                    // GÜNCELLEME: Tüm Projeler Butonu
+                    el(SidebarItem, {
+                        icon: 'list',
+                        label: 'Tüm Projeler',
+                        color: '#333',
+                        isActive: isActive('projects'),
+                        isCollapsed,
+                        onClick: () => handleNavigation('')
                     })
                 ),
 
@@ -104,23 +114,25 @@
                         : favoriteProjects.map(p => el(SidebarItem, { 
                             key: p.id, icon: 'circle', color: p.color, label: p.title, count: p.total_count, 
                             isActive: isActive('project_detail', p.id), isCollapsed: false, isFavorite: true,
-                            onClick: () => handleNavigation(`/proje/${p.id}`)
+                            onClick: () => handleNavigation(`/proje/${p.id}`),
+                            onToggleFavorite: () => onToggleFavorite(p) // Prop geçirildi
                         }))
                 ),
 
-                // PROJECTS (Varsayılan Kapalı: defaultExpanded: false)
+                // PROJECTS
                 !isCollapsed && el(SidebarSection, { title: 'Projelerim', defaultExpanded: false, onAddClick: onAddProject },
                     otherProjects.length === 0
                         ? el('div', { className: 'h2l-sb-empty-state' }, 'Proje bulunamadı.')
                         : otherProjects.map(p => el(SidebarItem, { 
                             key: p.id, icon: 'circle', color: p.color, label: p.title, count: p.total_count, 
-                            isActive: isActive('project_detail', p.id), isCollapsed: false, 
-                            onClick: () => handleNavigation(`/proje/${p.id}`)
+                            isActive: isActive('project_detail', p.id), isCollapsed: false, isFavorite: false,
+                            onClick: () => handleNavigation(`/proje/${p.id}`),
+                            onToggleFavorite: () => onToggleFavorite(p) // Prop geçirildi
                         }))
                 )
             ),
 
-            // 3. FOOTER (Ayarlar ve Yardım)
+            // 3. FOOTER
             el('div', { className: 'h2l-sb-footer' },
                 el('button', { className: 'h2l-sb-footer-btn', title: 'Ayarlar', onClick: onOpenSettings }, 
                     el(Icon, { name: 'gear' }), !isCollapsed && ' Ayarlar'

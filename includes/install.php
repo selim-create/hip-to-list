@@ -1,7 +1,7 @@
 <?php
 /**
  * Veritabanı kurulum işlemleri.
- * Site içi bildirimler için 'h2l_notifications' tablosu eklendi.
+ * GÜNCELLEME: Kişisel favoriler için h2l_user_favorites tablosu eklendi.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -121,7 +121,7 @@ function h2l_install_db() {
   KEY object_index (object_type, object_id)
 ) $charset_collate;";
 
-    // 9. Notifications (YENİ)
+    // 9. Notifications
     $sql_notifications = "CREATE TABLE {$wpdb->prefix}h2l_notifications (
   id bigint(20) NOT NULL AUTO_INCREMENT,
   user_id bigint(20) NOT NULL,
@@ -135,6 +135,14 @@ function h2l_install_db() {
   KEY user_read (user_id, is_read)
 ) $charset_collate;";
 
+    // 10. User Favorites (YENİ)
+    $sql_favorites = "CREATE TABLE {$wpdb->prefix}h2l_user_favorites (
+  user_id bigint(20) NOT NULL,
+  project_id bigint(20) NOT NULL,
+  created_at datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+  PRIMARY KEY  (user_id, project_id)
+) $charset_collate;";
+
     // dbDelta çağrıları
     dbDelta( $sql_folders );
     dbDelta( $sql_projects );
@@ -145,8 +153,9 @@ function h2l_install_db() {
     dbDelta( $sql_comments );
     dbDelta( $sql_activity );
     dbDelta( $sql_notifications );
+    dbDelta( $sql_favorites ); // Yeni tablo
 
-    add_option( 'h2l_db_version', '1.9.0' );
+    add_option( 'h2l_db_version', '2.0.0' );
     
     // Sayfayı oluştur
     h2l_create_app_page();

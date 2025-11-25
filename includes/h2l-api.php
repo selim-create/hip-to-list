@@ -1,7 +1,7 @@
 <?php
 /**
  * REST API - Frontend Veri Yönetimi (CRUD)
- * Proje Yöneticisi Bildirimi Eklendi.
+ * GÜNCELLEME: Kişisel Favoriler Tablosu Entegrasyonu
  */
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -26,30 +26,16 @@ add_action( 'rest_api_init', function () {
     register_rest_route( 'h2l/v1', '/folders(?:/(?P<id>\d+))?', array('methods' => ['POST', 'DELETE'], 'callback' => 'h2l_api_manage_folder', 'permission_callback' => function () { return is_user_logged_in(); }) );
     register_rest_route( 'h2l/v1', '/sections(?:/(?P<id>\d+))?', array('methods' => ['POST', 'DELETE'], 'callback' => 'h2l_api_manage_section', 'permission_callback' => function () { return is_user_logged_in(); }) );
     register_rest_route( 'h2l/v1', '/reorder', array('methods' => 'POST', 'callback' => 'h2l_api_reorder_items', 'permission_callback' => function () { return is_user_logged_in(); }) );
-    
-    // Heartbeat
-    register_rest_route( 'h2l/v1', '/trigger-reminders', array(
-        'methods' => 'POST',
-        'callback' => 'h2l_api_trigger_reminders',
-        'permission_callback' => function () { return is_user_logged_in(); }
-    ) );
-
-    // BİLDİRİM UÇLARI
-    register_rest_route( 'h2l/v1', '/notifications', array(
-        array('methods' => 'GET', 'callback' => 'h2l_api_get_notifications', 'permission_callback' => function () { return is_user_logged_in(); })
-    ) );
-    register_rest_route( 'h2l/v1', '/notifications/read', array(
-        array('methods' => 'POST', 'callback' => 'h2l_api_read_notifications', 'permission_callback' => function () { return is_user_logged_in(); })
-    ) );
+    register_rest_route( 'h2l/v1', '/trigger-reminders', array('methods' => 'POST', 'callback' => 'h2l_api_trigger_reminders', 'permission_callback' => function () { return is_user_logged_in(); }) );
+    register_rest_route( 'h2l/v1', '/notifications', array(array('methods' => 'GET', 'callback' => 'h2l_api_get_notifications', 'permission_callback' => function () { return is_user_logged_in(); })) );
+    register_rest_route( 'h2l/v1', '/notifications/read', array(array('methods' => 'POST', 'callback' => 'h2l_api_read_notifications', 'permission_callback' => function () { return is_user_logged_in(); })) );
 });
 
 function h2l_api_get_notifications() {
     h2l_set_nocache_headers();
     if ( ! class_exists('H2L_Notification') ) return [];
-    
     $user_id = get_current_user_id();
     $notify = new H2L_Notification();
-    
     return rest_ensure_response([
         'list' => $notify->get_notifications($user_id),
         'unread_count' => $notify->get_unread_count($user_id)
@@ -60,13 +46,8 @@ function h2l_api_read_notifications($request) {
     if ( ! class_exists('H2L_Notification') ) return [];
     $notify = new H2L_Notification();
     $params = $request->get_json_params();
-    
-    if ( isset($params['all']) && $params['all'] ) {
-        $notify->mark_all_read(get_current_user_id());
-    } elseif ( isset($params['id']) ) {
-        $notify->mark_as_read(intval($params['id']));
-    }
-    
+    if ( isset($params['all']) && $params['all'] ) { $notify->mark_all_read(get_current_user_id()); } 
+    elseif ( isset($params['id']) ) { $notify->mark_as_read(intval($params['id'])); }
     return h2l_api_get_notifications();
 }
 
@@ -95,6 +76,7 @@ function h2l_api_get_tasks($request) {
     if (isset($params['project_id'])) { $where .= $wpdb->prepare(" AND project_id = %d", intval($params['project_id'])); }
     $sql = "SELECT t.*, (SELECT title FROM {$wpdb->prefix}h2l_projects WHERE id = t.project_id) as project_name, (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_comments c WHERE c.task_id = t.id) as comment_count FROM $table t $where ORDER BY t.created_at DESC";
     $tasks = $wpdb->get_results($sql);
+    
     if (!empty($tasks)) {
         $task_ids = array_column($tasks, 'id');
         $task_labels_map = [];
@@ -117,18 +99,63 @@ function h2l_api_get_init_data( $request ) {
     h2l_set_nocache_headers();
     global $wpdb;
     $uid = get_current_user_id();
-    $folders = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->prefix}h2l_folders WHERE access_type = 'public' OR owner_id = %d ORDER BY name ASC", $uid));
-    $all_projects = $wpdb->get_results("SELECT p.*, (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_tasks WHERE project_id = p.id AND status = 'completed') as completed_count, (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_tasks WHERE project_id = p.id AND status != 'trash') as total_count FROM {$wpdb->prefix}h2l_projects p WHERE status != 'trash' ORDER BY title ASC");
-    $visible_projects = []; $visible_project_ids = [];
+
+    // 1. Folders
+    $sql_folders = "SELECT * FROM {$wpdb->prefix}h2l_folders 
+                    WHERE (slug != 'inbox' AND slug != 'notlarim') 
+                    OR owner_id = %d 
+                    ORDER BY name ASC";
+    $folders = $wpdb->get_results($wpdb->prepare($sql_folders, $uid));
+
+    // 2. Projects
+    $sql_projects = "SELECT p.*, 
+                    (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_tasks WHERE project_id = p.id AND status = 'completed') as completed_count, 
+                    (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_tasks WHERE project_id = p.id AND status != 'trash') as total_count 
+                    FROM {$wpdb->prefix}h2l_projects p 
+                    WHERE p.status != 'trash' 
+                    AND ( (p.slug != 'inbox-project' AND p.slug != 'notlarim') OR p.owner_id = %d )
+                    ORDER BY p.title ASC";
+    
+    $all_projects = $wpdb->get_results($wpdb->prepare($sql_projects, $uid));
+    
+    // GÜNCELLEME: Kişisel favori ID'lerini çek
+    $fav_ids = $wpdb->get_col($wpdb->prepare("SELECT project_id FROM {$wpdb->prefix}h2l_user_favorites WHERE user_id = %d", $uid));
+    
+    $visible_projects = [];
+    $member_project_ids = []; 
+
     foreach ($all_projects as $p) {
         $managers = !empty($p->managers) ? json_decode((string)$p->managers, true) : [];
         if (!is_array($managers)) $managers = [];
-        if ( $p->owner_id == $uid || in_array((string)$uid, $managers) || in_array($uid, $managers) ) { $p->managers = $managers; $visible_projects[] = $p; $visible_project_ids[] = $p->id; }
+        
+        $is_owner = ($p->owner_id == $uid);
+        $is_manager = in_array((string)$uid, $managers) || in_array($uid, $managers);
+        
+        $p->is_member = ($is_owner || $is_manager);
+        $p->managers = $managers;
+        
+        // GÜNCELLEME: Favori durumunu kişiye özel ayarla
+        $p->is_favorite = in_array($p->id, $fav_ids);
+        
+        $visible_projects[] = $p;
+        
+        if ($p->is_member) {
+            $member_project_ids[] = $p->id;
+        }
     }
+
+    // 3. Tasks
     $tasks = [];
-    if (!empty($visible_project_ids)) {
-        $ids_placeholder = implode(',', array_fill(0, count($visible_project_ids), '%d'));
-        $tasks = $wpdb->get_results($wpdb->prepare("SELECT t.*, (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_comments c WHERE c.task_id = t.id) as comment_count FROM {$wpdb->prefix}h2l_tasks t WHERE status != 'trash' AND project_id IN ($ids_placeholder) ORDER BY sort_order ASC, created_at ASC", $visible_project_ids));
+    if (!empty($member_project_ids)) {
+        $ids_placeholder = implode(',', array_fill(0, count($member_project_ids), '%d'));
+        $tasks = $wpdb->get_results($wpdb->prepare(
+            "SELECT t.*, (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_comments c WHERE c.task_id = t.id) as comment_count 
+             FROM {$wpdb->prefix}h2l_tasks t 
+             WHERE status != 'trash' AND project_id IN ($ids_placeholder) 
+             ORDER BY sort_order ASC, created_at ASC", 
+            $member_project_ids
+        ));
+
         $task_ids = array_column($tasks, 'id');
         $task_labels_map = [];
         if (!empty($task_ids)) {
@@ -144,20 +171,24 @@ function h2l_api_get_init_data( $request ) {
             return $t;
         }, $tasks);
     }
+
+    // 4. Sections
     $sections = [];
-    if (!empty($visible_project_ids)) {
-        $ids_placeholder = implode(',', array_fill(0, count($visible_project_ids), '%d'));
-        $sections = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->prefix}h2l_sections WHERE project_id IN ($ids_placeholder) ORDER BY sort_order ASC", $visible_project_ids));
+    if (!empty($member_project_ids)) {
+        $ids_placeholder = implode(',', array_fill(0, count($member_project_ids), '%d'));
+        $sections = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->prefix}h2l_sections WHERE project_id IN ($ids_placeholder) ORDER BY sort_order ASC", $member_project_ids));
     }
+
     $labels = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}h2l_labels ORDER BY name ASC");
     $users = array_map(function($u) { 
         return [
             'id' => $u->ID, 
             'name' => $u->display_name, 
-            'username' => $u->user_login, // Mention için gerekli
+            'username' => $u->user_login, 
             'avatar' => h2l_get_user_profile_picture_url($u->ID)
         ]; 
     }, get_users());
+
     return rest_ensure_response( array('folders' => $folders, 'projects' => $visible_projects, 'sections' => $sections, 'tasks' => $tasks, 'users' => $users, 'labels' => $labels, 'uid' => $uid) );
 }
 
@@ -333,18 +364,26 @@ function h2l_api_manage_project($request) {
         if (isset($params['viewType'])) $data['view_type'] = sanitize_text_field((string)$params['viewType']);
         if (isset($params['managers'])) {
             $managers = $params['managers'];
-            // Özel klasör kontrolü
             if (isset($params['folderId'])) {
                 $folder = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_folders WHERE id = %d", $params['folderId']));
                 if ($folder && $folder->access_type === 'private') { $managers = []; }
             }
             $clean_managers = array_map('strval', $managers);
             $data['managers'] = json_encode($clean_managers);
-            
-            // Yeni eklenen yöneticileri bul
             $new_managers_notify = array_diff($clean_managers, $old_managers);
         }
-        if (isset($params['is_favorite'])) $data['is_favorite'] = !empty($params['is_favorite']) ? 1 : 0;
+        
+        // GÜNCELLEME: is_favorite kişisel tabloya kaydedilir, proje tablosuna değil
+        if (isset($params['is_favorite'])) {
+            $is_fav = !empty($params['is_favorite']) ? 1 : 0;
+            $table_favs = $wpdb->prefix . 'h2l_user_favorites';
+            if ($is_fav) {
+                $wpdb->replace($table_favs, ['user_id' => $current_user_id, 'project_id' => $id, 'created_at' => current_time('mysql')]);
+            } else {
+                $wpdb->delete($table_favs, ['user_id' => $current_user_id, 'project_id' => $id]);
+            }
+            // Not: $data içine 'is_favorite' eklemiyoruz
+        }
         
         if (!empty($data)) { $wpdb->update($table_projects, $data, ['id' => $id]); }
         $new_id = $id; 
@@ -358,11 +397,18 @@ function h2l_api_manage_project($request) {
             if ($folder && $folder->access_type === 'private') $managers = [];
         }
         $clean_managers = array_map('strval', $managers);
-        $data = [ 'title' => sanitize_text_field((string)($params['title'] ?? '')), 'folder_id' => $folder_id, 'color' => sanitize_hex_color((string)($params['color'] ?? '#808080')), 'view_type' => sanitize_text_field((string)($params['viewType'] ?? 'list')), 'managers' => json_encode($clean_managers), 'is_favorite' => !empty($params['is_favorite']) ? 1 : 0, 'owner_id' => $current_user_id, 'created_at' => current_time('mysql'), 'status' => 'active' ];
+        $data = [ 'title' => sanitize_text_field((string)($params['title'] ?? '')), 'folder_id' => $folder_id, 'color' => sanitize_hex_color((string)($params['color'] ?? '#808080')), 'view_type' => sanitize_text_field((string)($params['viewType'] ?? 'list')), 'managers' => json_encode($clean_managers), 'owner_id' => $current_user_id, 'created_at' => current_time('mysql'), 'status' => 'active' ];
+        // Not: Yeni projede varsayılan favori yoktur (veya istenirse eklenebilir)
+        
         $wpdb->insert($table_projects, $data); 
         $new_id = $wpdb->insert_id; 
         
-        // Yeni projede eklenen herkes "yeni"dir
+        // Yeni projeyi oluşturan kişi favoriye eklemek istediyse
+        if (isset($params['is_favorite']) && !empty($params['is_favorite'])) {
+            $table_favs = $wpdb->prefix . 'h2l_user_favorites';
+            $wpdb->replace($table_favs, ['user_id' => $current_user_id, 'project_id' => $new_id, 'created_at' => current_time('mysql')]);
+        }
+
         $new_managers_notify = $clean_managers;
     }
 
@@ -372,7 +418,13 @@ function h2l_api_manage_project($request) {
         $reminder->send_project_invite_notification($new_id, $new_managers_notify);
     }
 
-    return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_projects WHERE id=%d", $new_id));
+    $proj = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_projects WHERE id=%d", $new_id));
+    
+    // Response için favori durumunu ekle
+    $fav_check = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->prefix}h2l_user_favorites WHERE user_id = %d AND project_id = %d", $current_user_id, $new_id));
+    $proj->is_favorite = $fav_check > 0;
+    
+    return $proj;
 }
 
 function h2l_api_manage_folder($request) {

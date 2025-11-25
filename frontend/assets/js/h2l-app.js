@@ -6,20 +6,18 @@
     const { Sidebar } = window.H2L;
     const { ProjectsDashboard, ProjectModal, FolderModal } = window.H2L.Projects;
     const { ProjectDetail } = window.H2L;
-    const { ListView, UpcomingView, TodayView } = window.H2L.Tasks; // TodayView eklendi
+    const { ListView, UpcomingView, TodayView } = window.H2L.Tasks;
     
     const TaskModal = window.H2L && window.H2L.TaskModal ? window.H2L.TaskModal : { TaskDetailModal: () => null };
     const { TaskDetailModal } = TaskModal;
 
     const BASE_URL = settings.base_url || '/gorevler';
 
-    // --- YENİ: Labels & Filters Sayfası (Güncellendi) ---
+    // --- YENİ: Labels & Filters Sayfası ---
     const FiltersLabelsView = ({ labels, navigate }) => {
         const [expanded, setExpanded] = useState({ filters: true, labels: true });
-        
         const toggle = (key) => setExpanded({ ...expanded, [key]: !expanded[key] });
 
-        // Statik Filtreler (Mock Data)
         const staticFilters = [
             { id: 'f1', name: 'Bana atananlar', icon: 'user', count: 4 },
             { id: 'f2', name: 'Öncelik 1', icon: 'flag', count: 3 }
@@ -29,8 +27,6 @@
             el('div', { className: 'h2l-header-area h2l-filters-header' }, 
                 el('h1', null, 'Filtreler & Etiketler')
             ),
-            
-            // Filtreler Bölümü
             el('div', { className: 'h2l-filter-section' },
                 el('div', { className: 'h2l-filter-section-header', onClick: () => toggle('filters') },
                     el('div', { className: 'h2l-filter-toggle' },
@@ -44,7 +40,7 @@
                     staticFilters.map(f => 
                         el('div', { key: f.id, className: 'h2l-filter-row' },
                             el('div', { className: 'h2l-filter-left' },
-                                el(Icon, { name: f.icon }), // icon-droplet vb olabilir
+                                el(Icon, { name: f.icon }),
                                 f.name
                             ),
                             el('span', { className: 'h2l-filter-count' }, f.count)
@@ -52,8 +48,6 @@
                     )
                 )
             ),
-
-            // Etiketler Bölümü
             el('div', { className: 'h2l-filter-section' },
                 el('div', { className: 'h2l-filter-section-header', onClick: () => toggle('labels') },
                     el('div', { className: 'h2l-filter-toggle' },
@@ -70,7 +64,7 @@
                                 el(Icon, { name: 'tag', style: { color: l.color || '#808080', transform: 'rotate(45deg)' } }), 
                                 l.name
                             ),
-                            el('span', { className: 'h2l-filter-count' }, '1') // Mock count
+                            el('span', { className: 'h2l-filter-count' }, '1')
                         )
                     )
                 )
@@ -78,7 +72,7 @@
         );
     };
 
-    // --- YENİ: Settings Modal ---
+    // --- Modallar ---
     const SettingsModal = ({ onClose }) => {
         return el('div', { className: 'h2l-overlay', onClick: onClose },
             el('div', { className: 'h2l-modal medium', onClick: e => e.stopPropagation() },
@@ -95,42 +89,22 @@
         );
     };
 
-    // --- YENİ: Help Modal (Kısayollar & Smart Parser) ---
     const HelpModal = ({ onClose }) => {
         return el('div', { className: 'h2l-overlay', onClick: onClose },
             el('div', { className: 'h2l-modal large h2l-help-modal', onClick: e => e.stopPropagation() },
                 el('div', { className: 'h2l-modal-header' }, el('h3', null, 'Yardım & Kısayollar'), el(Icon, { name: 'xmark', onClick: onClose })),
                 el('div', { className: 'h2l-modal-body' },
-                    
-                    // Bölüm 1: Akıllı Hızlı Ekleme
                     el('div', { className: 'h2l-help-section' },
                         el('h4', null, el(Icon, {name:'bolt'}), ' Hızlı Ekleme İpuçları'),
                         el('p', null, 'Görev eklerken veya düzenlerken aşağıdaki sembolleri kullanarak hızlıca detay ekleyebilirsiniz:'),
                         el('div', { className: 'h2l-help-grid' },
-                            el('div', { className: 'h2l-help-item' }, 
-                                el('span', { className: 'h2l-tag-demo date' }, 'yarın 15:00'), 
-                                el('span', null, 'Tarih ve saat (Doğal dil)')
-                            ),
-                            el('div', { className: 'h2l-help-item' }, 
-                                el('span', { className: 'h2l-tag-demo priority' }, 'p1'), 
-                                el('span', null, 'Öncelik (p1, p2, p3)')
-                            ),
-                            el('div', { className: 'h2l-help-item' }, 
-                                el('span', { className: 'h2l-tag-demo mention' }, '@ali'), 
-                                el('span', null, 'Kişi atama')
-                            ),
-                            el('div', { className: 'h2l-help-item' }, 
-                                el('span', { className: 'h2l-tag-demo project' }, '#proje'), 
-                                el('span', null, 'Projeye ekle')
-                            ),
-                            el('div', { className: 'h2l-help-item' }, 
-                                el('span', { className: 'h2l-tag-demo section' }, '>bölüm'), 
-                                el('span', null, 'Bölüme ekle')
-                            )
+                            el('div', { className: 'h2l-help-item' }, el('span', { className: 'h2l-tag-demo date' }, 'yarın 15:00'), el('span', null, 'Tarih ve saat (Doğal dil)')),
+                            el('div', { className: 'h2l-help-item' }, el('span', { className: 'h2l-tag-demo priority' }, 'p1'), el('span', null, 'Öncelik (p1, p2, p3)')),
+                            el('div', { className: 'h2l-help-item' }, el('span', { className: 'h2l-tag-demo mention' }, '@ali'), el('span', null, 'Kişi atama')),
+                            el('div', { className: 'h2l-help-item' }, el('span', { className: 'h2l-tag-demo project' }, '#proje'), el('span', null, 'Projeye ekle')),
+                            el('div', { className: 'h2l-help-item' }, el('span', { className: 'h2l-tag-demo section' }, '>bölüm'), el('span', null, 'Bölüme ekle'))
                         )
                     ),
-
-                    // Bölüm 2: Klavye Kısayolları
                     el('div', { className: 'h2l-help-section' },
                         el('h4', null, el(Icon, {name:'keyboard'}), ' Klavye Kısayolları'),
                         el('table', { className: 'h2l-shortcuts-table' },
@@ -164,7 +138,7 @@
         const [data, setData] = useState({ folders: [], projects: [], tasks: [], users: [], sections: [], labels: [] });
         const [loading, setLoading] = useState(true);
         const [viewState, setViewState] = useState({ type: 'projects' });
-        const [modal, setModal] = useState(null); // { type: 'project'|'folder'|'settings'|'help', data: ... }
+        const [modal, setModal] = useState(null);
         const [activeTaskId, setActiveTaskId] = useState(null); 
         const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
         const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -230,7 +204,6 @@
         useEffect(() => { if (!loading) { const path = window.location.pathname.replace(BASE_URL, ''); parseRoute(path); } }, [loading, data.tasks]);
         useEffect(() => { window.onpopstate = () => { const path = window.location.pathname.replace(BASE_URL, ''); parseRoute(path); }; }, [data.projects, data.tasks]);
 
-        // Kısayol Tuşları (Global)
         useEffect(() => {
             const handleGlobalKeys = (e) => {
                 if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
@@ -260,6 +233,16 @@
         const handleUpdateSection = (id, data) => apiFetch({ path: `/h2l/v1/sections/${id}`, method: 'POST', data: data }).then(loadData);
         const handleDeleteSection = (id) => apiFetch({ path: `/h2l/v1/sections/${id}`, method: 'DELETE' }).then(loadData);
         
+        // FAVORİ TOGGLE FONKSİYONU (YENİ)
+        const handleToggleFavorite = (project) => {
+            const newStatus = parseInt(project.is_favorite) === 1 ? 0 : 1;
+            apiFetch({ 
+                path: `/h2l/v1/projects/${project.id}`, 
+                method: 'POST', 
+                data: { is_favorite: newStatus } 
+            }).then(loadData);
+        };
+
         if(loading) return el('div', {className:'h2l-loading'}, el(Icon,{name:'circle-notch', className:'fa-spin'}), ' Yükleniyor...');
 
         const todayStr = new Date().toISOString().split('T')[0];
@@ -278,7 +261,8 @@
 
         if (viewState.type === 'projects') {
             visibleTasks = data.tasks.filter(t => t.status !== 'trash');
-            content = el(ProjectsDashboard, { data, navigate, onAction: handleAction });
+            // onToggleFavorite iletildi
+            content = el(ProjectsDashboard, { data, navigate, onAction: handleAction, onToggleFavorite: handleToggleFavorite });
         } 
         else if (viewState.type === 'project_detail') {
             const activeProject = data.projects.find(p => parseInt(p.id) === viewState.id);
@@ -289,7 +273,6 @@
             } else { content = el('div', {className: 'h2l-error'}, 'Proje bulunamadı.'); }
         }
         else if (viewState.type === 'today') {
-            // Bugün Görünümü (GÜNCELLENDİ: TodayView kullanılıyor)
             content = el(TodayView, { 
                 tasks: data.tasks.filter(t => t.status !== 'trash'),
                 users: data.users, 
@@ -339,7 +322,8 @@
                 isMobileOpen: isMobileSidebarOpen, closeMobile: () => setIsMobileSidebarOpen(false),
                 onAddProject: () => setModal({type: 'project', data: null}),
                 onOpenSettings: () => setModal({ type: 'settings' }),
-                onOpenHelp: () => setModal({ type: 'help' })
+                onOpenHelp: () => setModal({ type: 'help' }),
+                onToggleFavorite: handleToggleFavorite 
             }),
             
             el('div', { className: 'h2l-mobile-trigger', onClick: () => setIsMobileSidebarOpen(true) }, el(Icon, {name: 'bars'})),
