@@ -79,6 +79,17 @@
         );
     };
 
+    const DeleteSectionModal = ({ section, onClose, onConfirm }) => {
+        return el('div', { className: 'h2l-detail-overlay', style: { zIndex: 20050 }, onClick: onClose },
+            el('div', { className: 'h2l-confirm-modal', onClick: e => e.stopPropagation() },
+                el('div', { style: { textAlign: 'center', marginBottom: 10 } }, el(Icon, { name: 'triangle-exclamation', style: { fontSize: 40, color: '#d1453b' } })),
+                el('h3', { className: 'h2l-confirm-title', style: { textAlign: 'center' } }, 'Bölümü sil?'),
+                el('p', { className: 'h2l-confirm-desc', style: { textAlign: 'center' } }, 'Bu bölüm ve içindeki tüm görevler kalıcı olarak silinecek.'),
+                el('div', { className: 'h2l-confirm-footer', style: { justifyContent: 'center' } }, el('button', { className: 'h2l-btn', onClick: onClose }, 'İptal'), el('button', { className: 'h2l-btn danger-filled', onClick: onConfirm }, 'Evet, Sil'))
+            )
+        );
+    };
+
     const TaskRow = ({ task, users, projects = [], sections = [], onUpdateTask, onDeleteTask, onTaskClick, highlightToday, onMoveTask, onAddTask, labels, navigate }) => {
         const [isEditing, setIsEditing] = useState(false);
         const [editorOpenMenu, setEditorOpenMenu] = useState(null); 
@@ -341,9 +352,14 @@
         const handleContainerDragLeave = () => { setDragOver(false); setSectionDragOverState(null); };
 
         if (isEditing) {
-            return el('div', { className: 'h2l-section-edit-mode' },
-                el('input', { className: 'h2l-section-edit-input', value: secName, autoFocus: true, onChange: e => setSecName(e.target.value), onKeyDown: e => { if(e.key==='Enter') handleSaveName(); if(e.key==='Escape') { setSecName(section.name); setIsEditing(false); } } }),
-                el('div', { className: 'h2l-section-edit-actions' }, el('button', { className: 'h2l-btn primary', onClick: handleSaveName }, 'Kaydet'), el('button', { className: 'h2l-btn text-cancel', onClick: () => { setSecName(section.name); setIsEditing(false); } }, 'İptal'))
+            return el('div', { className: 'h2l-section-add-form', style: { marginTop: 0, marginBottom: 15 } }, 
+                el('form', { onSubmit: (e) => { e.preventDefault(); handleSaveName(); } },
+                    el('input', { className: 'h2l-section-input', value: secName, autoFocus: true, onChange: e => setSecName(e.target.value), onKeyDown: e => { if(e.key==='Escape') { setSecName(section.name); setIsEditing(false); } } }),
+                    el('div', { className: 'h2l-form-actions' }, 
+                        el('button', { type: 'submit', className: 'h2l-btn primary' }, 'Kaydet'), 
+                        el('button', { type: 'button', className: 'h2l-btn', onClick: () => { setSecName(section.name); setIsEditing(false); } }, 'İptal')
+                    )
+                )
             );
         }
 
@@ -357,6 +373,7 @@
             onDragLeave: handleContainerDragLeave,
             onDrop: handleContainerDrop
         },
+            showDeleteModal && el(DeleteSectionModal, { section, onClose: () => setShowDeleteModal(false), onConfirm: () => { onDeleteSection(section.id); setShowDeleteModal(false); } }),
             el('div', { 
                 className: 'h2l-section-header-row',
                 draggable: true,
@@ -897,6 +914,7 @@
                     onUpdateSection, onDeleteSection, 
                     onMoveTask: handleMoveTask,
                     onMoveSection: handleMoveSection,
+                    onAddTask, // <-- FIX: Added this prop
                     labels, navigate 
                 });
             }),
