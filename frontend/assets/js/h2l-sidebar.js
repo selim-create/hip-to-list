@@ -4,12 +4,9 @@
 
     window.H2L = window.H2L || {};
     
-    // Sidebar Bölüm Başlığı (Collapsible)
     const SidebarSection = ({ title, children, defaultExpanded = true, onAddClick, isCollapsed }) => {
         const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-        
         if (isCollapsed) return null; 
-
         return el('div', { className: 'h2l-sb-section' },
             el('div', { className: 'h2l-sb-section-header' },
                 el('div', { className: 'h2l-sb-section-toggle', onClick: () => setIsExpanded(!isExpanded) },
@@ -53,8 +50,8 @@
             return false;
         };
 
-        const favoriteProjects = projects.filter(p => p.is_favorite === true);
-        const otherProjects = projects.filter(p => (!p.slug || p.slug !== 'inbox-project') && !p.is_favorite);
+        const favoriteProjects = projects ? projects.filter(p => p.is_favorite === true) : [];
+        const otherProjects = projects ? projects.filter(p => (!p.slug || p.slug !== 'inbox-project') && !p.is_favorite) : [];
 
         const handleNavigation = (path) => {
             navigate(path);
@@ -63,7 +60,6 @@
 
         return el('aside', { className: `h2l-sidebar-container ${isCollapsed ? 'collapsed' : ''} ${isMobileOpen ? 'mobile-open' : ''}` },
             
-            // 1. HEADER
             el('div', { className: 'h2l-sb-header' },
                 el('div', { className: 'h2l-sb-user-area' },
                     el('div', { className: 'h2l-sb-avatar' }, 'H'),
@@ -77,37 +73,27 @@
                 )
             ),
 
-            // 2. SCROLLABLE CONTENT
             el('div', { className: 'h2l-sb-scroll-area' },
                 
-                // VIEWS
                 el('div', { className: 'h2l-sb-views' },
                     el(SidebarItem, { icon: 'inbox', label: 'Gelen Kutusu', count: counts.inbox, color: '#246fe0', isActive: isActive('inbox'), isCollapsed, onClick: () => handleNavigation('/inbox') }),
                     el(SidebarItem, { icon: 'calendar-day', label: 'Bugün', count: counts.today, color: '#058527', isActive: isActive('today'), isCollapsed, onClick: () => handleNavigation('/bugun') }),
                     el(SidebarItem, { icon: 'calendar-week', label: 'Yaklaşan', count: counts.upcoming, color: '#692fc2', isActive: isActive('upcoming'), isCollapsed, onClick: () => handleNavigation('/yaklasan') }),
                     
-                    // Etiketler & Filtreler Menüsü
+                    // YENİ: Toplantı Asistanı Linki
                     el(SidebarItem, { 
-                        icon: 'tags', 
-                        label: 'Etiketler & Filtreler', 
-                        color: '#e67e22', 
-                        isActive: isActive('filters_labels'), 
+                        icon: 'microphone', 
+                        label: 'Toplantı Asistanı', 
+                        color: '#e84393', 
+                        isActive: isActive('meetings') || isActive('live_meeting') || isActive('meeting_summary'), 
                         isCollapsed, 
-                        onClick: () => handleNavigation('/filtreler-etiketler') 
+                        onClick: () => handleNavigation('/toplantilar') 
                     }),
 
-                    // GÜNCELLEME: Tüm Projeler Butonu
-                    el(SidebarItem, {
-                        icon: 'list',
-                        label: 'Tüm Projeler',
-                        color: '#333',
-                        isActive: isActive('projects'),
-                        isCollapsed,
-                        onClick: () => handleNavigation('')
-                    })
+                    el(SidebarItem, { icon: 'tags', label: 'Etiketler & Filtreler', color: '#e67e22', isActive: isActive('filters_labels'), isCollapsed, onClick: () => handleNavigation('/filtreler-etiketler') }),
+                    el(SidebarItem, { icon: 'list', label: 'Tüm Projeler', color: '#333', isActive: isActive('projects'), isCollapsed, onClick: () => handleNavigation('') })
                 ),
 
-                // FAVORITES
                 !isCollapsed && el(SidebarSection, { title: 'Favoriler', defaultExpanded: true },
                     favoriteProjects.length === 0 
                         ? el('div', { className: 'h2l-sb-empty-state' }, 'Henüz favoriniz yok.')
@@ -115,11 +101,10 @@
                             key: p.id, icon: 'circle', color: p.color, label: p.title, count: p.total_count, 
                             isActive: isActive('project_detail', p.id), isCollapsed: false, isFavorite: true,
                             onClick: () => handleNavigation(`/proje/${p.id}`),
-                            onToggleFavorite: () => onToggleFavorite(p) // Prop geçirildi
+                            onToggleFavorite: () => onToggleFavorite(p)
                         }))
                 ),
 
-                // PROJECTS
                 !isCollapsed && el(SidebarSection, { title: 'Projelerim', defaultExpanded: false, onAddClick: onAddProject },
                     otherProjects.length === 0
                         ? el('div', { className: 'h2l-sb-empty-state' }, 'Proje bulunamadı.')
@@ -127,12 +112,11 @@
                             key: p.id, icon: 'circle', color: p.color, label: p.title, count: p.total_count, 
                             isActive: isActive('project_detail', p.id), isCollapsed: false, isFavorite: false,
                             onClick: () => handleNavigation(`/proje/${p.id}`),
-                            onToggleFavorite: () => onToggleFavorite(p) // Prop geçirildi
+                            onToggleFavorite: () => onToggleFavorite(p)
                         }))
                 )
             ),
 
-            // 3. FOOTER
             el('div', { className: 'h2l-sb-footer' },
                 el('button', { className: 'h2l-sb-footer-btn', title: 'Ayarlar', onClick: onOpenSettings }, 
                     el(Icon, { name: 'gear' }), !isCollapsed && ' Ayarlar'

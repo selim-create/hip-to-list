@@ -1,8 +1,7 @@
 <?php
 /**
  * Hip to List - Admin Sayfaları
- * Ayarlar Sayfası: Giriş Metni ve Footer için ayrı editörler eklendi.
- * GÜNCELLEME: Toplu İşlemler, Sayfalandırma, Çöp Kutusu Boşaltma ve Alt Görev Gösterimi eklendi.
+ * GÜNCELLEME: Ayarlar sayfasına "API & Toplantı" sekmesi eklendi.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -56,7 +55,6 @@ function h2l_admin_scripts($hook) {
     wp_enqueue_style('select2-css', 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css');
     wp_enqueue_script('select2-js', 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js', array('jquery'), '4.1.0', true);
     wp_add_inline_style('admin-bar', '.h2l-color-option { display: inline-block; width: 30px; height: 30px; border-radius: 50%; margin-right: 10px; cursor: pointer; border: 2px solid transparent; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: transform 0.2s; }.h2l-color-option:hover { transform: scale(1.1); }.h2l-color-option.selected { border-color: #333; transform: scale(1.1); box-shadow: 0 0 0 2px #fff, 0 0 0 4px #333; }.subsubsub { float: none; margin-bottom: 15px; }.select2-container { display: block; width: 100% !important; margin-bottom: 5px; }.select2-container .select2-selection--single { height: 38px; border-color: #8c8f94; }.select2-container .select2-selection--single .select2-selection__rendered { line-height: 36px; padding-left: 10px; }.select2-container .select2-selection--single .select2-selection__arrow { height: 36px; }.select2-container--default .select2-selection--multiple { border-color: #8c8f94; min-height: 38px; }.select2-search__field { min-height: 28px; margin-top: 5px !important; }.h2l-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:8px; }.h2l-label-card { display: inline-flex; align-items: center; background: #fff; padding: 6px 12px; border: 1px solid #ddd; border-radius: 20px; margin: 0 8px 8px 0; }.h2l-label-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }.h2l-section-list { margin-top: 10px; background: #f9f9f9; border: 1px solid #e5e5e5; padding: 10px; border-radius: 4px; }.h2l-section-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; align-items: center; }.h2l-section-item:last-child { border-bottom: none; }');
-    wp_add_inline_script('select2-js', 'jQuery(document).ready(function($){ $(".h2l-datetime").flatpickr({ enableTime: true, dateFormat: "Y-m-d H:i", locale: "tr", time_24hr: true, altInput: true, altFormat: "j F Y, H:i" }); $(".h2l-select2").select2({ width: "100%", placeholder: "Seçiniz..." }); function formatPriority (state) { if (!state.id) return state.text; var color = $(state.element).data("color"); if(!color) return state.text; return $("<span><span class=\'h2l-dot\' style=\'background-color:" + color + "\'></span>" + state.text + "</span>"); }; $(".h2l-select2-priority").select2({ width: "100%", templateResult: formatPriority, templateSelection: formatPriority, minimumResultsForSearch: Infinity }); $(".h2l-select2-tags").select2({ width: "100%", tags: true, tokenSeparators: [",", " "], placeholder: "Etiket ara veya yazıp oluştur..." }); $(".h2l-color-option").click(function(){ $(".h2l-color-option").removeClass("selected"); $(this).addClass("selected"); $("#" + $(this).data("input-id")).val($(this).data("color")); }); $("#h2l-project-select").on("change", function() { var projectId = $(this).val(); var $sectionSelect = $("#h2l-section-select"); var currentVal = $sectionSelect.data("selected"); $sectionSelect.empty().append("<option value=\'0\'>-- Bölümsüz --</option>"); if (projectId && window.h2lSections && window.h2lSections[projectId]) { $.each(window.h2lSections[projectId], function(id, name) { var isSelected = (currentVal == id) ? "selected" : ""; $sectionSelect.append("<option value=\'" + id + "\' " + isSelected + ">" + name + "</option>"); }); } $sectionSelect.trigger("change"); }); if($("#h2l-project-select").val()) { $("#h2l-project-select").trigger("change"); } });');
 }
 
 function h2l_get_color_palette() { return ['#db4c3f', '#e67e22', '#f1c40f', '#27ae60', '#2980b9', '#8e44ad', '#2c3e50', '#7f8c8d', '#e84393', '#00cec9']; }
@@ -78,9 +76,6 @@ function h2l_render_tasks_page() {
     $table_folders = $wpdb->prefix . 'h2l_folders'; 
     $table_sections = $wpdb->prefix . 'h2l_sections';
 
-    // --- İŞLEM YÖNETİMİ ---
-    
-    // 1. Tekil İşlemler (Geri Al için özel durum)
     if (isset($_GET['action']) && $_GET['action'] == 'restore' && isset($_GET['id'])) { 
         $wpdb->update($table_tasks, array('status' => 'in_progress'), array('id' => intval($_GET['id']))); 
         h2l_show_admin_notice('Görev geri alındı.'); 
@@ -88,7 +83,6 @@ function h2l_render_tasks_page() {
         h2l_handle_status_actions($table_tasks); 
     }
 
-    // 2. Toplu İşlemler
     if (isset($_POST['bulk_action']) && isset($_POST['bulk_ids'])) {
         check_admin_referer('h2l_bulk_tasks');
         $action = sanitize_text_field($_POST['bulk_action']);
@@ -110,14 +104,12 @@ function h2l_render_tasks_page() {
         }
     }
 
-    // 3. Çöpü Boşalt
     if (isset($_POST['empty_trash']) && $_POST['empty_trash'] == 1) {
         check_admin_referer('h2l_empty_trash');
         $wpdb->delete($table_tasks, array('status' => 'trash'));
         h2l_show_admin_notice('Çöp kutusu boşaltıldı.');
     }
 
-    // --- GÖRÜNÜM AYARLARI VE SORGULAR ---
     $view_status = isset($_GET['status_view']) ? $_GET['status_view'] : 'active';
     $where = $view_status == 'trash' ? "WHERE t.status = 'trash'" : "WHERE t.status != 'trash'";
     
@@ -133,18 +125,14 @@ function h2l_render_tasks_page() {
     if($f_folder) $where .= $wpdb->prepare(" AND p.folder_id = %d", $f_folder);
     if($f_date) $where .= $wpdb->prepare(" AND DATE(t.due_date) = %s", $f_date);
 
-    // Sayfalama
     $per_page = 20;
     $current_page = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
     $offset = ($current_page - 1) * $per_page;
 
-    // Toplam Kayıt Sayısı
     $total_items = $wpdb->get_var("SELECT COUNT(*) FROM $table_tasks t LEFT JOIN $table_projects p ON t.project_id = p.id $where");
-    
     $count_active = $wpdb->get_var("SELECT COUNT(*) FROM $table_tasks WHERE status != 'trash'");
     $count_trash = $wpdb->get_var("SELECT COUNT(*) FROM $table_tasks WHERE status = 'trash'");
     
-    // Kayıtları Getir (GÜNCEL: Parent Task Title için LEFT JOIN eklendi)
     $tasks = $wpdb->get_results("SELECT t.*, p.title as project_title, f.name as folder_name, s.name as section_name, pt.title as parent_task_title FROM $table_tasks t LEFT JOIN $table_projects p ON t.project_id = p.id LEFT JOIN $table_folders f ON p.folder_id = f.id LEFT JOIN $table_sections s ON t.section_id = s.id LEFT JOIN $table_tasks pt ON t.parent_task_id = pt.id $where ORDER BY t.created_at DESC LIMIT $per_page OFFSET $offset");
     
     $all_projects = $wpdb->get_results("SELECT * FROM $table_projects WHERE status != 'trash'");
@@ -188,7 +176,6 @@ function h2l_render_tasks_page() {
                     $status_map = ['not_started' => 'Başlamadı', 'in_progress' => 'Devam Ediyor', 'on_hold' => 'Beklemede', 'in_review' => 'Revizyonda', 'pending_approval' => 'Onay Bekliyor', 'cancelled' => 'İptal Edildi', 'completed' => 'Tamamlandı', 'open' => 'Devam Ediyor'];
                     $status_text = isset($status_map[$t->status]) ? $status_map[$t->status] : ucfirst($t->status);
                     
-                    // Alt Görev Göstergesi
                     $parent_html = '';
                     if (!empty($t->parent_task_title)) {
                         $parent_html = '<span style="display:block; font-size:11px; color:#888;">' . esc_html(wp_strip_all_tags($t->parent_task_title)) . ' &raquo;</span>';
@@ -232,10 +219,8 @@ function h2l_render_projects_page() {
     $table_folders = $wpdb->prefix . 'h2l_folders'; 
     $table_tasks = $wpdb->prefix . 'h2l_tasks'; 
     
-    // Tekil İşlemler
     h2l_handle_status_actions($table_projects);
 
-    // Toplu İşlemler
     if (isset($_POST['bulk_action']) && isset($_POST['bulk_ids'])) {
         check_admin_referer('h2l_bulk_projects');
         $action = sanitize_text_field($_POST['bulk_action']);
@@ -251,14 +236,12 @@ function h2l_render_projects_page() {
                 $wpdb->query("UPDATE $table_projects SET status = 'active' WHERE id IN ($ids_placeholder)");
                 h2l_show_admin_notice(count($ids) . ' proje geri alındı.');
             } elseif ($action === 'delete_permanent') {
-                // Projeye bağlı görevleri de silebiliriz veya yetim bırakabiliriz (şimdilik sadece proje)
                 $wpdb->query("DELETE FROM $table_projects WHERE id IN ($ids_placeholder)");
                 h2l_show_admin_notice(count($ids) . ' proje kalıcı olarak silindi.');
             }
         }
     }
 
-    // Çöpü Boşalt
     if (isset($_POST['empty_trash']) && $_POST['empty_trash'] == 1) {
         check_admin_referer('h2l_empty_trash');
         $wpdb->delete($table_projects, array('status' => 'trash'));
@@ -273,7 +256,6 @@ function h2l_render_projects_page() {
     if($search) $where .= $wpdb->prepare(" AND p.title LIKE %s", '%' . $wpdb->esc_like($search) . '%');
     if($filter_folder) $where .= $wpdb->prepare(" AND p.folder_id = %d", $filter_folder);
     
-    // Sayfalama
     $per_page = 20;
     $current_page = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
     $offset = ($current_page - 1) * $per_page;
@@ -339,14 +321,11 @@ function h2l_render_folders_page() {
     $table_projects = $wpdb->prefix . 'h2l_projects'; 
     $edit_mode = false; $edit_data = null;
 
-    // Tekil İşlemler
     if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) { $edit_mode = true; $edit_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", intval($_GET['id']))); }
     if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) { $wpdb->delete($table_name, array('id' => intval($_GET['id']))); h2l_show_admin_notice('Silindi.'); }
     
-    // Kaydetme
     if (isset($_POST['h2l_action'])) { check_admin_referer('h2l_save_folder'); $data = array('name'=>sanitize_text_field($_POST['folder_name']),'slug'=>sanitize_title($_POST['folder_name']),'description'=>sanitize_textarea_field($_POST['folder_desc']),'access_type'=>sanitize_text_field($_POST['folder_access']),'owner_id'=>get_current_user_id()); if (isset($_POST['folder_id']) && intval($_POST['folder_id']) > 0) { $wpdb->update($table_name, $data, array('id'=>intval($_POST['folder_id']))); h2l_show_admin_notice('Güncellendi.'); echo "<script>window.location.href='admin.php?page=h2l-folders';</script>"; } else { $wpdb->insert($table_name, $data); h2l_show_admin_notice('Oluşturuldu.'); } }
 
-    // Toplu İşlemler (Sadece Silme - Klasörlerde soft delete yok)
     if (isset($_POST['bulk_action']) && isset($_POST['bulk_ids'])) {
         check_admin_referer('h2l_bulk_folders');
         $action = sanitize_text_field($_POST['bulk_action']);
@@ -358,7 +337,6 @@ function h2l_render_folders_page() {
         }
     }
 
-    // Sayfalama
     $per_page = 20;
     $current_page = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
     $offset = ($current_page - 1) * $per_page;
@@ -449,19 +427,29 @@ function h2l_render_task_edit_page() {
     <?php
 }
 
-// 7. AYARLAR (YENİ: AYRI GİRİŞ VE FOOTER EDİTÖRLERİ)
-function h2l_render_settings_page() { 
-    // Ayarları Kaydet
+// 7. AYARLAR (YENİ: API & Toplantı Sekmesi)
+function h2l_render_settings_page() {
+    $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'general';
+
+    // 1. Kaydetme İşlemi
     if ( isset($_POST['h2l_save_settings']) ) {
         check_admin_referer('h2l_settings_nonce');
-        update_option('h2l_reminder_subject', sanitize_text_field($_POST['h2l_reminder_subject']));
-        update_option('h2l_reminder_body', wp_kses_post($_POST['h2l_reminder_body']));
-        update_option('h2l_reminder_footer', wp_kses_post($_POST['h2l_reminder_footer']));
+        
+        if ($active_tab === 'general') {
+            update_option('h2l_reminder_subject', sanitize_text_field($_POST['h2l_reminder_subject']));
+            update_option('h2l_reminder_body', wp_kses_post($_POST['h2l_reminder_body']));
+            update_option('h2l_reminder_footer', wp_kses_post($_POST['h2l_reminder_footer']));
+        } elseif ($active_tab === 'api') {
+            update_option('h2l_openai_api_key', sanitize_text_field($_POST['h2l_openai_api_key']));
+            update_option('h2l_meeting_model', sanitize_text_field($_POST['h2l_meeting_model']));
+            update_option('h2l_meeting_max_duration', intval($_POST['h2l_meeting_max_duration']));
+        }
+        
         h2l_show_admin_notice('Ayarlar kaydedildi.');
     }
 
-    // Test Maili Gönder
-    if ( isset($_POST['h2l_send_test_email']) ) {
+    // 2. Test E-postası (Sadece Genel sekmesinde)
+    if ( isset($_POST['h2l_send_test_email']) && $active_tab === 'general' ) {
         check_admin_referer('h2l_settings_nonce');
         $test_email = sanitize_email($_POST['h2l_test_email']);
         
@@ -477,98 +465,137 @@ function h2l_render_settings_page() {
         }
     }
 
+    // Değerleri Getir
     $subject = get_option('h2l_reminder_subject', '🔔 Hatırlatma: {task_title}');
     $body_intro = get_option('h2l_reminder_body', "Merhaba {user_name},\n\nAşağıdaki görevin zamanı geldi:");
     $footer_text = get_option('h2l_reminder_footer', 'Bu e-posta Hip to List tarafından gönderilmiştir.');
+    
+    $api_key = get_option('h2l_openai_api_key', '');
+    $meeting_model = get_option('h2l_meeting_model', 'gpt-4o-mini');
+    $max_duration = get_option('h2l_meeting_max_duration', 60); // Dakika
     ?>
     <div class="wrap">
         <h1>Ayarlar</h1>
         
-        <!-- Ayarlar Formu -->
-        <form method="post">
-            <?php wp_nonce_field('h2l_settings_nonce'); ?>
+        <h2 class="nav-tab-wrapper">
+            <a href="?page=h2l-settings&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>">Genel & Bildirimler</a>
+            <a href="?page=h2l-settings&tab=api" class="nav-tab <?php echo $active_tab == 'api' ? 'nav-tab-active' : ''; ?>">API & Toplantı</a>
+        </h2>
+        
+        <form method="post" style="margin-top: 20px;">
             <input type="hidden" name="h2l_save_settings" value="1">
+            <?php wp_nonce_field('h2l_settings_nonce'); ?>
             
-            <div class="card" style="padding:20px; max-width:800px; margin-bottom: 20px;">
-                <h2>Hatırlatıcı E-posta Şablonu</h2>
-                <p class="description">Kullanıcıya gönderilecek hatırlatma e-postasının içeriğini buradan düzenleyebilirsiniz.</p>
-                
-                <table class="form-table">
-                    <tr>
-                        <th scope="row"><label for="h2l_reminder_subject">E-posta Başlığı</label></th>
-                        <td>
-                            <input name="h2l_reminder_subject" type="text" id="h2l_reminder_subject" value="<?php echo esc_attr($subject); ?>" class="regular-text" style="width:100%">
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="h2l_reminder_body">E-posta Giriş Metni</label></th>
-                        <td>
-                            <p class="description" style="margin-bottom:5px;">Görev kartının <strong>üstünde</strong> yer alacak metin.</p>
-                            <?php 
-                            wp_editor($body_intro, 'h2l_reminder_body', array(
-                                'textarea_name' => 'h2l_reminder_body',
-                                'textarea_rows' => 8,
-                                'media_buttons' => false,
-                                'teeny' => true
-                            )); 
-                            ?>
-                            <p class="description" style="margin-top:5px; font-size:12px;">Değişkenler: <code>{user_name}</code></p>
-                        </td>
-                    </tr>
+            <?php if ($active_tab == 'general'): ?>
+                <!-- GENEL AYARLAR -->
+                <div class="card" style="padding:20px; max-width:800px; margin-bottom: 20px;">
+                    <h2>Hatırlatıcı E-posta Şablonu</h2>
+                    <p class="description">Kullanıcıya gönderilecek hatırlatma e-postasının içeriğini buradan düzenleyebilirsiniz.</p>
                     
-                    <!-- GÖRSEL TEMSİL (SABİT KART) -->
-                    <tr>
-                        <th scope="row">Sabit İçerik</th>
-                        <td>
-                            <div style="background:#f9f9f9; padding:15px; border:1px dashed #ccc; border-radius:4px; color:#777;">
-                                [GÖREV KARTI BURADA GÖRÜNTÜLENİR]<br>
-                                [GÖREVİ GÖRÜNTÜLE BUTONU BURADA GÖRÜNTÜLENİR]
-                            </div>
-                            <p class="description">Bu alan otomatik oluşturulur ve değiştirilemez.</p>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row"><label for="h2l_reminder_footer">E-posta Alt Bilgisi (Footer)</label></th>
-                        <td>
-                            <p class="description" style="margin-bottom:5px;">Butonun <strong>altında</strong> yer alacak metin.</p>
-                            <?php 
-                            wp_editor($footer_text, 'h2l_reminder_footer', array(
-                                'textarea_name' => 'h2l_reminder_footer',
-                                'textarea_rows' => 5,
-                                'media_buttons' => false,
-                                'teeny' => true
-                            )); 
-                            ?>
-                        </td>
-                    </tr>
-                </table>
-                
-                <p class="submit">
-                    <input type="submit" name="submit" id="submit" class="button button-primary" value="Değişiklikleri Kaydet">
-                </p>
-            </div>
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row"><label for="h2l_reminder_subject">E-posta Başlığı</label></th>
+                            <td>
+                                <input name="h2l_reminder_subject" type="text" id="h2l_reminder_subject" value="<?php echo esc_attr($subject); ?>" class="regular-text" style="width:100%">
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="h2l_reminder_body">E-posta Giriş Metni</label></th>
+                            <td>
+                                <p class="description" style="margin-bottom:5px;">Görev kartının <strong>üstünde</strong> yer alacak metin.</p>
+                                <?php 
+                                wp_editor($body_intro, 'h2l_reminder_body', array(
+                                    'textarea_name' => 'h2l_reminder_body',
+                                    'textarea_rows' => 8,
+                                    'media_buttons' => false,
+                                    'teeny' => true
+                                )); 
+                                ?>
+                                <p class="description" style="margin-top:5px; font-size:12px;">Değişkenler: <code>{user_name}</code></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Sabit İçerik</th>
+                            <td>
+                                <div style="background:#f9f9f9; padding:15px; border:1px dashed #ccc; border-radius:4px; color:#777;">
+                                    [GÖREV KARTI BURADA GÖRÜNTÜLENİR]<br>
+                                    [GÖREVİ GÖRÜNTÜLE BUTONU BURADA GÖRÜNTÜLENİR]
+                                </div>
+                                <p class="description">Bu alan otomatik oluşturulur ve değiştirilemez.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="h2l_reminder_footer">E-posta Alt Bilgisi (Footer)</label></th>
+                            <td>
+                                <p class="description" style="margin-bottom:5px;">Butonun <strong>altında</strong> yer alacak metin.</p>
+                                <?php 
+                                wp_editor($footer_text, 'h2l_reminder_footer', array(
+                                    'textarea_name' => 'h2l_reminder_footer',
+                                    'textarea_rows' => 5,
+                                    'media_buttons' => false,
+                                    'teeny' => true
+                                )); 
+                                ?>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            <?php elseif ($active_tab == 'api'): ?>
+                <!-- API AYARLARI -->
+                <div class="card" style="padding:20px; max-width:800px; margin-bottom: 20px;">
+                    <h2>OpenAI & Toplantı Ayarları</h2>
+                    <p class="description">Toplantı özetleri ve transkript analizi için gerekli API yapılandırması.</p>
+                    
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row"><label for="h2l_openai_api_key">OpenAI API Anahtarı</label></th>
+                            <td>
+                                <input name="h2l_openai_api_key" type="password" id="h2l_openai_api_key" value="<?php echo esc_attr($api_key); ?>" class="regular-text" style="width:100%">
+                                <p class="description">API anahtarınızı <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a> üzerinden alabilirsiniz.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="h2l_meeting_model">Özetleme Modeli</label></th>
+                            <td>
+                                <input name="h2l_meeting_model" type="text" id="h2l_meeting_model" value="<?php echo esc_attr($meeting_model); ?>" class="regular-text">
+                                <p class="description">Varsayılan: <code>gpt-4o-mini</code>. Maliyet/performans için önerilir.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="h2l_meeting_max_duration">Maksimum Toplantı Süresi</label></th>
+                            <td>
+                                <input name="h2l_meeting_max_duration" type="number" id="h2l_meeting_max_duration" value="<?php echo esc_attr($max_duration); ?>" class="small-text"> dakika
+                                <p class="description">Sunucu kaynaklarını korumak için maksimum kayıt süresi.</p>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            <?php endif; ?>
+            
+            <p class="submit"><input type="submit" class="button button-primary" value="Kaydet"></p>
         </form>
 
-        <!-- Test Gönderme Formu -->
-        <div class="card" style="padding:20px; max-width:800px;">
-            <h2>Test E-postası Gönder</h2>
-            <p class="description">Şablonunuzu test etmek için kendinize bir örnek e-posta gönderin.</p>
-            <form method="post">
-                <?php wp_nonce_field('h2l_settings_nonce'); ?>
-                <input type="hidden" name="h2l_send_test_email" value="1">
-                <table class="form-table">
-                    <tr>
-                        <th scope="row"><label for="h2l_test_email">Alıcı E-posta</label></th>
-                        <td>
-                            <input name="h2l_test_email" type="email" id="h2l_test_email" value="<?php echo esc_attr(wp_get_current_user()->user_email); ?>" class="regular-text">
-                            <input type="submit" class="button button-secondary" value="Test Gönder">
-                        </td>
-                    </tr>
-                </table>
-            </form>
-        </div>
+        <?php if ($active_tab == 'general'): ?>
+            <!-- Test Gönderme Formu (Sadece Genel sekmesinde) -->
+            <div class="card" style="padding:20px; max-width:800px; margin-top: 20px;">
+                <h2>Test E-postası Gönder</h2>
+                <p class="description">Şablonunuzu test etmek için kendinize bir örnek e-posta gönderin.</p>
+                <form method="post">
+                    <?php wp_nonce_field('h2l_settings_nonce'); ?>
+                    <input type="hidden" name="h2l_send_test_email" value="1">
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row"><label for="h2l_test_email">Alıcı E-posta</label></th>
+                            <td>
+                                <input name="h2l_test_email" type="email" id="h2l_test_email" value="<?php echo esc_attr(wp_get_current_user()->user_email); ?>" class="regular-text">
+                                <input type="submit" class="button button-secondary" value="Test Gönder">
+                            </td>
+                        </tr>
+                    </table>
+                </form>
+            </div>
+        <?php endif; ?>
     </div>
-    <?php 
+    <?php
 }
 ?>

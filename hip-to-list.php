@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Hip to List
  * Plugin URI:  https://hipmedya.com/
- * Description: Apple Reminders ve Todoist benzeri, ekip odaklı görev yönetim eklentisi.
- * Version:     1.1.0
+ * Description: Ekip odaklı görev yönetim eklentisi.
+ * Version:     1.0.9
  * Author:      Hip Medya
  * Text Domain: h2l
  * Domain Path: /languages

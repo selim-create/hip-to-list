@@ -8,12 +8,18 @@
     const { ProjectDetail } = window.H2L;
     const { ListView, UpcomingView, TodayView } = window.H2L.Tasks;
     
+    // --- YENİ: Güvenli Meeting Modülü İçe Aktarımı ---
+    // Eğer modül yüklenmediyse boş bileşenler döndürür, böylece uygulama çökmez.
+    const { MeetingsDashboard, StartMeetingModal, LiveMeetingView, SummaryView } = window.H2L.Meetings || { 
+        MeetingsDashboard: () => null, StartMeetingModal: () => null, LiveMeetingView: () => null, SummaryView: () => null 
+    };
+    
     const TaskModal = window.H2L && window.H2L.TaskModal ? window.H2L.TaskModal : { TaskDetailModal: () => null };
     const { TaskDetailModal } = TaskModal;
 
     const BASE_URL = settings.base_url || '/gorevler';
 
-    // --- YENİ: Labels & Filters Sayfası ---
+    // --- MEVCUT: Labels & Filters Sayfası ---
     const FiltersLabelsView = ({ labels, navigate }) => {
         const [expanded, setExpanded] = useState({ filters: true, labels: true });
         const toggle = (key) => setExpanded({ ...expanded, [key]: !expanded[key] });
@@ -142,6 +148,9 @@
         const [activeTaskId, setActiveTaskId] = useState(null); 
         const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
         const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+        
+        // --- YENİ: Meeting State ---
+        const [activeMeeting, setActiveMeeting] = useState(null);
 
         const loadData = () => {
             apiFetch({ path: '/h2l/v1/init' }).then(res => { setData(res); setLoading(false); })
@@ -187,6 +196,8 @@
             else if (path.includes('/bugun')) { setViewState({ type: 'today' }); } 
             else if (path.includes('/yaklasan')) { setViewState({ type: 'upcoming' }); } 
             else if (path.includes('/filtreler-etiketler')) { setViewState({ type: 'filters_labels' }); }
+            // --- YENİ: Toplantı Rotaları ---
+            else if (path.includes('/toplantilar')) { setViewState({ type: 'meetings' }); }
             else if (path.includes('/etiket/')) { const parts = path.split('/etiket/'); if (parts[1]) setViewState({ type: 'label', slug: parts[1] }); }
         };
 
@@ -195,6 +206,8 @@
             if (viewState.type === 'today') return '/bugun';
             if (viewState.type === 'upcoming') return '/yaklasan';
             if (viewState.type === 'filters_labels') return '/filtreler-etiketler';
+            // --- YENİ: Toplantı Rotası ---
+            if (viewState.type === 'meetings' || viewState.type === 'live_meeting' || viewState.type === 'meeting_summary') return '/toplantilar';
             if (viewState.type === 'label') return `/etiket/${viewState.slug}`;
             return '';
         };
@@ -213,7 +226,7 @@
                 }
             };
             document.addEventListener('keydown', handleGlobalKeys);
-            return () => document.removeEventListener('keydown', handleGlobalKeys);
+            return () => document.EventListener('keydown', handleGlobalKeys);
         }, []);
 
         const handleAction = (act, item) => { 
@@ -222,6 +235,7 @@
             if (act === 'update_project_members') { handleSaveProject(item); }
         };
 
+        // --- MEVCUT CRUD FONKSİYONLARI (KORUNDU) ---
         const handleSaveProject = (f) => apiFetch({ path: '/h2l/v1/projects'+(f.id?`/${f.id}`:''), method: 'POST', data: f }).then(() => { loadData(); setModal(null); });
         const handleDeleteProject = (id) => apiFetch({ path: `/h2l/v1/projects/${id}`, method: 'DELETE' }).then(() => { loadData(); setModal(null); navigate(''); });
         const handleSaveFolder = (f) => apiFetch({ path: '/h2l/v1/folders'+(f.id?`/${f.id}`:''), method: 'POST', data: f }).then(() => { loadData(); setModal(null); });
@@ -233,7 +247,6 @@
         const handleUpdateSection = (id, data) => apiFetch({ path: `/h2l/v1/sections/${id}`, method: 'POST', data: data }).then(loadData);
         const handleDeleteSection = (id) => apiFetch({ path: `/h2l/v1/sections/${id}`, method: 'DELETE' }).then(loadData);
         
-        // FAVORİ TOGGLE FONKSİYONU (YENİ)
         const handleToggleFavorite = (project) => {
             const newStatus = parseInt(project.is_favorite) === 1 ? 0 : 1;
             apiFetch({ 
@@ -241,6 +254,86 @@
                 method: 'POST', 
                 data: { is_favorite: newStatus } 
             }).then(loadData);
+        };
+
+        // --- YENİ: TOPLANTI FONKSİYONLARI (HATA YAKALAMALI) ---
+        const handleStartMeeting = (title, crmType) => {
+            apiFetch({ 
+                path: '/h2l/v1/meetings/start', 
+                method: 'POST', 
+                data: { title, related_object_type: crmType } 
+            }).then(res => {
+                if(res.success) {
+                    const newMeeting = { id: res.id, title, status: 'in_progress' };
+                    setActiveMeeting(newMeeting);
+                    setViewState({ type: 'live_meeting' });
+                    setModal(null);
+                }
+            }).catch(err => {
+                console.error("Start meeting error:", err);
+                alert("Toplantı başlatılamadı. Lütfen kalıcı bağlantıları (Permalinks) yenileyin.");
+            });
+        };
+
+        const handleFinishMeeting = (id, transcript, duration) => {
+            apiFetch({ 
+                path: `/h2l/v1/meetings/${id}/finish`, 
+                method: 'POST', 
+                data: { transcript, duration_seconds: duration } 
+            }).then(res => {
+                setActiveMeeting(res);
+                setViewState({ type: 'meeting_summary' });
+            }).catch(err => {
+                console.error("Finish meeting error:", err);
+                alert("Toplantı kaydedilemedi.");
+            });
+        };
+
+        const handleMeetingTasksCreate = (tasksToCreate, meetingId) => {
+            // 1. Gelen Kutusu (Inbox) projesini slug üzerinden bulmaya çalış
+            // Veritabanında varsayılan olarak 'inbox-project' slug'ı kullanılır.
+            let targetProject = data.projects.find(p => p.slug === 'inbox-project');
+            
+            // Eğer Inbox bulunamazsa, kullanıcının erişebildiği herhangi bir ilk projeyi (Notlarım vb.) seç.
+            // Bu, görevlerin "kaybolmasını" önler.
+            if (!targetProject && data.projects.length > 0) {
+                targetProject = data.projects[0];
+            }
+
+            // Proje ID'sini al, yoksa 0 (bu durumda API görev oluşturur ama listede görünmeyebilir)
+            const targetProjectId = targetProject ? parseInt(targetProject.id) : 0;
+
+            if (targetProjectId === 0) {
+                alert("Hata: Gelen Kutusu veya herhangi bir proje bulunamadı. Lütfen önce bir proje oluşturun.");
+                return;
+            }
+
+            const promises = tasksToCreate.map(t => {
+                return apiFetch({ 
+                    path: '/h2l/v1/tasks', 
+                    method: 'POST', 
+                    data: { 
+                        title: t.title, 
+                        meeting_id: meetingId,
+                        projectId: targetProjectId 
+                    } 
+                });
+            });
+
+            Promise.all(promises).then(() => {
+                alert('Görevler başarıyla oluşturuldu.');
+                loadData(); // Verileri yeniden çekerek listeyi güncelle
+                
+                // Eğer görevler Inbox'a gittiyse oraya yönlendir, değilse ilgili projeye
+                if (targetProject.slug === 'inbox-project') {
+                    navigate('/inbox');
+                } else {
+                    navigate(`/proje/${targetProjectId}`);
+                }
+            }).catch(err => {
+                console.error("Tasks creation error:", err);
+                alert("Görevler oluşturulurken bir hata oluştu: " + err.message);
+            });
         };
 
         if(loading) return el('div', {className:'h2l-loading'}, el(Icon,{name:'circle-notch', className:'fa-spin'}), ' Yükleniyor...');
@@ -261,7 +354,6 @@
 
         if (viewState.type === 'projects') {
             visibleTasks = data.tasks.filter(t => t.status !== 'trash');
-            // onToggleFavorite iletildi
             content = el(ProjectsDashboard, { data, navigate, onAction: handleAction, onToggleFavorite: handleToggleFavorite });
         } 
         else if (viewState.type === 'project_detail') {
@@ -304,6 +396,23 @@
         else if (viewState.type === 'filters_labels') {
             content = el(FiltersLabelsView, { labels: data.labels, navigate });
         }
+        // --- YENİ VIEW'LAR BAŞLANGIÇ ---
+        else if (viewState.type === 'meetings') {
+            content = el(MeetingsDashboard, { 
+                onStartNew: () => setModal({ type: 'start_meeting' }),
+                onSelectMeeting: (m) => { 
+                    setActiveMeeting(m); 
+                    setViewState({ type: m.status === 'active' ? 'live_meeting' : 'meeting_summary' }); 
+                }
+            });
+        }
+        else if (viewState.type === 'live_meeting') {
+            content = el(LiveMeetingView, { meeting: activeMeeting, onFinish: handleFinishMeeting });
+        }
+        else if (viewState.type === 'meeting_summary') {
+            content = el(SummaryView, { meeting: activeMeeting, navigate, onAddTasks: handleMeetingTasksCreate });
+        }
+        // --- YENİ VIEW'LAR BİTİŞ ---
         else if (viewState.type === 'label') {
             const activeLabel = data.labels ? data.labels.find(l => l.slug === viewState.slug) : null;
             if (activeLabel) {
@@ -325,7 +434,7 @@
                     onUpdateSection: ()=>{}, 
                     onDeleteSection: ()=>{}, 
                     labels: data.labels || [],
-                    onAddTask: handleAddTask // <-- EKLENDİ
+                    onAddTask: handleAddTask
                 });
             } else { content = el('div', {className: 'h2l-error'}, 'Etiket bulunamadı: ' + viewState.slug); }
         }
@@ -346,12 +455,14 @@
             el('div', { className: 'h2l-mobile-trigger', onClick: () => setIsMobileSidebarOpen(true) }, el(Icon, {name: 'bars'})),
             el('div', { className: 'h2l-main-wrapper' }, content),
             
+            // Modal Renders
             modal?.type === 'project' && el(ProjectModal, { onClose:()=>setModal(null), onSave:handleSaveProject, onDelete:handleDeleteProject, folders:data.folders, users:data.users, initialData:modal.data }),
             modal?.type === 'folder' && el(FolderModal, { onClose:()=>setModal(null), onSave:handleSaveFolder, onDelete:handleDeleteFolder, initialData:modal.data }),
-            
-            // Yeni Modallar
             modal?.type === 'settings' && el(SettingsModal, { onClose: () => setModal(null) }),
             modal?.type === 'help' && el(HelpModal, { onClose: () => setModal(null) }),
+            
+            // --- YENİ MODAL ---
+            modal?.type === 'start_meeting' && el(StartMeetingModal, { onClose: () => setModal(null), onStart: handleStartMeeting }),
             
             activeTask && el(TaskDetailModal, { task: activeTask, tasks: visibleTasks, onClose: handleCloseTask, onUpdate: (id, d) => { handleUpdateTask(id, d); }, onDelete: handleDeleteTask, onAdd: handleAddTask, users: data.users, projects: data.projects, sections: data.sections, labels: data.labels, navigate })
         );

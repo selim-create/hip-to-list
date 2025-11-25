@@ -1,7 +1,7 @@
 <?php
 /**
  * Veritabanı kurulum işlemleri.
- * GÜNCELLEME: CRM İlişkileri ve Alt Görev sütunları eklendi.
+ * GÜNCELLEME: Toplantı Asistanı (h2l_meetings) tablosu eklendi.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -57,12 +57,13 @@ function h2l_install_db() {
   KEY project_id (project_id)
 ) $charset_collate;";
 
-    // 4. Tasks (DÜZELTME: CRM Sütunları Eklendi)
+    // 4. Tasks
     $sql_tasks = "CREATE TABLE {$wpdb->prefix}h2l_tasks (
   id bigint(20) NOT NULL AUTO_INCREMENT,
   project_id bigint(20) NOT NULL,
   section_id bigint(20) DEFAULT 0,
   parent_task_id bigint(20) DEFAULT 0,
+  meeting_id bigint(20) DEFAULT 0,
   title text NOT NULL,
   slug varchar(200),
   content longtext,
@@ -145,6 +146,26 @@ function h2l_install_db() {
   PRIMARY KEY  (user_id, project_id)
 ) $charset_collate;";
 
+    // 11. Meetings (YENİ)
+    $sql_meetings = "CREATE TABLE {$wpdb->prefix}h2l_meetings (
+  id bigint(20) NOT NULL AUTO_INCREMENT,
+  title varchar(255) NOT NULL,
+  related_object_type varchar(50),
+  related_object_id bigint(20) DEFAULT 0,
+  transcript longtext,
+  summary longtext,
+  actions_json longtext,
+  decisions_json longtext,
+  created_by bigint(20) NOT NULL,
+  created_at datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+  duration_seconds int(11) DEFAULT 0,
+  language varchar(10) DEFAULT 'tr',
+  status varchar(20) DEFAULT 'active',
+  deleted_at datetime DEFAULT NULL,
+  PRIMARY KEY  (id),
+  KEY created_by (created_by)
+) $charset_collate;";
+
     // dbDelta çağrıları
     dbDelta( $sql_folders );
     dbDelta( $sql_projects );
@@ -156,9 +177,10 @@ function h2l_install_db() {
     dbDelta( $sql_activity );
     dbDelta( $sql_notifications );
     dbDelta( $sql_favorites );
+    dbDelta( $sql_meetings );
 
     // DB Sürümünü Güncelle
-    update_option( 'h2l_db_version', '2.1.0' );
+    update_option( 'h2l_db_version', '2.2.0' );
     
     h2l_create_app_page();
     

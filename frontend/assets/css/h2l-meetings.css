@@ -1,0 +1,242 @@
+/* --- MEETING ASSISTANT STYLES --- */
+
+.h2l-meeting-dashboard {
+    padding: 20px 40px;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.h2l-meeting-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.h2l-meeting-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #202020;
+    margin: 0;
+}
+
+.h2l-meeting-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.h2l-meeting-card {
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 160px;
+}
+
+.h2l-meeting-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    border-color: #ddd;
+}
+
+.h2l-mc-date {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 8px;
+}
+
+.h2l-mc-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+
+.h2l-mc-meta {
+    margin-top: auto;
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.h2l-mc-status {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.h2l-mc-status.active { background: #e6ffec; color: #058527; }
+.h2l-mc-status.completed { background: #f0f0f0; color: #666; }
+
+/* LIVE MEETING VIEW */
+.h2l-live-meeting {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 100px);
+    padding: 0 40px 40px;
+}
+
+.h2l-live-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 20px;
+}
+
+.h2l-live-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.h2l-recording-dot {
+    width: 12px;
+    height: 12px;
+    background: #cc0000;
+    border-radius: 50%;
+    animation: pulseRed 1.5s infinite;
+}
+
+@keyframes pulseRed {
+    0% { box-shadow: 0 0 0 0 rgba(204, 0, 0, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(204, 0, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(204, 0, 0, 0); }
+}
+
+.h2l-transcript-area {
+    flex: 1;
+    background: #fafafa;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 30px;
+    overflow-y: auto;
+    font-size: 16px;
+    line-height: 1.8;
+    color: #333;
+    white-space: pre-wrap;
+    margin-bottom: 20px;
+}
+
+.h2l-transcript-placeholder {
+    color: #999;
+    font-style: italic;
+    text-align: center;
+    margin-top: 50px;
+}
+
+.h2l-live-controls {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+/* SUMMARY VIEW */
+.h2l-summary-view {
+    padding: 20px 40px;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.h2l-summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.h2l-summary-card {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.h2l-summary-card h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #202020;
+    margin: 0 0 15px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.h2l-action-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    background: #fff;
+    transition: all 0.2s;
+}
+
+.h2l-action-item.selected {
+    border-color: #db4c3f;
+    background: #fff5f5;
+}
+
+.h2l-ai-check {
+    margin-top: 3px;
+}
+
+.h2l-ai-content {
+    flex: 1;
+}
+
+.h2l-ai-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.h2l-ai-meta {
+    font-size: 12px;
+    color: #888;
+}
+
+.h2l-gen-tasks-btn {
+    position: fixed;
+    bottom: 30px;
+    right: 40px;
+    padding: 12px 24px;
+    background: #db4c3f;
+    color: #fff;
+    font-weight: 700;
+    border-radius: 30px;
+    box-shadow: 0 5px 20px rgba(219, 76, 63, 0.4);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    transition: transform 0.2s;
+}
+
+.h2l-gen-tasks-btn:hover {
+    transform: translateY(-2px);
+    background: #c53727;
+}
