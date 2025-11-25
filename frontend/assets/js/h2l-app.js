@@ -19,63 +19,8 @@
     const BASE_URL = settings.base_url || '/gorevler';
 
     // --- MEVCUT: Labels & Filters Sayfası ---
-    const FiltersLabelsView = ({ labels, navigate }) => {
-        const [expanded, setExpanded] = useState({ filters: true, labels: true });
-        const toggle = (key) => setExpanded({ ...expanded, [key]: !expanded[key] });
+    const { FiltersLabelsView } = window.H2L.Filters || { FiltersLabelsView: () => null }; 
 
-        const staticFilters = [
-            { id: 'f1', name: 'Bana atananlar', icon: 'user', count: 4 },
-            { id: 'f2', name: 'Öncelik 1', icon: 'flag', count: 3 }
-        ];
-
-        return el('div', { className: 'h2l-filters-page' },
-            el('div', { className: 'h2l-header-area h2l-filters-header' }, 
-                el('h1', null, 'Filtreler & Etiketler')
-            ),
-            el('div', { className: 'h2l-filter-section' },
-                el('div', { className: 'h2l-filter-section-header', onClick: () => toggle('filters') },
-                    el('div', { className: 'h2l-filter-toggle' },
-                        el(Icon, { name: expanded.filters ? 'chevron-down' : 'chevron-right' }),
-                        'Filtreler',
-                        el('span', { className: 'h2l-filter-usage-badge' }, 'KULLANILDI: 2/3')
-                    ),
-                    el(Icon, { name: 'plus', className: 'h2l-filter-add-btn' })
-                ),
-                expanded.filters && el('div', { className: 'h2l-filter-list' },
-                    staticFilters.map(f => 
-                        el('div', { key: f.id, className: 'h2l-filter-row' },
-                            el('div', { className: 'h2l-filter-left' },
-                                el(Icon, { name: f.icon }),
-                                f.name
-                            ),
-                            el('span', { className: 'h2l-filter-count' }, f.count)
-                        )
-                    )
-                )
-            ),
-            el('div', { className: 'h2l-filter-section' },
-                el('div', { className: 'h2l-filter-section-header', onClick: () => toggle('labels') },
-                    el('div', { className: 'h2l-filter-toggle' },
-                        el(Icon, { name: expanded.labels ? 'chevron-down' : 'chevron-right' }),
-                        'Etiketler'
-                    ),
-                    el(Icon, { name: 'plus', className: 'h2l-filter-add-btn' })
-                ),
-                expanded.labels && el('div', { className: 'h2l-filter-list' },
-                    labels.length === 0 && el('p', {style:{color:'#999', padding:10, fontStyle:'italic', fontSize:13}}, 'Henüz etiket yok.'),
-                    labels.map(l => 
-                        el('div', { key: l.id, className: 'h2l-filter-row', onClick: () => navigate(`/etiket/${l.slug}`) },
-                            el('div', { className: 'h2l-filter-left' },
-                                el(Icon, { name: 'tag', style: { color: l.color || '#808080', transform: 'rotate(45deg)' } }), 
-                                l.name
-                            ),
-                            el('span', { className: 'h2l-filter-count' }, '1')
-                        )
-                    )
-                )
-            )
-        );
-    };
 
     // --- GÜNCELLENMİŞ SETTINGS MODAL (API ENTEGRASYONLU) ---
     const SettingsModal = ({ onClose }) => {
@@ -210,7 +155,7 @@
     });
 
     const App = () => {
-        const [data, setData] = useState({ folders: [], projects: [], tasks: [], users: [], sections: [], labels: [] });
+        const [data, setData] = useState({ folders: [], projects: [], tasks: [], users: [], sections: [], labels: [], filters: [] });
         const [loading, setLoading] = useState(true);
         const [viewState, setViewState] = useState({ type: 'projects' });
         const [modal, setModal] = useState(null);
@@ -265,9 +210,9 @@
             else if (path.includes('/bugun')) { setViewState({ type: 'today' }); } 
             else if (path.includes('/yaklasan')) { setViewState({ type: 'upcoming' }); } 
             else if (path.includes('/filtreler-etiketler')) { setViewState({ type: 'filters_labels' }); }
-            // --- YENİ: Toplantı Rotaları ---
             else if (path.includes('/toplantilar')) { setViewState({ type: 'meetings' }); }
             else if (path.includes('/etiket/')) { const parts = path.split('/etiket/'); if (parts[1]) setViewState({ type: 'label', slug: parts[1] }); }
+            else if (path.includes('/filtre/')) { const parts = path.split('/filtre/'); if (parts[1]) setViewState({ type: 'filter', id: parseInt(parts[1]) }); }
         };
 
         const getCurrentViewPath = () => {
@@ -278,6 +223,8 @@
             // --- YENİ: Toplantı Rotası ---
             if (viewState.type === 'meetings' || viewState.type === 'live_meeting' || viewState.type === 'meeting_summary') return '/toplantilar';
             if (viewState.type === 'label') return `/etiket/${viewState.slug}`;
+            if (viewState.type === 'filter') return `/filtre/${viewState.id}`;
+
             return '';
         };
 
@@ -303,7 +250,16 @@
             if(act === 'add_folder' || act === 'edit_folder') setModal({ type: 'folder', data: item });
             if (act === 'update_project_members') { handleSaveProject(item); }
         };
-
+        // --- YENİ: FİLTRE İŞLEMLERİ ---
+        const handleAddFilter = (title, query) => {
+            apiFetch({ path: '/h2l/v1/filters', method: 'POST', data: { title, query } })
+                .then(() => loadData())
+                .catch(err => alert('Filtre kaydedilemedi.'));
+        };
+        const handleDeleteFilter = (id) => {
+            apiFetch({ path: `/h2l/v1/filters/${id}`, method: 'DELETE' })
+                .then(() => loadData());
+        };
         // --- MEVCUT CRUD FONKSİYONLARI (KORUNDU) ---
         const handleSaveProject = (f) => apiFetch({ path: '/h2l/v1/projects'+(f.id?`/${f.id}`:''), method: 'POST', data: f }).then(() => { loadData(); setModal(null); });
         const handleDeleteProject = (id) => apiFetch({ path: `/h2l/v1/projects/${id}`, method: 'DELETE' }).then(() => { loadData(); setModal(null); navigate(''); });
@@ -409,10 +365,7 @@
 
         const todayStr = new Date().toISOString().split('T')[0];
         const counts = {
-            inbox: data.tasks.filter(t => {
-                const p = data.projects.find(prj => prj.id == t.project_id);
-                return p && p.slug === 'inbox-project' && t.status !== 'completed' && t.status !== 'trash';
-            }).length,
+            inbox: data.tasks.filter(t => { const p = data.projects.find(prj => prj.id == t.project_id); return p && p.slug === 'inbox-project' && t.status !== 'completed' && t.status !== 'trash'; }).length,
             today: data.tasks.filter(t => t.due_date && t.due_date.startsWith(todayStr) && t.status !== 'completed' && t.status !== 'trash').length,
             upcoming: data.tasks.filter(t => t.due_date && t.due_date > todayStr && t.status !== 'completed' && t.status !== 'trash').length
         };
@@ -433,38 +386,87 @@
                 content = el(ProjectDetail, { project: activeProject, projects: data.projects, folders: data.folders, tasks: visibleTasks, sections: activeSections, users: data.users, navigate, onAddTask: handleAddTask, onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask, onAddSection: handleAddSection, onUpdateSection: handleUpdateSection, onDeleteSection: handleDeleteSection, onAction: handleAction, labels: data.labels || [], onTaskClick: onTaskClick });
             } else { content = el('div', {className: 'h2l-error'}, 'Proje bulunamadı.'); }
         }
-        else if (viewState.type === 'today') {
-            content = el(TodayView, { 
-                tasks: data.tasks.filter(t => t.status !== 'trash'),
-                users: data.users, 
-                projects: data.projects, 
-                sections: data.sections, 
-                onUpdateTask: handleUpdateTask, 
-                onDeleteTask: handleDeleteTask, 
-                onAddTask: handleAddTask, 
-                onTaskClick: onTaskClick, 
-                labels: data.labels || [],
-                navigate
-            });
-        }
-        else if (viewState.type === 'upcoming') {
-            visibleTasks = data.tasks.filter(t => t.due_date && t.status !== 'trash');
-            content = el(UpcomingView, { 
-                tasks: visibleTasks, 
-                users: data.users, 
-                projects: data.projects, 
-                sections: data.sections, 
-                onUpdateTask: handleUpdateTask, 
-                onDeleteTask: handleDeleteTask, 
-                onAddTask: handleAddTask, 
-                onTaskClick: onTaskClick, 
-                labels: data.labels || [],
-                navigate
-            });
-        }
+        else if (viewState.type === 'today') { content = el(TodayView, { tasks: data.tasks.filter(t => t.status !== 'trash'), users: data.users, projects: data.projects, sections: data.sections, onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask, onAddTask: handleAddTask, onTaskClick: onTaskClick, labels: data.labels || [], navigate }); }
+        else if (viewState.type === 'upcoming') { visibleTasks = data.tasks.filter(t => t.due_date && t.status !== 'trash'); content = el(UpcomingView, { tasks: visibleTasks, users: data.users, projects: data.projects, sections: data.sections, onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask, onAddTask: handleAddTask, onTaskClick: onTaskClick, labels: data.labels || [], navigate }); }
+        
+        // --- GÜNCELLENEN VIEW: Filters & Labels ---
         else if (viewState.type === 'filters_labels') {
-            content = el(FiltersLabelsView, { labels: data.labels, navigate });
+            content = el(FiltersLabelsView, { 
+                labels: data.labels, 
+                filters: data.filters, // API'den gelen filtreler
+                users: data.users,
+                navigate, 
+                onAddFilter: handleAddFilter,
+                onDeleteFilter: handleDeleteFilter
+            });
         }
+        
+        // --- YENİ VIEW: Filter Detail ---
+        else if (viewState.type === 'filter') {
+            const activeFilter = data.filters ? data.filters.find(f => parseInt(f.id) === viewState.id) : null;
+            if (activeFilter) {
+                let query = {};
+                try { query = JSON.parse(activeFilter.query_json); } catch(e){}
+                
+                // Filtreleme Mantığı
+                visibleTasks = data.tasks.filter(t => {
+                    if (t.status === 'trash') return false;
+                    if (t.status === 'completed' && query.due !== 'completed') return false; // Varsayılan olarak tamamlananları gizle
+
+                    let match = true;
+                    
+                    // Assignee
+                    if (query.assignee) {
+                        if (query.assignee === 'me') {
+                            if (!t.assignees || !t.assignees.map(id=>parseInt(id)).includes(parseInt(window.h2lFrontendSettings.currentUser.id))) match = false;
+                        } else {
+                            if (!t.assignees || !t.assignees.map(id=>parseInt(id)).includes(parseInt(query.assignee))) match = false;
+                        }
+                    }
+
+                    // Priority
+                    if (query.priority && parseInt(t.priority) !== parseInt(query.priority)) match = false;
+
+                    // Due Date
+                    if (query.due) {
+                        if (!t.due_date) {
+                            match = false;
+                        } else {
+                            const d = new Date(t.due_date);
+                            const today = new Date();
+                            d.setHours(0,0,0,0); today.setHours(0,0,0,0);
+                            
+                            if (query.due === 'today' && d.getTime() !== today.getTime()) match = false;
+                            if (query.due === 'overdue' && d.getTime() >= today.getTime()) match = false;
+                            if (query.due === 'upcoming' && d.getTime() <= today.getTime()) match = false;
+                        }
+                    }
+
+                    return match;
+                }).map(t => ({ ...t, section_id: 0, parent_task_id: 0 })); // Flatten tasks for filter view
+
+                const virtualProject = { id: 0, title: activeFilter.title, color: '#555', view_type: 'list' };
+                content = el(ListView, { 
+                    project: virtualProject, 
+                    projects: data.projects, 
+                    tasks: visibleTasks, 
+                    sections: [], 
+                    users: data.users, 
+                    navigate, 
+                    onUpdateTask: handleUpdateTask, 
+                    onDeleteTask: handleDeleteTask, 
+                    onAddSection: () => alert('Filtre görünümünde bölüm eklenemez.'), 
+                    onTaskClick: onTaskClick, 
+                    showCompleted: true, 
+                    highlightToday: true, 
+                    onUpdateSection: ()=>{}, 
+                    onDeleteSection: ()=>{}, 
+                    labels: data.labels || [],
+                    onAddTask: handleAddTask
+                });
+            } else { content = el('div', {className: 'h2l-error'}, 'Filtre bulunamadı.'); }
+        }
+
         // --- YENİ VIEW'LAR BAŞLANGIÇ ---
         else if (viewState.type === 'meetings') {
             content = el(MeetingsDashboard, { 
@@ -485,26 +487,9 @@
         else if (viewState.type === 'label') {
             const activeLabel = data.labels ? data.labels.find(l => l.slug === viewState.slug) : null;
             if (activeLabel) {
-                visibleTasks = data.tasks.filter(t => t.status !== 'trash' && t.labels && t.labels.some(l => l.slug === viewState.slug));
+                visibleTasks = data.tasks.filter(t => t.status !== 'trash' && t.labels && t.labels.some(l => l.slug === viewState.slug)).map(t => ({ ...t, section_id: 0, parent_task_id: 0 }));
                 const virtualProject = { id: 0, title: activeLabel.name, color: activeLabel.color || '#808080', view_type: 'list' };
-                content = el(ListView, { 
-                    project: virtualProject, 
-                    projects: data.projects, 
-                    tasks: visibleTasks, 
-                    sections: [], 
-                    users: data.users, 
-                    navigate, 
-                    onUpdateTask: handleUpdateTask, 
-                    onDeleteTask: handleDeleteTask, 
-                    onAddSection: () => alert('Etiket görünümünde bölüm eklenemez.'), 
-                    onTaskClick: onTaskClick, 
-                    showCompleted: true, 
-                    highlightToday: true, 
-                    onUpdateSection: ()=>{}, 
-                    onDeleteSection: ()=>{}, 
-                    labels: data.labels || [],
-                    onAddTask: handleAddTask
-                });
+                content = el(ListView, { project: virtualProject, projects: data.projects, tasks: visibleTasks, sections: [], users: data.users, navigate, onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask, onAddSection: () => alert('Etiket görünümünde bölüm eklenemez.'), onTaskClick: onTaskClick, showCompleted: true, highlightToday: true, onUpdateSection: ()=>{}, onDeleteSection: ()=>{}, labels: data.labels || [], onAddTask: handleAddTask });
             } else { content = el('div', {className: 'h2l-error'}, 'Etiket bulunamadı: ' + viewState.slug); }
         }
 

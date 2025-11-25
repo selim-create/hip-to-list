@@ -63,7 +63,6 @@ function h2l_enqueue_frontend_assets() {
         wp_enqueue_style('h2l-app-css', H2L_URL.'frontend/assets/css/h2l-app.css', array('h2l-common-css'), filemtime( H2L_PATH.'frontend/assets/css/h2l-app.css' ));
         wp_enqueue_style('h2l-projects-css', H2L_URL.'frontend/assets/css/h2l-projects.css', array('h2l-app-css'), filemtime( H2L_PATH.'frontend/assets/css/h2l-projects.css' ));
         
-        // YENİ: Meeting CSS
         wp_enqueue_style('h2l-meetings-css', H2L_URL.'frontend/assets/css/h2l-meetings.css', array('h2l-app-css'), '1.0.0');
 
         wp_enqueue_script('h2l-sidebar-js', H2L_URL.'frontend/assets/js/h2l-sidebar.js', array('h2l-common-js'), filemtime( H2L_PATH.'frontend/assets/js/h2l-sidebar.js' ), true);
@@ -71,10 +70,12 @@ function h2l_enqueue_frontend_assets() {
         wp_enqueue_script('h2l-projects-js', H2L_URL.'frontend/assets/js/h2l-projects.js', array('h2l-common-js'), filemtime( H2L_PATH.'frontend/assets/js/h2l-projects.js' ), true);
         wp_enqueue_script('h2l-project-detail-js', H2L_URL.'frontend/assets/js/h2l-project-detail.js', array('h2l-tasks-js'), filemtime( H2L_PATH.'frontend/assets/js/h2l-project-detail.js' ), true);
         
-        // YENİ: Meeting JS
         wp_enqueue_script('h2l-meetings-js', H2L_URL.'frontend/assets/js/h2l-meetings.js', array('h2l-common-js'), '1.0.0', true);
+        
+        // YENİ: Filters JS
+        wp_enqueue_script('h2l-filters-js', H2L_URL.'frontend/assets/js/h2l-filters.js', array('h2l-common-js'), '1.0.0', true);
 
-        wp_enqueue_script('h2l-app-js', H2L_URL.'frontend/assets/js/h2l-app.js', array('h2l-projects-js','h2l-project-detail-js','h2l-sidebar-js','h2l-task-modal-js', 'h2l-meetings-js'), filemtime( H2L_PATH.'frontend/assets/js/h2l-app.js' ), true);
+        wp_enqueue_script('h2l-app-js', H2L_URL.'frontend/assets/js/h2l-app.js', array('h2l-projects-js','h2l-project-detail-js','h2l-sidebar-js','h2l-task-modal-js', 'h2l-meetings-js', 'h2l-filters-js'), filemtime( H2L_PATH.'frontend/assets/js/h2l-app.js' ), true);
 
         wp_localize_script( 'h2l-app-js', 'h2lFrontendSettings', $frontend_settings );
     } else {

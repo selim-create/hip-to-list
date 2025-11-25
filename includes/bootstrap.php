@@ -19,8 +19,9 @@ $core_files = [
     'includes/core/task.php',
     'includes/core/comment.php',
     'includes/core/reminder.php',
-    'includes/core/notification.php'
-
+    'includes/core/notification.php',
+    'includes/core/meeting.php',
+    'includes/core/filter.php' // YENİ EKLENDİ
 ];
 
 foreach ( $core_files as $file ) {
@@ -34,7 +35,7 @@ if ( file_exists( H2L_PATH . 'includes/h2l-api.php' ) ) {
     require_once H2L_PATH . 'includes/h2l-api.php';
 }
 
-// Admin Menüleri (BURASI KRİTİK)
+// Admin Menüleri
 if ( is_admin() ) {
     if ( file_exists( H2L_PATH . 'admin/h2l-admin.php' ) ) {
         require_once H2L_PATH . 'admin/h2l-admin.php';

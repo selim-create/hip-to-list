@@ -1,7 +1,7 @@
 <?php
 /**
  * Eklenti genelindeki Action ve Filter tanımları.
- * GÜNCELLEME: En son görevi gösterme garantisi (ORDER BY) ve Sağ Tarafta Tooltip CSS'i eklendi.
+ * GÜNCELLEME: 404 hatalarını önlemek için Rewrite kuralları genişletildi.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -12,10 +12,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 add_action( 'init', 'h2l_add_rewrite_rules' );
 
 function h2l_add_rewrite_rules() {
+    // Dinamik ID içeren rotalar
     add_rewrite_rule('^gorevler/proje/([0-9]+)/?', 'index.php?pagename=gorevler', 'top');
     add_rewrite_rule('^gorevler/gorev/([0-9]+)/?', 'index.php?pagename=gorevler', 'top');
     add_rewrite_rule('^gorevler/klasor/([0-9]+)/?', 'index.php?pagename=gorevler', 'top');
     add_rewrite_rule('^gorevler/etiket/([^/]+)/?', 'index.php?pagename=gorevler', 'top');
+    
+    // YENİ EKLENEN ROTALAR (404 Çözümü İçin)
+    add_rewrite_rule('^gorevler/inbox/?', 'index.php?pagename=gorevler', 'top');
+    add_rewrite_rule('^gorevler/bugun/?', 'index.php?pagename=gorevler', 'top');
+    add_rewrite_rule('^gorevler/yaklasan/?', 'index.php?pagename=gorevler', 'top');
+    add_rewrite_rule('^gorevler/filtreler-etiketler/?', 'index.php?pagename=gorevler', 'top');
+    add_rewrite_rule('^gorevler/toplantilar/?', 'index.php?pagename=gorevler', 'top');
+    add_rewrite_rule('^gorevler/filtre/([0-9]+)/?', 'index.php?pagename=gorevler', 'top');
 }
 
 // 2. ÖZEL CRON ARALIĞI
