@@ -13,10 +13,6 @@
     const { getPriorityColor } = Reminders;
     const TodoistDatepicker = window.H2L && window.H2L.TodoistDatepicker ? window.H2L.TodoistDatepicker : null;
 
-    // QuickAddContainer'ı H2L.Tasks'tan almayı dene, yoksa null
-    const TasksModule = window.H2L.Tasks || {};
-    const QuickAddContainer = TasksModule.QuickAddContainer ? TasksModule.QuickAddContainer : () => null;
-
     window.H2L = window.H2L || {};
     window.H2L.TaskModal = window.H2L.TaskModal || {};
 
@@ -145,7 +141,6 @@
         );
     };
 
-    // ... (TextTooltip, SidebarDatePicker vb. diğer yardımcı bileşenler) ...
     const TextTooltip = ({ position, onFormat, showLinkInput, onLinkSubmit, onClose }) => {
         const [linkUrl, setLinkUrl] = useState('');
         const inputRef = useRef(null);
@@ -233,7 +228,17 @@
     const SubtaskRow = ({ task, onUpdate, onDelete, onOpen }) => {
         const [isCompleted, setIsCompleted] = useState(task.status === 'completed');
         const toggleComplete = () => { const newStatus = isCompleted ? 'in_progress' : 'completed'; setIsCompleted(!isCompleted); onUpdate(task.id, { status: newStatus }); };
-        return el('div', { className: 'h2l-subtask-row' }, el('div', { className: `h2l-subtask-check ${isCompleted ? 'completed' : ''}`, onClick: toggleComplete, style: { background: isCompleted ? '#aaa' : 'transparent', borderColor: isCompleted ? '#aaa' : '#ccc' } }, isCompleted && el(Icon, { name: 'check', style: { fontSize: 10, color: '#fff' } })), el('div', { className: `h2l-subtask-content ${isCompleted ? 'completed' : ''}`, contentEditable: true, onBlur: (e) => { if(e.target.textContent !== task.title) onUpdate(task.id, { title: e.target.textContent }); }, suppressContentEditableWarning: true }, task.title), el('div', { className: 'h2l-subtask-actions' }, el(Icon, { name: 'arrow-up-right-from-square', style: { cursor: 'pointer', color: '#888', marginRight: 10, fontSize: 12 }, title: 'Görevi Aç', onClick: (e) => { e.stopPropagation(); onOpen(); } }), el(Icon, { name: 'xmark', style: { cursor: 'pointer', color: '#ccc' }, title: 'Sil', onClick: () => onDelete(task.id) })));
+        return el('div', { className: 'h2l-subtask-row' }, 
+            el('div', { className: `h2l-subtask-check ${isCompleted ? 'completed' : ''}`, onClick: toggleComplete, style: { background: isCompleted ? '#aaa' : 'transparent', borderColor: isCompleted ? '#aaa' : '#ccc' } }, isCompleted && el(Icon, { name: 'check', style: { fontSize: 10, color: '#fff' } })), 
+            el('div', { 
+                className: `h2l-subtask-content ${isCompleted ? 'completed' : ''}`, 
+                contentEditable: true, 
+                onBlur: (e) => { if(e.target.innerHTML !== task.title) onUpdate(task.id, { title: e.target.innerHTML }); }, 
+                suppressContentEditableWarning: true,
+                dangerouslySetInnerHTML: { __html: task.title }
+            }), 
+            el('div', { className: 'h2l-subtask-actions' }, el(Icon, { name: 'arrow-up-right-from-square', style: { cursor: 'pointer', color: '#888', marginRight: 10, fontSize: 12 }, title: 'Görevi Aç', onClick: (e) => { e.stopPropagation(); onOpen(); } }), el(Icon, { name: 'xmark', style: { cursor: 'pointer', color: '#ccc' }, title: 'Sil', onClick: () => onDelete(task.id) }))
+        );
     };
 
     // --- MAIN MODAL ---
@@ -282,7 +287,7 @@
             const subtaskData = { ...data, parent_task_id: task.id, project_id: task.project_id };
             onAdd(subtaskData).then(() => {
                 loadSubtasks(); 
-                setShowSubtaskInput(true); 
+                // Görev eklendikten sonra input açık kalsın ki art arda ekleme yapılabilsin
             });
         };
 
@@ -466,14 +471,22 @@
                                         }))
                                     ),
                                     !showSubtaskInput && el('div', { className: 'h2l-tm-add-subtask', onClick: () => setShowSubtaskInput(true) }, el(Icon, {name:'plus'}), ' Alt görev ekle'),
-                                    showSubtaskInput && (QuickAddContainer ? el(QuickAddContainer, { 
-                                        projectId: task.project_id, 
-                                        sectionId: task.section_id, 
-                                        parentTaskId: task.id,
-                                        users, projects, sections, 
-                                        onAdd: handleAddSubtask, 
-                                        labels 
-                                    }) : null)
+                                    
+                                    // --- DÜZELTİLDİ: QuickAddContainer yerine doğrudan TaskEditor ---
+                                    showSubtaskInput && el('div', { className: 'h2l-subtask-editor-wrapper', style: { marginTop: 10 } }, 
+                                        el(TaskEditor, { 
+                                            mode: 'add',
+                                            initialData: { 
+                                                project_id: task.project_id, 
+                                                section_id: task.section_id, 
+                                                parent_task_id: task.id 
+                                            },
+                                            users, projects, sections, 
+                                            onSave: handleAddSubtask,
+                                            onCancel: () => setShowSubtaskInput(false),
+                                            labels 
+                                        })
+                                    )
                                 ),
                                 
                                 el('div', { className: 'h2l-tm-activity-stream' },
@@ -504,7 +517,7 @@
                             el('div', { className: 'h2l-tm-sidebar-group' }, el('div', { className: 'h2l-tm-sb-label' }, 'Öncelik'), el(SidebarPrioritySelector, { priority: task.priority, onChange: (p) => updateField({ priority: p }) })),
                             el(SidebarRow, { label: 'Hatırlatıcılar', value: (task.reminder_enabled == 1) ? 'Açık' : 'Kapalı', icon: 'bell', color: (task.reminder_enabled == 1) ? '#db4c3f' : '#aaa', isClickable: true, onTogglePopup: () => updateField({ reminder_enabled: (task.reminder_enabled == 1) ? 0 : 1 }) }),
                             el(SidebarRow, { label: 'Durum', value: currentStatusObj.label, icon: currentStatusObj.icon, color: currentStatusObj.color, activeKey: activePopup === 'status' ? 'status' : null, onTogglePopup: () => setActivePopup(activePopup === 'status' ? null : 'status'), renderPopupContent: renderStatusMenu }),
-                            el('div', { className: 'h2l-tm-sidebar-group', style:{position:'relative'} }, el('div', { className: 'h2l-tm-sb-label', style:{display:'flex', justifyContent:'space-between'} }, 'Etiketler', el(Icon, { name: 'plus', style: { fontSize: 12, cursor: 'pointer' }, className: 'clickable-trigger', onClick: (e) => { e.stopPropagation(); setPopoverSearch(''); setActivePopup(activePopup==='labels'?null:'labels'); } })), el('div', { className: 'h2l-tm-tags-container' }, (task.labels && task.labels.length > 0) ? task.labels.map(l => el('span', { key: l.id || l, className: 'h2l-tm-tag' }, (typeof l === 'string' ? l : l.name), el(Icon,{name:'xmark', style:{marginLeft:5, fontSize:10, cursor:'pointer'}, onClick: (e) => { e.stopPropagation(); updateField({ labels: task.labels.map(lbl=>lbl.name).filter(n => n !== (l.name || l)) }); } }))) : el('span', { className: 'h2l-tm-no-val' }, 'Etiket yok')), activePopup === 'labels' && renderLabelMenu()),
+                            el('div', { className: 'h2l-tm-sidebar-group' }, el('div', { className: 'h2l-tm-sb-label' }, 'Etiketler', el(Icon, { name: 'plus', style: { fontSize: 12, cursor: 'pointer' }, className: 'clickable-trigger', onClick: (e) => { e.stopPropagation(); setPopoverSearch(''); setActivePopup(activePopup==='labels'?null:'labels'); } })), el('div', { className: 'h2l-tm-tags-container' }, (task.labels && task.labels.length > 0) ? task.labels.map(l => el('span', { key: l.id || l, className: 'h2l-tm-tag' }, (typeof l === 'string' ? l : l.name), el(Icon,{name:'xmark', style:{marginLeft:5, fontSize:10, cursor:'pointer'}, onClick: (e) => { e.stopPropagation(); updateField({ labels: task.labels.map(lbl=>lbl.name).filter(n => n !== (l.name || l)) }); } }))) : el('span', { className: 'h2l-tm-no-val' }, 'Etiket yok')), activePopup === 'labels' && renderLabelMenu()),
                             el('div', { className: 'h2l-tm-sb-separator' }),
                             el(SidebarRow, { label: 'Konum', value: task.location || 'Konum ekle', icon: 'location-dot', color: task.location ? '#202020' : '#aaa', activeKey: activePopup === 'location' ? 'location' : null, onTogglePopup: () => { setNewLocation(task.location || ''); setActivePopup(activePopup === 'location' ? null : 'location'); }, renderPopupContent: renderLocationMenu }),
                             el('div', { className: 'h2l-tm-sb-separator' }),
