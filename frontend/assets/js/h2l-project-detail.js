@@ -86,7 +86,8 @@
                             onTaskClick, 
                             showCompleted, highlightToday, onUpdateSection, onDeleteSection, labels 
                         }) 
-                        : el(BoardView, { tasks, sections, onUpdateTask }))
+                        // KRİTİK DÜZELTME: onTaskClick prop'u BoardView'a iletiliyor
+                        : el(BoardView, { tasks, sections, onUpdateTask, onTaskClick }))
             )
         );
     };

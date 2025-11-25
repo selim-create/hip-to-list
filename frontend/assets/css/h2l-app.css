@@ -30,10 +30,32 @@ body.page-slug-gorevler { background-color: #fff !important; }
 }
 .h2l-dashboard, .h2l-detail { padding: 40px 60px 100px; width: 100%; max-width: 1200px; margin: 0 auto; }
 
+/* Full-width override for board view - GÜNCELLENDİ */
+.h2l-board-container { 
+    width: 100% !important; 
+    height: calc(100vh - 140px); /* Yükseklik ayarlandı, header payı düşüldü */
+    display: flex; 
+    flex-direction: column; 
+}
+
+/* Pano görünümünde wrapper'ı tam genişlik yap ve padding ekle */
+.h2l-project-content-wrapper:has(.h2l-board-container) { 
+    max-width: 100% !important; 
+    width: 100% !important;
+    padding: 0 40px 20px 40px; /* Sağ sol padding arttırıldı */
+    height: 100%; 
+    box-sizing: border-box;
+}
+
 /* --- RESPONSIVE --- */
 @media (max-width: 768px) {
     .h2l-sidebar { position: fixed; left: -280px; transition: left 0.3s; z-index: 999; top: 0; bottom: 0; }
     .h2l-sidebar.open { left: 0; }
     .h2l-main-wrapper { margin-left: 0; width: 100%; padding-top: 50px; }
     .h2l-dashboard, .h2l-detail { padding: 20px; }
+    
+    /* Mobil için padding ayarı */
+    .h2l-project-content-wrapper:has(.h2l-board-container) { 
+        padding: 0 15px 20px 15px; 
+    }
 }

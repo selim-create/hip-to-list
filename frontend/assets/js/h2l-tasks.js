@@ -300,12 +300,12 @@
         );
     };
 
-    const QuickAddContainer = ({ sectionId, projectId, users, projects, sections, onAdd, labels, date }) => {
+    const QuickAddContainer = ({ sectionId, projectId, users, projects, sections, onAdd, labels, date, parentTaskId = 0 }) => {
         const [isOpen, setIsOpen] = useState(false);
-        if (!isOpen) return el('div', { style: { marginLeft: 28 } }, el(QuickAddTrigger, { onOpen: () => setIsOpen(true) }));
-        const initData = { project_id: projectId, section_id: sectionId };
+        if (!isOpen) return el('div', { style: { marginLeft: parentTaskId ? 0 : 28 } }, el(QuickAddTrigger, { onOpen: () => setIsOpen(true) }));
+        const initData = { project_id: projectId, section_id: sectionId, parent_task_id: parentTaskId };
         if (date) initData.due_date = date; 
-        return el('div', { style: { marginLeft: 28 } },
+        return el('div', { style: { marginLeft: parentTaskId ? 0 : 28 } },
             el(TaskEditor, {
                 mode: 'add', users, projects, sections, activeProjectId: projectId,
                 initialData: initData,
@@ -389,7 +389,277 @@
         return el('div', { className: 'h2l-section-add-form' }, el('form', { onSubmit: handleSubmit }, el('input', { className: 'h2l-section-input', autoFocus: true, placeholder: 'Bölüm adı', value: name, onChange: e => setName(e.target.value), onBlur: () => !name.trim() && setIsEditing(false) }), el('div', { className: 'h2l-form-actions' }, el('button', { type:'submit', className: 'h2l-btn primary', disabled:!name.trim() }, 'Bölüm ekle'), el('button', { type:'button', className: 'h2l-btn', onClick: () => setIsEditing(false) }, 'İptal'))));
     };
 
-    // --- UPCOMING VIEW ---
+    // --- BOARD (KANBAN) VIEW (UPDATED) ---
+    const BoardCard = ({ task, users, onTaskClick, onUpdateTask }) => {
+        let assignee = null;
+        if (task.assignees && task.assignees.length > 0) { 
+            assignee = users.find(u => parseInt(u.id) === parseInt(task.assignees[0])); 
+        }
+        const smartDate = getSmartDateDisplay(task.due_date);
+        const isCompleted = task.status === 'completed';
+
+        return el('div', { 
+            className: `h2l-board-card ${isCompleted ? 'completed' : ''}`, 
+            onClick: () => onTaskClick(task), 
+            draggable: true,
+            onDragStart: (e) => {
+                // FIX: stopPropagation ekleyerek kolon sürüklemeyi tetiklemesini engelle
+                e.stopPropagation();
+                currentDraggedId = task.id;
+                currentDraggedType = 'task';
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', task.id);
+                setTimeout(() => e.target.classList.add('is-dragging'), 0);
+            },
+            onDragEnd: (e) => {
+                currentDraggedId = null;
+                currentDraggedType = null;
+                e.target.classList.remove('is-dragging');
+            }
+        },
+            el('div', { className: 'h2l-bc-header' },
+                el('div', { 
+                    className: `h2l-bc-check p${task.priority} ${isCompleted ? 'completed' : ''}`,
+                    onClick: (e) => {
+                        e.stopPropagation();
+                        onUpdateTask(task.id, { status: isCompleted ? 'in_progress' : 'completed' });
+                    }
+                }, isCompleted && el(Icon, { name: 'check', style: { fontSize: 10, color: '#fff' } })),
+                el('div', { 
+                    className: 'h2l-bc-title', 
+                    dangerouslySetInnerHTML: { __html: task.title } 
+                })
+            ),
+            el('div', { className: 'h2l-bc-footer' },
+                el('div', { className: 'h2l-bc-meta' },
+                    smartDate && el('div', { className: `h2l-bc-date ${smartDate.color === '#d1453b' ? 'overdue' : (smartDate.text === 'Bugün' ? 'today' : '')}` },
+                        el(Icon, { name: smartDate.icon, style: { fontSize: 11 } }),
+                        smartDate.text
+                    ),
+                    (parseInt(task.comment_count) > 0) && el('div', { style: { display: 'flex', alignItems: 'center', gap: 4 } },
+                        el(Icon, { name: 'comment', style: { fontSize: 11 } }),
+                        task.comment_count
+                    )
+                ),
+                assignee && el('div', { className: 'h2l-bc-assignee' },
+                    el('img', { src: assignee.avatar, title: assignee.name })
+                )
+            )
+        );
+    };
+
+    const BoardColumn = ({ section, tasks, users, onUpdateTask, onMoveColumn, isDraggable, onTaskClick }) => {
+        const [isDragOver, setIsDragOver] = useState(false);
+        const [dropIndex, setDropIndex] = useState(null);
+
+        const handleDrop = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDragOver(false);
+            setDropIndex(null);
+
+            if (currentDraggedType === 'task' && currentDraggedId) {
+                const updatePayload = {};
+                if (section.type === 'status') {
+                    updatePayload.status = section.id;
+                } else {
+                    updatePayload.sectionId = section.id || 0;
+                }
+                onUpdateTask(currentDraggedId, updatePayload);
+            }
+
+            if (currentDraggedType === 'column' && currentDraggedId && currentDraggedId !== section.id && onMoveColumn) {
+                 const rect = e.currentTarget.getBoundingClientRect();
+                 const midX = rect.left + rect.width / 2;
+                 const position = e.clientX < midX ? 'before' : 'after';
+                 onMoveColumn(currentDraggedId, section.id, position);
+            }
+        };
+
+        const handleDragStart = (e) => {
+            // Eğer bir task sürükleniyorsa kolon sürüklemesini başlatma (ek güvenlik)
+            if (currentDraggedType === 'task') return;
+
+            if (!isDraggable) {
+                e.preventDefault();
+                return;
+            }
+            currentDraggedId = section.id;
+            currentDraggedType = 'column';
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', section.id);
+            setTimeout(() => e.target.style.opacity = '0.5', 0);
+        };
+
+        const handleDragEnd = (e) => {
+            currentDraggedId = null;
+            currentDraggedType = null;
+            e.target.style.opacity = '1';
+        };
+        
+        const handleDragOver = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+
+            if (currentDraggedType === 'task') {
+                setIsDragOver(true);
+                
+                const cards = e.currentTarget.querySelectorAll('.h2l-board-card');
+                let closestIndex = tasks.length;
+                
+                let minOffset = Number.NEGATIVE_INFINITY;
+                
+                cards.forEach((card, idx) => {
+                    const box = card.getBoundingClientRect();
+                    const offset = e.clientY - box.top - box.height / 2;
+                    if (offset < 0 && offset > minOffset) {
+                        minOffset = offset;
+                        closestIndex = idx;
+                    }
+                });
+                setDropIndex(closestIndex);
+                
+            } else if (currentDraggedType === 'column' && isDraggable) {
+                setIsDragOver(true);
+            }
+        };
+
+        return el('div', { 
+            className: `h2l-board-column ${isDragOver ? 'drag-over' : ''}`,
+            draggable: isDraggable,
+            onDragStart: handleDragStart,
+            onDragEnd: handleDragEnd,
+            onDragOver: handleDragOver,
+            onDragLeave: () => { setIsDragOver(false); setDropIndex(null); },
+            onDrop: handleDrop
+        },
+            el('div', { className: 'h2l-board-header', style: { cursor: isDraggable ? 'grab' : 'default' } },
+                el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                    el('span', null, section.name),
+                    el('span', { className: 'count' }, tasks.length)
+                )
+            ),
+            el('div', { className: 'h2l-board-body' },
+                tasks.map((t, idx) => (
+                    el(Fragment, { key: t.id },
+                        (isDragOver && dropIndex === idx && currentDraggedType === 'task') && el('div', { className: 'h2l-drop-indicator' }),
+                        el(BoardCard, { task: t, users, onTaskClick, onUpdateTask })
+                    )
+                )),
+                (isDragOver && dropIndex === tasks.length && currentDraggedType === 'task') && el('div', { className: 'h2l-drop-indicator' })
+            )
+        );
+    };
+
+    const BoardView = ({ tasks, sections, users = [], onUpdateTask, onAddTask, onTaskClick }) => {
+        const [groupBy, setGroupBy] = useState(localStorage.getItem('h2l_board_group_by') || 'section');
+        const [localSections, setLocalSections] = useState(sections);
+
+        useEffect(() => {
+             const sorted = [...sections].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)); 
+             setLocalSections(sorted);
+        }, [sections]);
+
+        const changeGroupBy = (val) => {
+            setGroupBy(val);
+            localStorage.setItem('h2l_board_group_by', val);
+        };
+
+        const handleMoveColumn = (draggedId, targetId, position) => {
+            const draggedIndex = localSections.findIndex(s => s.id === draggedId);
+            const targetIndex = localSections.findIndex(s => s.id === targetId);
+            if (draggedIndex === -1 || targetIndex === -1) return;
+            
+            const newSections = [...localSections];
+            const [draggedSection] = newSections.splice(draggedIndex, 1);
+            let insertIndex = newSections.findIndex(s => s.id === targetId);
+            if (position === 'after') insertIndex++;
+            newSections.splice(insertIndex, 0, draggedSection);
+            
+            newSections.forEach((s, index) => { s.sort_order = index; });
+            setLocalSections(newSections);
+            
+            const itemsToUpdate = newSections.map(s => ({ id: s.id, order: s.sort_order }));
+            apiFetch({ path: '/h2l/v1/reorder', method: 'POST', data: { type: 'section', items: itemsToUpdate } })
+                .catch(err => {
+                    console.error(err);
+                });
+        };
+
+        let columns = [];
+        if (groupBy === 'status') {
+             columns = Object.values(TASK_STATUSES).map(s => ({
+                 id: s.key,
+                 name: s.label,
+                 type: 'status',
+                 color: s.color
+             }));
+        } else {
+             columns = [
+                { id: 0, name: 'Bölümsüz', type: 'section', isVirtual: true },
+                ...localSections.map(s => ({ ...s, type: 'section' }))
+             ];
+        }
+
+        return el('div', { className: 'h2l-board-container', style: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column' } },
+            el('div', { className: 'h2l-board-toolbar', style: { padding: '0 0 15px 0', display: 'flex', justifyContent: 'flex-end' } },
+               el('div', { className: 'h2l-view-switcher', style: { display: 'inline-flex', background: '#f0f0f0', padding: '3px', borderRadius: '6px' } },
+                   el('button', { 
+                       className: `h2l-switch-btn ${groupBy === 'section' ? 'active' : ''}`,
+                       onClick: () => changeGroupBy('section'),
+                       style: { 
+                           display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '4px',
+                           background: groupBy === 'section' ? '#fff' : 'transparent',
+                           color: groupBy === 'section' ? '#333' : '#666',
+                           boxShadow: groupBy === 'section' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                           fontSize: '13px', fontWeight: 500
+                       }
+                   }, el(Icon, { name: 'layer-group' }), 'Bölüm'),
+                   el('button', { 
+                       className: `h2l-switch-btn ${groupBy === 'status' ? 'active' : ''}`,
+                       onClick: () => changeGroupBy('status'),
+                       style: { 
+                           display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '4px',
+                           background: groupBy === 'status' ? '#fff' : 'transparent',
+                           color: groupBy === 'status' ? '#333' : '#666',
+                           boxShadow: groupBy === 'status' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                           fontSize: '13px', fontWeight: 500
+                       }
+                   }, el(Icon, { name: 'bars-progress' }), 'Durum')
+               )
+            ),
+            el('div', { className: 'h2l-board-view', style: { flex: 1, overflowX: 'auto', whiteSpace: 'nowrap', display: 'flex', gap: '15px', paddingBottom: '20px', alignItems: 'flex-start' } },
+                columns.map(col => {
+                    const colTasks = tasks.filter(t => {
+                        const parentId = parseInt(t.parent_task_id || 0);
+                        if (parentId !== 0) return false;
+
+                        if (groupBy === 'status') {
+                            if (t.status === 'open' && col.id === 'in_progress') return true;
+                            return t.status === col.id;
+                        } else {
+                            return parseInt(t.section_id || 0) === parseInt(col.id);
+                        }
+                    });
+
+                    if (groupBy === 'section' && col.id === 0 && colTasks.length === 0 && sections.length > 0) return null;
+
+                    return el(BoardColumn, { 
+                        key: col.id, 
+                        section: col, 
+                        tasks: colTasks, 
+                        users, 
+                        onUpdateTask,
+                        isDraggable: groupBy === 'section' && !col.isVirtual,
+                        onMoveColumn: groupBy === 'section' ? handleMoveColumn : null,
+                        onTaskClick
+                    });
+                })
+            )
+        );
+    };
+
+    // --- UPCOMING & TODAY VIEW ---
     const UpcomingView = ({ tasks, users, projects, sections, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, labels, navigate }) => {
         const [currentDate, setCurrentDate] = useState(new Date());
         const [weekDates, setWeekDates] = useState([]);
@@ -485,9 +755,8 @@
         );
     };
 
-    // --- TODAY VIEW (YENİ - Todoist Style) ---
     const TodayView = ({ tasks, users, projects, sections, onUpdateTask, onDeleteTask, onAddTask, onTaskClick, labels, navigate }) => {
-        const [overdueExpanded, setOverdueExpanded] = useState(false); // Bugün görünümünde kapalı başlat
+        const [overdueExpanded, setOverdueExpanded] = useState(false); 
         const today = new Date();
         today.setHours(0,0,0,0);
 
@@ -496,7 +765,7 @@
 
         tasks.forEach(t => {
             if (t.status === 'completed' || t.status === 'cancelled') return;
-            if (!t.due_date) return; // Bugün görünümünde tarihsizler görünmez (Todoist mantığı)
+            if (!t.due_date) return; 
             
             const tDate = new Date(t.due_date);
             tDate.setHours(0,0,0,0);
@@ -517,8 +786,6 @@
                     el('span', { className: 'h2l-today-count' }, todayTasks.length > 0 ? todayTasks.length + ' görev' : '')
                 )
             ),
-            
-            // OVERDUE SECTION (Varsa)
             overdueTasks.length > 0 && el('div', { className: 'h2l-overdue-section' },
                 el('div', { className: 'h2l-overdue-header' },
                     el('div', { className: 'h2l-overdue-toggle', onClick: () => setOverdueExpanded(!overdueExpanded) },
@@ -532,8 +799,6 @@
                     overdueTasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, onAddTask, labels, navigate }))
                 )
             ),
-
-            // TODAY TASK LIST
             el('div', { className: 'h2l-today-list' },
                 todayTasks.map(t => el(TaskRow, { key: t.id, task: t, users, projects, sections, onUpdateTask, onDeleteTask, onTaskClick, onAddTask, labels, navigate })),
                 el(QuickAddContainer, { projectId: 0, sectionId: 0, users, projects, sections, onAdd: (d) => onAddTask({...d, dueDate: getDateString(0)}), labels, date: getDateString(0) })
@@ -550,7 +815,10 @@
 
         const isVirtualView = project.id === 0;
         let visibleTasks = [...localTasks]; 
+        
+        // Ana görünümde sadece parent görevleri göster
         visibleTasks = visibleTasks.filter(t => !t.parent_task_id || t.parent_task_id == 0);
+        
         if (!showCompleted) { visibleTasks = visibleTasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled'); }
         visibleTasks.sort((a, b) => {
             const isADone = a.status === 'completed' || a.status === 'cancelled';
@@ -627,10 +895,11 @@
     window.H2L.Tasks = {
         ListView,
         UpcomingView,
-        TodayView, // YENİ: Dışa Aktar
-        BoardView: () => el('div', { className: 'h2l-board-placeholder' }, el(Icon, {name: 'table-columns', style: {fontSize: 40, color: '#ddd'}}), el('p', null, 'Pano görünümü yapım aşamasında...')),
+        TodayView,
+        BoardView, // BoardView eklendi
         SectionGroup,
-        TaskRow
+        TaskRow,
+        QuickAddContainer // Dışarı açıldı (modalda kullanım için)
     };
 
 })(window.wp);

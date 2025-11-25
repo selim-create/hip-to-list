@@ -1,7 +1,7 @@
 <?php
 /**
  * Veritabanı kurulum işlemleri.
- * GÜNCELLEME: Kişisel favoriler için h2l_user_favorites tablosu eklendi.
+ * GÜNCELLEME: CRM İlişkileri ve Alt Görev sütunları eklendi.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -57,7 +57,7 @@ function h2l_install_db() {
   KEY project_id (project_id)
 ) $charset_collate;";
 
-    // 4. Tasks
+    // 4. Tasks (DÜZELTME: CRM Sütunları Eklendi)
     $sql_tasks = "CREATE TABLE {$wpdb->prefix}h2l_tasks (
   id bigint(20) NOT NULL AUTO_INCREMENT,
   project_id bigint(20) NOT NULL,
@@ -70,6 +70,8 @@ function h2l_install_db() {
   status varchar(50) DEFAULT 'open',
   assignee_ids text,
   location text,
+  related_object_type varchar(50),
+  related_object_id bigint(20) DEFAULT 0,
   reminder_enabled tinyint(1) DEFAULT 1,
   reminder_sent tinyint(1) DEFAULT 0,
   due_date datetime DEFAULT NULL,
@@ -135,7 +137,7 @@ function h2l_install_db() {
   KEY user_read (user_id, is_read)
 ) $charset_collate;";
 
-    // 10. User Favorites (YENİ)
+    // 10. User Favorites
     $sql_favorites = "CREATE TABLE {$wpdb->prefix}h2l_user_favorites (
   user_id bigint(20) NOT NULL,
   project_id bigint(20) NOT NULL,
@@ -153,14 +155,13 @@ function h2l_install_db() {
     dbDelta( $sql_comments );
     dbDelta( $sql_activity );
     dbDelta( $sql_notifications );
-    dbDelta( $sql_favorites ); // Yeni tablo
+    dbDelta( $sql_favorites );
 
-    add_option( 'h2l_db_version', '2.0.0' );
+    // DB Sürümünü Güncelle
+    update_option( 'h2l_db_version', '2.1.0' );
     
-    // Sayfayı oluştur
     h2l_create_app_page();
     
-    // URL Kurallarını Aktif Et
     h2l_add_rewrite_rules();
     flush_rewrite_rules();
 
