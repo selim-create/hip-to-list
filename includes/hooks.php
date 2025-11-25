@@ -53,4 +53,41 @@ register_deactivation_hook( H2L_PATH . 'hip-to-list.php', 'h2l_clear_cron_jobs' 
 function h2l_clear_cron_jobs() {
     wp_clear_scheduled_hook( 'h2l_reminder_check_event' );
 }
+
+/**
+ * Yazı başlıklarına ilişkili görev ikonu ekle
+ */
+add_filter('the_title', 'h2l_add_task_icon_to_title', 10, 2);
+
+function h2l_add_task_icon_to_title($title, $id = null) {
+    // Sadece admin olmayan, döngü içindeki ve tekil detay sayfalarında çalış
+    if ( !is_admin() && in_the_loop() && is_singular() ) {
+        if (!$id) $id = get_the_ID();
+        
+        global $wpdb;
+        // Bu post ID'sine bağlı silinmemiş bir görev var mı?
+        $task = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, status FROM {$wpdb->prefix}h2l_tasks WHERE related_object_id = %d AND related_object_type = %s AND status != 'trash'", 
+            $id, 
+            get_post_type($id)
+        ));
+        
+        if ($task) {
+            // Tamamlanmışsa yeşil, değilse mavi ikon
+            $color = ($task->status === 'completed') ? '#27ae60' : '#246fe0';
+            $icon_class = ($task->status === 'completed') ? 'fa-circle-check' : 'fa-square-check'; // FontAwesome classları
+            
+            // İkon HTML'i (data-task-id attribute'u JS için kritik)
+            $icon_html = sprintf(
+                ' <span class="h2l-task-trigger" data-task-id="%d" title="Görevi Görüntüle" style="cursor:pointer; color:%s; font-size:0.7em; vertical-align:middle; margin-left:8px;"> <i class="fa-solid %s"></i></span>',
+                $task->id,
+                $color,
+                $icon_class
+            );
+            
+            return $title . $icon_html;
+        }
+    }
+    return $title;
+}
 ?>

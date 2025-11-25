@@ -400,11 +400,10 @@
 
         return el('div', { 
             className: `h2l-board-card ${isCompleted ? 'completed' : ''}`, 
-            onClick: () => onTaskClick(task), 
+            onClick: () => onTaskClick(task), // Modal açma işlemi
             draggable: true,
             onDragStart: (e) => {
-                // FIX: stopPropagation ekleyerek kolon sürüklemeyi tetiklemesini engelle
-                e.stopPropagation();
+                e.stopPropagation(); // Kolon sürüklemesini engelle
                 currentDraggedId = task.id;
                 currentDraggedType = 'task';
                 e.dataTransfer.effectAllowed = 'move';
@@ -461,8 +460,10 @@
             if (currentDraggedType === 'task' && currentDraggedId) {
                 const updatePayload = {};
                 if (section.type === 'status') {
+                    // Durum değiştir
                     updatePayload.status = section.id;
                 } else {
+                    // Bölüm değiştir (Varsayılan davranış)
                     updatePayload.sectionId = section.id || 0;
                 }
                 onUpdateTask(currentDraggedId, updatePayload);
@@ -477,8 +478,7 @@
         };
 
         const handleDragStart = (e) => {
-            // Eğer bir task sürükleniyorsa kolon sürüklemesini başlatma (ek güvenlik)
-            if (currentDraggedType === 'task') return;
+            if (currentDraggedType === 'task') return; // Eğer task sürükleniyorsa kolon sürüklemeyi başlatma
 
             if (!isDraggable) {
                 e.preventDefault();
@@ -499,6 +499,7 @@
         
         const handleDragOver = (e) => {
             e.preventDefault();
+            e.stopPropagation(); // Event bubble'ı durdur, üst elemanlar etkilemesin
             e.dataTransfer.dropEffect = 'move';
 
             if (currentDraggedType === 'task') {
@@ -576,16 +577,20 @@
             if (position === 'after') insertIndex++;
             newSections.splice(insertIndex, 0, draggedSection);
             
+            // Optimistic UI update
             newSections.forEach((s, index) => { s.sort_order = index; });
             setLocalSections(newSections);
             
+            // API Call
             const itemsToUpdate = newSections.map(s => ({ id: s.id, order: s.sort_order }));
             apiFetch({ path: '/h2l/v1/reorder', method: 'POST', data: { type: 'section', items: itemsToUpdate } })
                 .catch(err => {
                     console.error(err);
+                    // Revert on error if needed, but usually redundant fetch will fix it
                 });
         };
 
+        // Define columns based on groupBy
         let columns = [];
         if (groupBy === 'status') {
              columns = Object.values(TASK_STATUSES).map(s => ({
@@ -595,6 +600,7 @@
                  color: s.color
              }));
         } else {
+             // Default: Sections + "Bölümsüz"
              columns = [
                 { id: 0, name: 'Bölümsüz', type: 'section', isVirtual: true },
                 ...localSections.map(s => ({ ...s, type: 'section' }))
@@ -602,6 +608,7 @@
         }
 
         return el('div', { className: 'h2l-board-container', style: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column' } },
+            // Controls (Modern Switch)
             el('div', { className: 'h2l-board-toolbar', style: { padding: '0 0 15px 0', display: 'flex', justifyContent: 'flex-end' } },
                el('div', { className: 'h2l-view-switcher', style: { display: 'inline-flex', background: '#f0f0f0', padding: '3px', borderRadius: '6px' } },
                    el('button', { 
@@ -628,13 +635,16 @@
                    }, el(Icon, { name: 'bars-progress' }), 'Durum')
                )
             ),
+            // Board
             el('div', { className: 'h2l-board-view', style: { flex: 1, overflowX: 'auto', whiteSpace: 'nowrap', display: 'flex', gap: '15px', paddingBottom: '20px', alignItems: 'flex-start' } },
                 columns.map(col => {
                     const colTasks = tasks.filter(t => {
+                        // FIX: Robust check for parent_task_id to ensure only main tasks are shown
                         const parentId = parseInt(t.parent_task_id || 0);
                         if (parentId !== 0) return false;
 
                         if (groupBy === 'status') {
+                            // Handle 'open' as 'in_progress' fallback if needed, or exact match
                             if (t.status === 'open' && col.id === 'in_progress') return true;
                             return t.status === col.id;
                         } else {
@@ -642,6 +652,7 @@
                         }
                     });
 
+                    // Filter out empty 'No Section' column only in section mode if others exist
                     if (groupBy === 'section' && col.id === 0 && colTasks.length === 0 && sections.length > 0) return null;
 
                     return el(BoardColumn, { 
@@ -650,6 +661,7 @@
                         tasks: colTasks, 
                         users, 
                         onUpdateTask,
+                        // Only pass drag/move handlers if grouping by section and column is not virtual ("No Section")
                         isDraggable: groupBy === 'section' && !col.isVirtual,
                         onMoveColumn: groupBy === 'section' ? handleMoveColumn : null,
                         onTaskClick

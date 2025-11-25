@@ -3,9 +3,9 @@
     const apiFetch = wp.apiFetch;
     
     const Common = window.H2L && window.H2L.Common ? window.H2L.Common : { Icon: () => null, Avatar: () => null, TASK_STATUSES: {} };
-    const { Icon, Avatar, TASK_STATUSES, MultiSelect } = Common;
+    const { Icon, Avatar, TASK_STATUSES } = Common;
     
-    // TaskEditor'ü buradan doğrudan alıyoruz
+    // TaskInput kontrolü
     const TaskInput = window.H2L && window.H2L.TaskInput ? window.H2L.TaskInput : { ContentEditable: () => null, TaskEditor: () => null };
     const { ContentEditable, TaskEditor } = TaskInput;
     
@@ -13,10 +13,139 @@
     const { getPriorityColor } = Reminders;
     const TodoistDatepicker = window.H2L && window.H2L.TodoistDatepicker ? window.H2L.TodoistDatepicker : null;
 
+    // QuickAddContainer'ı H2L.Tasks'tan almayı dene, yoksa null
+    const TasksModule = window.H2L.Tasks || {};
+    const QuickAddContainer = TasksModule.QuickAddContainer ? TasksModule.QuickAddContainer : () => null;
+
     window.H2L = window.H2L || {};
     window.H2L.TaskModal = window.H2L.TaskModal || {};
 
-    // --- HELPER: Text Tooltip ---
+    // --- HELPER: CRM Nesne Türleri ---
+    const CRM_TYPES = [
+        { value: 'kampanya', label: 'Kampanya' },
+        { value: 'ajans', label: 'Ajans' },
+        { value: 'reklamveren', label: 'Reklamveren' },
+        { value: 'yayinci', label: 'Yayıncı' },
+        { value: 'mecra', label: 'Mecra' },
+        { value: 'post', label: 'Yazı' },
+        { value: 'page', label: 'Sayfa' }
+    ];
+
+    // --- BİLEŞEN: CRM Selector Sidebar ---
+    const SidebarCRMSelector = ({ relatedType, relatedId, relatedTitle, relatedLink, onUpdate }) => {
+        const [isEditing, setIsEditing] = useState(false);
+        const [selectedType, setSelectedType] = useState(relatedType || 'kampanya');
+        const [searchTerm, setSearchTerm] = useState('');
+        const [results, setResults] = useState([]);
+        const [loading, setLoading] = useState(false);
+        const searchTimeout = useRef(null);
+        const containerRef = useRef(null);
+
+        useEffect(() => {
+            const handleClickOutside = (event) => {
+                if (isEditing && containerRef.current && !containerRef.current.contains(event.target)) {
+                    setIsEditing(false);
+                }
+            };
+            document.addEventListener("mousedown", handleClickOutside);
+            return () => document.removeEventListener("mousedown", handleClickOutside);
+        }, [isEditing]);
+
+        const handleSearch = (term) => {
+            setSearchTerm(term);
+            if (searchTimeout.current) clearTimeout(searchTimeout.current);
+            if (term.length < 2) {
+                setResults([]);
+                return;
+            }
+            setLoading(true);
+            searchTimeout.current = setTimeout(() => {
+                apiFetch({ path: `/h2l/v1/crm-search?term=${term}&type=${selectedType}` })
+                    .then(res => {
+                        setResults(res);
+                        setLoading(false);
+                    })
+                    .catch(() => setLoading(false));
+            }, 400);
+        };
+
+        const handleSelect = (item) => {
+            onUpdate({ related_object_type: selectedType, related_object_id: item.id });
+            setIsEditing(false);
+        };
+
+        const handleRemove = () => {
+            onUpdate({ related_object_type: '', related_object_id: 0 });
+            setIsEditing(false);
+        };
+
+        const hasRelation = relatedId && relatedId > 0;
+
+        return el('div', { className: 'h2l-tm-sidebar-group', style: { position: 'relative' }, ref: containerRef },
+            el('div', { className: 'h2l-tm-sb-label' }, 'İlişkili Kayıt'),
+            el('div', { 
+                className: 'h2l-tm-sb-value clickable', 
+                onClick: (e) => { e.stopPropagation(); setIsEditing(!isEditing); },
+                style: { flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }
+            },
+                hasRelation ? [
+                    el('div', { key: 'type', style: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#666' } },
+                        el(Icon, { name: 'link', style: { fontSize: '10px' } }),
+                        CRM_TYPES.find(t => t.value === relatedType)?.label || relatedType
+                    ),
+                    el('a', { 
+                        key: 'link',
+                        href: relatedLink || '#', 
+                        target: '_blank', 
+                        onClick: e => e.stopPropagation(),
+                        style: { fontWeight: 500, color: '#246fe0', textDecoration: 'none' }
+                    }, relatedTitle || `ID: ${relatedId}`)
+                ] : el('span', { style: { color: '#888' } }, 'Kayıt bağla...')
+            ),
+            
+            isEditing && el('div', { className: 'h2l-popover-menu right-aligned', style: { width: '280px', padding: '10px', zIndex: 20065, top: '100%', right: 0 } },
+                el('div', { style: { marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+                    el('strong', { style: { fontSize: '12px' } }, 'Kayıt Bağla'),
+                    el(Icon, { name: 'xmark', style: { cursor: 'pointer' }, onClick: () => setIsEditing(false) })
+                ),
+                el('select', { 
+                    className: 'h2l-select', 
+                    style: { marginBottom: '8px', width: '100%', fontSize: '13px' },
+                    value: selectedType,
+                    onChange: e => { setSelectedType(e.target.value); setResults([]); setSearchTerm(''); }
+                }, CRM_TYPES.map(t => el('option', { key: t.value, value: t.value }, t.label))),
+                el('div', { style: { position: 'relative' } },
+                    el('input', {
+                        className: 'h2l-input',
+                        placeholder: 'Ara...',
+                        autoFocus: true,
+                        value: searchTerm,
+                        onChange: e => handleSearch(e.target.value),
+                        style: { width: '100%', paddingRight: '25px' }
+                    }),
+                    loading && el('span', { style: { position: 'absolute', right: '8px', top: '8px', fontSize: '10px', color: '#999' } }, '...')
+                ),
+                el('div', { style: { marginTop: '8px', maxHeight: '150px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '4px' } },
+                    results.length === 0 && searchTerm.length > 1 && !loading && el('div', { style: { padding: '8px', fontSize: '12px', color: '#999' } }, 'Sonuç yok'),
+                    results.map(r => 
+                        el('div', { 
+                            key: r.id, 
+                            className: 'h2l-menu-item', 
+                            onClick: () => handleSelect(r),
+                            style: { padding: '6px 8px', fontSize: '13px', cursor: 'pointer', borderBottom: '1px solid #f9f9f9' }
+                        }, r.title)
+                    )
+                ),
+                (relatedId > 0) && el('button', { 
+                    className: 'h2l-btn text-danger small', 
+                    style: { marginTop: '10px', width: '100%' },
+                    onClick: handleRemove 
+                }, 'Bağlantıyı Kaldır')
+            )
+        );
+    };
+
+    // ... (TextTooltip, SidebarDatePicker vb. diğer yardımcı bileşenler) ...
     const TextTooltip = ({ position, onFormat, showLinkInput, onLinkSubmit, onClose }) => {
         const [linkUrl, setLinkUrl] = useState('');
         const inputRef = useRef(null);
@@ -101,46 +230,10 @@
         return el('div', { className: 'h2l-unified-editor view', onClick: () => setIsEditing(true) }, el('div', { className: 'h2l-view-title', dangerouslySetInnerHTML: { __html: title || placeholderTitle } }), el('div', { className: 'h2l-view-desc h2l-rich-content', style: { display: description ? 'block' : 'none' }, dangerouslySetInnerHTML: { __html: description } }), !description && el('div', { className: 'h2l-view-desc placeholder' }, placeholderDesc));
     };
 
-    // --- ALT GÖREV SATIRI (GÜNCELLENDİ) ---
     const SubtaskRow = ({ task, onUpdate, onDelete, onOpen }) => {
         const [isCompleted, setIsCompleted] = useState(task.status === 'completed');
-        
-        const toggleComplete = () => { 
-            const newStatus = isCompleted ? 'in_progress' : 'completed'; 
-            setIsCompleted(!isCompleted); 
-            onUpdate(task.id, { status: newStatus }); 
-        };
-
-        return el('div', { className: 'h2l-subtask-row' },
-            el('div', { 
-                className: `h2l-subtask-check ${isCompleted ? 'completed' : ''}`, 
-                onClick: toggleComplete,
-                style: { background: isCompleted ? '#aaa' : 'transparent', borderColor: isCompleted ? '#aaa' : '#ccc' } 
-            }, isCompleted && el(Icon, { name: 'check', style: { fontSize: 10, color: '#fff' } })),
-            
-            el('div', { 
-                className: `h2l-subtask-content ${isCompleted ? 'completed' : ''}`, 
-                contentEditable: true, 
-                onBlur: (e) => { if(e.target.textContent !== task.title) onUpdate(task.id, { title: e.target.textContent }); }, 
-                suppressContentEditableWarning: true 
-            }, task.title),
-            
-            el('div', { className: 'h2l-subtask-actions' },
-                // YENİ: Görevi Aç butonu
-                el(Icon, { 
-                    name: 'arrow-up-right-from-square', 
-                    style: { cursor: 'pointer', color: '#888', marginRight: 10, fontSize: 12 }, 
-                    title: 'Görevi Aç', 
-                    onClick: (e) => { e.stopPropagation(); onOpen(); } 
-                }),
-                el(Icon, { 
-                    name: 'xmark', 
-                    style: { cursor: 'pointer', color: '#ccc' }, 
-                    title: 'Sil',
-                    onClick: () => onDelete(task.id) 
-                })
-            )
-        );
+        const toggleComplete = () => { const newStatus = isCompleted ? 'in_progress' : 'completed'; setIsCompleted(!isCompleted); onUpdate(task.id, { status: newStatus }); };
+        return el('div', { className: 'h2l-subtask-row' }, el('div', { className: `h2l-subtask-check ${isCompleted ? 'completed' : ''}`, onClick: toggleComplete, style: { background: isCompleted ? '#aaa' : 'transparent', borderColor: isCompleted ? '#aaa' : '#ccc' } }, isCompleted && el(Icon, { name: 'check', style: { fontSize: 10, color: '#fff' } })), el('div', { className: `h2l-subtask-content ${isCompleted ? 'completed' : ''}`, contentEditable: true, onBlur: (e) => { if(e.target.textContent !== task.title) onUpdate(task.id, { title: e.target.textContent }); }, suppressContentEditableWarning: true }, task.title), el('div', { className: 'h2l-subtask-actions' }, el(Icon, { name: 'arrow-up-right-from-square', style: { cursor: 'pointer', color: '#888', marginRight: 10, fontSize: 12 }, title: 'Görevi Aç', onClick: (e) => { e.stopPropagation(); onOpen(); } }), el(Icon, { name: 'xmark', style: { cursor: 'pointer', color: '#ccc' }, title: 'Sil', onClick: () => onDelete(task.id) })));
     };
 
     // --- MAIN MODAL ---
@@ -203,7 +296,6 @@
         const currentStatusObj = TASK_STATUSES[task.status] || TASK_STATUSES['in_progress'];
 
         // --- POPOVER MENÜLER ---
-        
         const renderProjectMenu = () => {
             const filtered = projects.filter(p => p.title.toLowerCase().includes(popoverSearch.toLowerCase()));
             return el('div', { className: 'h2l-popover-menu right-aligned' },
@@ -370,19 +462,18 @@
                                             task: st, 
                                             onUpdate: handleUpdateSubtask, 
                                             onDelete: handleDeleteSubtask,
-                                            onOpen: () => navigate('/gorev/' + st.id) // NAVIGATE EKLENDİ
+                                            onOpen: () => navigate('/gorev/' + st.id)
                                         }))
                                     ),
                                     !showSubtaskInput && el('div', { className: 'h2l-tm-add-subtask', onClick: () => setShowSubtaskInput(true) }, el(Icon, {name:'plus'}), ' Alt görev ekle'),
-                                    showSubtaskInput && el(TaskEditor, { 
-                                        mode: 'add',
-                                        users, projects, sections,
-                                        activeProjectId: task.project_id,
-                                        initialData: { parent_task_id: task.id, project_id: task.project_id, section_id: task.section_id },
-                                        onSave: handleAddSubtask,
-                                        onCancel: () => setShowSubtaskInput(false),
-                                        labels
-                                    })
+                                    showSubtaskInput && (QuickAddContainer ? el(QuickAddContainer, { 
+                                        projectId: task.project_id, 
+                                        sectionId: task.section_id, 
+                                        parentTaskId: task.id,
+                                        users, projects, sections, 
+                                        onAdd: handleAddSubtask, 
+                                        labels 
+                                    }) : null)
                                 ),
                                 
                                 el('div', { className: 'h2l-tm-activity-stream' },
@@ -399,6 +490,16 @@
                         el('div', { className: 'h2l-tm-sidebar-inner' },
                             el(SidebarRow, { label: 'Proje', value: currentProject.title || 'Projesiz', icon: 'hashtag', color: currentProject.color, activeKey: activePopup === 'project' ? 'project' : null, onTogglePopup: () => { setPopoverSearch(''); setActivePopup(activePopup === 'project' ? null : 'project'); }, renderPopupContent: renderProjectMenu }),
                             el(SidebarRow, { label: 'Atanan kişiler', activeKey: activePopup === 'assignee' ? 'assignee' : null, customContent: el(SidebarAssigneeList, { assigneeIds: task.assignees, users, onOpenMenu: (e) => { e.stopPropagation(); setPopoverSearch(''); setActivePopup(activePopup === 'assignee' ? null : 'assignee'); } }), renderPopupContent: renderAssigneeMenu }),
+                            
+                            // YENİ: CRM Selector Ekle
+                            el(SidebarCRMSelector, { 
+                                relatedType: task.related_object_type, 
+                                relatedId: task.related_object_id, 
+                                relatedTitle: task.related_object_title,
+                                relatedLink: task.related_object_link,
+                                onUpdate: updateField
+                            }),
+
                             el('div', { className: 'h2l-tm-sidebar-group' }, el('div', { className: 'h2l-tm-sb-label' }, 'Tarih'), el('div', { className: 'h2l-tm-sb-value', style: { padding: 0 } }, el(SidebarDatePicker, { date: task.due_date, repeat: task.recurrence_rule, onChange: (d, r) => updateField({ dueDate: d, repeat: r }) }))),
                             el('div', { className: 'h2l-tm-sidebar-group' }, el('div', { className: 'h2l-tm-sb-label' }, 'Öncelik'), el(SidebarPrioritySelector, { priority: task.priority, onChange: (p) => updateField({ priority: p }) })),
                             el(SidebarRow, { label: 'Hatırlatıcılar', value: (task.reminder_enabled == 1) ? 'Açık' : 'Kapalı', icon: 'bell', color: (task.reminder_enabled == 1) ? '#db4c3f' : '#aaa', isClickable: true, onTogglePopup: () => updateField({ reminder_enabled: (task.reminder_enabled == 1) ? 0 : 1 }) }),
