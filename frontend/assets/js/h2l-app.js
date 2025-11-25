@@ -309,7 +309,24 @@
             if (activeLabel) {
                 visibleTasks = data.tasks.filter(t => t.status !== 'trash' && t.labels && t.labels.some(l => l.slug === viewState.slug));
                 const virtualProject = { id: 0, title: activeLabel.name, color: activeLabel.color || '#808080', view_type: 'list' };
-                content = el(ListView, { project: virtualProject, projects: data.projects, tasks: visibleTasks, sections: [], users: data.users, navigate, onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask, onAddSection: () => alert('Etiket görünümünde bölüm eklenemez.'), onTaskClick: onTaskClick, showCompleted: true, highlightToday: true, onUpdateSection: ()=>{}, onDeleteSection: ()=>{}, labels: data.labels || [] });
+                content = el(ListView, { 
+                    project: virtualProject, 
+                    projects: data.projects, 
+                    tasks: visibleTasks, 
+                    sections: [], 
+                    users: data.users, 
+                    navigate, 
+                    onUpdateTask: handleUpdateTask, 
+                    onDeleteTask: handleDeleteTask, 
+                    onAddSection: () => alert('Etiket görünümünde bölüm eklenemez.'), 
+                    onTaskClick: onTaskClick, 
+                    showCompleted: true, 
+                    highlightToday: true, 
+                    onUpdateSection: ()=>{}, 
+                    onDeleteSection: ()=>{}, 
+                    labels: data.labels || [],
+                    onAddTask: handleAddTask // <-- EKLENDİ
+                });
             } else { content = el('div', {className: 'h2l-error'}, 'Etiket bulunamadı: ' + viewState.slug); }
         }
 

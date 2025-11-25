@@ -141,7 +141,7 @@
 .h2l-task-row::before { content: '\f58e'; font-family: "Font Awesome 6 Free"; font-weight: 900; position: absolute; left: -24px; top: 12px; color: #ccc; cursor: grab; opacity: 0; transition: opacity 0.2s; font-size: 12px; }
 .h2l-task-row:hover::before { opacity: 1; }
 .h2l-task-row.h2l-highlight-today { background-color: #fffcf9; }
-.h2l-task-left { width: 26px; flex-shrink: 0; padding-top: 3px; position: relative; }
+.h2l-task-left { width: 26px; flex-shrink: 0; padding-top: 0px; line-height: 20px; position: relative; }
 .h2l-status-wrapper { position: relative; display: inline-block; }
 .h2l-task-check { width: 18px; height: 18px; border: 1px solid #808080; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: transparent; transition: all 0.2s; background: #fff; position: relative; cursor: pointer; }
 .h2l-task-check:hover { background: rgba(0,0,0,0.05); color: #ccc; }
@@ -422,7 +422,7 @@ button.h2l-todoist-btn-cancel:hover { background-color: #e5e5e5 !important; colo
 /* OVERLAY - Top 25px ayarlandı */
 .h2l-detail-overlay { 
     position: fixed; top: 25px; left: 0; width: 100%; height: calc(100% - 25px); 
-    background: rgba(0,0,0,0.5); z-index: 20000; display: flex; 
+    background: rgba(0,0,0,0.5); z-index: 99999; display: flex; 
     justify-content: center; align-items: center; backdrop-filter: blur(2px); 
 }
 
