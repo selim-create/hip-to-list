@@ -26,17 +26,22 @@
     const SettingsModal = ({ onClose }) => {
         const [activeTab, setActiveTab] = useState('general');
         // Varsayılan değerler
-        const [settings, setSettings] = useState({
+        const [userSettings, setUserSettings] = useState({ // İsim karışıklığını önlemek için settings -> userSettings
             email_notifications: true,
-            in_app_notifications: true
+            in_app_notifications: true,
+            start_view: 'projects', // Varsayılan: Projelerim
+            ical_active: false,
+            ical_url: ''
         });
         const [loading, setLoading] = useState(true);
+        const [copySuccess, setCopySuccess] = useState(false);
 
         // Ayarları yükle
         useEffect(() => {
             apiFetch({ path: '/h2l/v1/user-settings' })
                 .then(res => {
-                    setSettings(res);
+                    // State merge işlemi
+                    setUserSettings(prev => ({ ...prev, ...res }));
                     setLoading(false);
                 })
                 .catch(err => {
@@ -45,23 +50,49 @@
                 });
         }, []);
 
+        // Checkbox Toggle
         const handleToggle = (key) => {
-            const newValue = !settings[key];
-            setSettings(prev => ({ ...prev, [key]: newValue }));
-            // API'ye kaydet
+            const newValue = !userSettings[key];
+            setUserSettings(prev => ({ ...prev, [key]: newValue }));
+            saveSetting(key, newValue);
+        };
+
+        // Select Change (Text values) - BU FONKSİYON ZORUNLU
+        const handleChange = (key, value) => {
+            setUserSettings(prev => ({ ...prev, [key]: value }));
+            saveSetting(key, value);
+        };
+
+        const saveSetting = (key, value) => {
             apiFetch({ 
                 path: '/h2l/v1/user-settings', 
                 method: 'POST', 
-                data: { [key]: newValue } 
+                data: { [key]: value } 
             }).catch(err => {
-                // Hata durumunda geri al (Optimistic UI rollback)
-                setSettings(prev => ({ ...prev, [key]: !newValue }));
                 console.error("Ayar kaydedilemedi:", err);
             });
         };
 
+        const handleCopyUrl = () => {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(userSettings.ical_url).then(() => {
+                    setCopySuccess(true);
+                    setTimeout(() => setCopySuccess(false), 2500);
+                });
+            } else {
+                // Fallback
+                const input = document.getElementById('h2l-ical-input');
+                if (input) {
+                    input.select();
+                    document.execCommand('copy');
+                    setCopySuccess(true);
+                    setTimeout(() => setCopySuccess(false), 2500);
+                }
+            }
+        };
+
         return el('div', { className: 'h2l-overlay', onClick: onClose },
-            el('div', { className: 'h2l-modal medium', onClick: e => e.stopPropagation() },
+            el('div', { className: 'h2l-modal medium', onClick: e => e.stopPropagation(), style: { position: 'relative' } },
                 el('div', { className: 'h2l-modal-header' }, el('h3', null, 'Ayarlar'), el(Icon, { name: 'xmark', onClick: onClose })),
                 el('div', { className: 'h2l-modal-body' },
                     el('div', { className: 'h2l-settings-tabs', style: { display: 'flex', borderBottom: '1px solid #eee', marginBottom: '20px' } },
@@ -73,12 +104,26 @@
                         el('button', { 
                             className: `h2l-tab-btn ${activeTab === 'notifications' ? 'active' : ''}`, 
                             onClick: () => setActiveTab('notifications'),
-                            style: { paddingBottom: '10px', borderBottom: activeTab === 'notifications' ? '2px solid #db4c3f' : 'none', fontWeight: 600 }
-                        }, 'Bildirimler')
+                            style: { marginRight: '20px', paddingBottom: '10px', borderBottom: activeTab === 'notifications' ? '2px solid #db4c3f' : 'none', fontWeight: 600 }
+                        }, 'Bildirimler'),
+                        el('button', { 
+                            className: `h2l-tab-btn ${activeTab === 'integrations' ? 'active' : ''}`, 
+                            onClick: () => setActiveTab('integrations'),
+                            style: { paddingBottom: '10px', borderBottom: activeTab === 'integrations' ? '2px solid #db4c3f' : 'none', fontWeight: 600 }
+                        }, 'Takvim')
                     ),
                     
                     activeTab === 'general' && el('div', { className: 'h2l-settings-content' },
-                        el('div', { style: { textAlign: 'center', color: '#999', padding: '40px' } }, 'Genel ayarlar yakında eklenecek.')
+                        el('div', { className: 'h2l-form-group' },
+                            el('label', { className: 'h2l-label' }, 'Başlangıç Sayfası'),
+                            el('select', { className: 'h2l-select', value: userSettings.start_view || 'projects', onChange: (e) => handleChange('start_view', e.target.value) },
+                                el('option', { value: 'projects' }, 'Projelerim (Varsayılan)'),
+                                el('option', { value: 'inbox' }, 'Gelen Kutusu'),
+                                el('option', { value: 'today' }, 'Bugün'),
+                                el('option', { value: 'upcoming' }, 'Yaklaşan')
+                            ),
+                            el('p', { style: { fontSize: '12px', color: '#888', marginTop: '5px' } }, 'Uygulamayı açtığınızda ilk olarak bu ekranı görürsünüz.')
+                        )
                     ),
 
                     activeTab === 'notifications' && el('div', { className: 'h2l-settings-content' },
@@ -88,7 +133,7 @@
                                 el('span', { style: { fontSize: '12px', color: '#888' } }, 'Önemli güncellemeleri e-posta ile al.')
                             ),
                             el('div', { className: 'h2l-switch' },
-                                el('input', { type: 'checkbox', checked: settings.email_notifications, onChange: () => {} }),
+                                el('input', { type: 'checkbox', checked: userSettings.email_notifications, onChange: () => {} }),
                                 el('span', { className: 'h2l-slider round' })
                             )
                         ),
@@ -98,13 +143,53 @@
                                 el('span', { style: { fontSize: '12px', color: '#888' } }, 'Uygulama içindeyken bildirim al.')
                             ),
                             el('div', { className: 'h2l-switch' },
-                                el('input', { type: 'checkbox', checked: settings.in_app_notifications, onChange: () => {} }),
+                                el('input', { type: 'checkbox', checked: userSettings.in_app_notifications, onChange: () => {} }),
                                 el('span', { className: 'h2l-slider round' })
+                            )
+                        )
+                    ),
+
+                    activeTab === 'integrations' && el('div', { className: 'h2l-settings-content' },
+                        !userSettings.ical_active ? el('div', {className:'h2l-empty-state', style: { padding: '20px', textAlign: 'center', color: '#999' }}, 'Takvim entegrasyonu yönetici tarafından kapatılmış.') :
+                        el('div', null, 
+                            el('h4', {style: { margin: '0 0 10px 0', fontSize: '14px' }}, 'Takvim Aboneliği (iCal)'),
+                            el('p', {style:{fontSize:13, color:'#666', lineHeight: 1.5}}, 'Bu bağlantıyı Google Takvim veya Outlook\'a ekleyerek görevlerinizi takip edebilirsiniz.'),
+                            el('div', {className: 'h2l-ical-box', style:{display:'flex', gap:10, marginTop:15, marginBottom: 20}},
+                                el('input', {id: 'h2l-ical-input', type:'text', readOnly:true, value:userSettings.ical_url, className:'h2l-input', style:{background:'#f9f9f9', fontSize: '12px'}}),
+                                el('button', {className:'h2l-btn', onClick: handleCopyUrl}, el(Icon, {name:'copy'}), ' Kopyala')
+                            ),
+                            el('div', {style:{fontSize:12, color:'#888', background: '#f5f5f5', padding: '15px', borderRadius: '6px'}}, 
+                                el('strong', {style:{display:'block', marginBottom: 5, color: '#333'}}, 'Google Takvim Kurulumu:'),
+                                '1. Sol menüde "Diğer takvimler" yanındaki + butonuna tıklayın.', el('br'),
+                                '2. "URL ile ekle" seçeneğini seçin.', el('br'),
+                                '3. Yukarıdaki linki yapıştırın.'
                             )
                         )
                     )
                 ),
-                el('div', { className: 'h2l-modal-footer' }, el('button', { className: 'h2l-btn', onClick: onClose }, 'Kapat'))
+                el('div', { className: 'h2l-modal-footer' }, el('button', { className: 'h2l-btn', onClick: onClose }, 'Kapat')),
+                
+                // Şık Bildirim Balonu (Toast)
+                copySuccess && el('div', { 
+                    style: { 
+                        position: 'absolute', 
+                        bottom: '80px', 
+                        left: '50%', 
+                        transform: 'translateX(-50%)', 
+                        background: '#333', 
+                        color: '#fff', 
+                        padding: '10px 20px', 
+                        borderRadius: '6px', 
+                        fontSize: '13px', 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+                        zIndex: 100,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        animation: 'fadeIn 0.2s ease-out',
+                        whiteSpace: 'nowrap'
+                    } 
+                }, el(Icon, {name:'check', style:{color:'#4cd964'}}), 'Bağlantı kopyalandı!')
             )
         );
     };
@@ -167,7 +252,24 @@
         const [activeMeeting, setActiveMeeting] = useState(null);
 
         const loadData = () => {
-            apiFetch({ path: '/h2l/v1/init' }).then(res => { setData(res); setLoading(false); })
+            apiFetch({ path: '/h2l/v1/init' }).then(res => { 
+                setData(res); 
+                setLoading(false); 
+                
+                // Başlangıç Görünümü Ayarı (Sadece Ana Sayfadaysak)
+                if (window.location.pathname === BASE_URL || window.location.pathname === BASE_URL + '/') {
+                    if (res.user_prefs && res.user_prefs.start_view) {
+                        const sv = res.user_prefs.start_view;
+                        if (sv === 'inbox') {
+                            const inboxProj = res.projects.find(p => p.slug === 'inbox-project');
+                            if (inboxProj) setViewState({ type: 'project_detail', id: parseInt(inboxProj.id), isInbox: true });
+                        }
+                        else if (sv === 'today') setViewState({ type: 'today' });
+                        else if (sv === 'upcoming') setViewState({ type: 'upcoming' });
+                        else setViewState({ type: 'projects' });
+                    }
+                }
+            })
             .catch(err => { console.error(err); setLoading(false); });
         };
 
@@ -204,7 +306,20 @@
                 }
             } else { setActiveTaskId(null); }
 
-            if(path === '' || path === '/') { setViewState({ type: 'projects' }); } 
+            // 2. Ana Rota Kontrolü (Boş ise Başlangıç Ayarına Bak)
+            if (path === '' || path === '/' || path === '/gorevler' || path === '/gorevler/') { 
+                // Varsayılan olarak kullanıcının seçtiği başlangıç sayfasını uygula
+                const startView = (data.user_prefs && data.user_prefs.start_view) ? data.user_prefs.start_view : 'projects';
+                
+                if (startView === 'inbox') {
+                    const inboxProj = data.projects.find(p => p.slug === 'inbox-project');
+                    if (inboxProj) setViewState({ type: 'project_detail', id: parseInt(inboxProj.id), isInbox: true });
+                    else setViewState({ type: 'projects' });
+                }
+                else if (startView === 'today') setViewState({ type: 'today' });
+                else if (startView === 'upcoming') setViewState({ type: 'upcoming' });
+                else setViewState({ type: 'projects' }); // 'projects' veya bilinmeyen
+            } 
             else if(path.includes('/proje/')) { const pid = parseInt(path.split('/proje/')[1]); if(!isNaN(pid)) setViewState({ type: 'project_detail', id: pid }); } 
             else if (path.includes('/inbox')) { const inboxProj = data.projects.find(p => p.slug === 'inbox-project'); if (inboxProj) setViewState({ type: 'project_detail', id: parseInt(inboxProj.id), isInbox: true }); else setViewState({ type: 'projects' }); } 
             else if (path.includes('/bugun')) { setViewState({ type: 'today' }); } 

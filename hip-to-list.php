@@ -3,7 +3,7 @@
  * Plugin Name: Hip to List
  * Plugin URI:  https://hipmedya.com/
  * Description: Ekip odaklı görev yönetim eklentisi.
- * Version:     1.0.9
+ * Version:     1.1.0
  * Author:      Hip Medya
  * Text Domain: h2l
  * Domain Path: /languages

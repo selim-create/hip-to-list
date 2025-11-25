@@ -21,7 +21,8 @@ $core_files = [
     'includes/core/reminder.php',
     'includes/core/notification.php',
     'includes/core/meeting.php',
-    'includes/core/filter.php' // YENİ EKLENDİ
+    'includes/core/filter.php',
+    'includes/core/ical.php' // v1.1: Takvim entegrasyonu
 ];
 
 foreach ( $core_files as $file ) {

@@ -73,12 +73,25 @@ function h2l_api_get_user_settings() {
     $uid = get_current_user_id();
     $email_pref = get_user_meta($uid, 'h2l_pref_email_notifications', true);
     $in_app_pref = get_user_meta($uid, 'h2l_pref_in_app_notifications', true);
+    // YENİ: start_view ayarını çekiyoruz
+    $start_view = get_user_meta($uid, 'h2l_pref_start_view', true); 
+    $ical_active = get_option('h2l_ical_active', 0);
+    $ical_url = '';
+    
+    if ($ical_active && class_exists('H2L_iCal')) {
+        $token = H2L_iCal::get_user_token($uid);
+        $ical_url = site_url('?h2l_ical=feed&token=' . $token);
+    }
 
     return rest_ensure_response([
         'email_notifications' => $email_pref !== '0',
-        'in_app_notifications' => $in_app_pref !== '0'
+        'in_app_notifications' => $in_app_pref !== '0',
+        'start_view' => $start_view ?: 'projects', // Varsayılan: Projeler
+        'ical_active' => (bool)$ical_active,
+        'ical_url' => $ical_url
     ]);
 }
+
 
 function h2l_api_save_user_settings($request) {
     $uid = get_current_user_id();
@@ -90,9 +103,14 @@ function h2l_api_save_user_settings($request) {
     if (isset($params['in_app_notifications'])) {
         update_user_meta($uid, 'h2l_pref_in_app_notifications', $params['in_app_notifications'] ? '1' : '0');
     }
+    // YENİ: start_view ayarını kaydediyoruz
+    if (isset($params['start_view'])) {
+        update_user_meta($uid, 'h2l_pref_start_view', sanitize_text_field($params['start_view']));
+    }
 
     return rest_ensure_response(['success' => true]);
 }
+
 
 function h2l_api_upload_file($request) {
     if (empty($_FILES['file'])) {
@@ -289,8 +307,22 @@ function h2l_api_get_init_data( $request ) {
     if ( ! class_exists('H2L_Filter') ) require_once H2L_PATH . 'includes/core/filter.php';
     $f = new H2L_Filter();
     $filters = $f->get_user_filters( $uid );
+    // --- INIT'E KULLANICI TERCİHLERİNİ EKLE (DÜZELTME) ---
+    $user_prefs = [
+        'start_view' => get_user_meta($uid, 'h2l_pref_start_view', true) ?: 'projects'
+    ];
 
-    return rest_ensure_response( array('folders' => $folders, 'projects' => $visible_projects, 'sections' => $sections, 'tasks' => $tasks, 'users' => $users, 'labels' => $labels, 'filters' => $filters, 'uid' => $uid) );
+    return rest_ensure_response( array(
+        'folders' => $folders, 
+        'projects' => $visible_projects, 
+        'sections' => $sections, 
+        'tasks' => $tasks, 
+        'users' => $users, 
+        'labels' => $labels, 
+        'filters' => $filters, 
+        'uid' => $uid,
+        'user_prefs' => $user_prefs // Ayar verisi eklendi
+    ) );
 }
 
 function h2l_api_reorder_items($request) {

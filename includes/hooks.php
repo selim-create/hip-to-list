@@ -56,7 +56,18 @@ function h2l_trigger_reminders() {
         $reminder->process_queue();
     }
 }
+// 5. iCAL FEED LISTENER (v1.1)
+add_action( 'init', 'h2l_listen_for_ical' );
 
+function h2l_listen_for_ical() {
+    if ( isset( $_GET['h2l_ical'] ) && $_GET['h2l_ical'] === 'feed' && isset( $_GET['token'] ) ) {
+        if ( class_exists( 'H2L_iCal' ) ) {
+            $ical = new H2L_iCal();
+            $ical->generate_feed( sanitize_text_field( $_GET['token'] ) );
+        }
+        exit;
+    }
+}
 // Temizlik
 register_deactivation_hook( H2L_PATH . 'hip-to-list.php', 'h2l_clear_cron_jobs' );
 

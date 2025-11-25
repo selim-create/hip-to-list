@@ -66,7 +66,7 @@ function h2l_render_settings_page() {
     }
 
     // --- VARSAYILAN DEĞERLERİ GETİR ---
-    $default_view = get_option('h2l_default_view', 'today');
+    $default_view = get_option('h2l_default_view', 'projects'); // Varsayılan güncellendi
     $quick_add_lang = get_option('h2l_quick_add_lang', 'tr');
     $archive_days = get_option('h2l_archive_days', 30);
     $hide_completed = get_option('h2l_hide_completed', 0);
@@ -107,20 +107,24 @@ function h2l_render_settings_page() {
             <?php wp_nonce_field('h2l_settings_nonce'); ?>
             
             <!-- 1. GENEL AYARLAR -->
+            <form method="post" style="margin-top: 20px;">
+            <input type="hidden" name="h2l_save_settings" value="1">
+            <?php wp_nonce_field('h2l_settings_nonce'); ?>
+            
             <?php if ($active_tab == 'general'): ?>
                 <table class="form-table">
                     <tr>
-                        <th scope="row">Varsayılan Açılış Görünümü</th>
+                        <th scope="row">Global Başlangıç Görünümü</th>
                         <td>
                             <select name="h2l_default_view">
+                                <option value="projects" <?php selected($default_view, 'projects'); ?>>Projelerim (Varsayılan)</option>
+                                <option value="inbox" <?php selected($default_view, 'inbox'); ?>>Gelen Kutusu</option>
                                 <option value="today" <?php selected($default_view, 'today'); ?>>Bugün</option>
                                 <option value="upcoming" <?php selected($default_view, 'upcoming'); ?>>Yaklaşan</option>
-                                <option value="inbox" <?php selected($default_view, 'inbox'); ?>>Inbox</option>
-                                <option value="my_tasks" <?php selected($default_view, 'my_tasks'); ?>>Benim Görevlerim</option>
                             </select>
+                            <p class="description">Yeni kullanıcılar veya özel tercih yapmamış kişiler için varsayılan açılış sayfası.</p>
                         </td>
                     </tr>
-                    <tr>
                         <th scope="row">Quick Add Dili</th>
                         <td>
                             <select name="h2l_quick_add_lang">
@@ -214,19 +218,27 @@ function h2l_render_settings_page() {
                     </div>
                 </div>
 
+         <?php elseif ($active_tab == 'integrations'): ?>
             <!-- 3. TAKVİM & ENTEGRASYON -->
-            <?php elseif ($active_tab == 'integrations'): ?>
-                <h3>Takvim Entegrasyonu</h3>
+             <h3>Takvim Entegrasyonu</h3>
                 <table class="form-table">
                     <tr>
                         <th scope="row">iCal Feed</th>
                         <td>
                             <label><input type="checkbox" name="h2l_ical_active" value="1" <?php checked($ical_active, 1); ?>> Aktif Et</label>
-                            <p class="description">Güvenli iCal linki oluşturarak Google Calendar veya Outlook'a bağlayın.</p>
-                            <?php if($ical_active): ?>
+                            <p class="description">Bu linki Google Calendar veya Outlook'a ekleyerek görevlerinizi takviminizde görün.</p>
+                            <?php if($ical_active): 
+                                // Kalıcı Token Kullanımı
+                                $user_id = get_current_user_id();
+                                $token = '';
+                                if (class_exists('H2L_iCal')) {
+                                    $token = H2L_iCal::get_user_token($user_id);
+                                }
+                                $feed_url = site_url('?h2l_ical=feed&token=' . $token);
+                            ?>
                                 <div style="margin-top:10px; background:#fff; padding:10px; border:1px solid #ddd;">
                                     <strong>Besleme URL'niz:</strong><br>
-                                    <code><?php echo site_url('?h2l_ical=feed&token=' . wp_create_nonce('h2l_ical_feed')); ?></code>
+                                    <code><?php echo esc_url($feed_url); ?></code>
                                 </div>
                             <?php endif; ?>
                         </td>
