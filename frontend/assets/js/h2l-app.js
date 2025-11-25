@@ -9,7 +9,6 @@
     const { ListView, UpcomingView, TodayView } = window.H2L.Tasks;
     
     // --- YENİ: Güvenli Meeting Modülü İçe Aktarımı ---
-    // Eğer modül yüklenmediyse boş bileşenler döndürür, böylece uygulama çökmez.
     const { MeetingsDashboard, StartMeetingModal, LiveMeetingView, SummaryView } = window.H2L.Meetings || { 
         MeetingsDashboard: () => null, StartMeetingModal: () => null, LiveMeetingView: () => null, SummaryView: () => null 
     };
@@ -78,16 +77,86 @@
         );
     };
 
-    // --- Modallar ---
+    // --- GÜNCELLENMİŞ SETTINGS MODAL (API ENTEGRASYONLU) ---
     const SettingsModal = ({ onClose }) => {
+        const [activeTab, setActiveTab] = useState('general');
+        // Varsayılan değerler
+        const [settings, setSettings] = useState({
+            email_notifications: true,
+            in_app_notifications: true
+        });
+        const [loading, setLoading] = useState(true);
+
+        // Ayarları yükle
+        useEffect(() => {
+            apiFetch({ path: '/h2l/v1/user-settings' })
+                .then(res => {
+                    setSettings(res);
+                    setLoading(false);
+                })
+                .catch(err => {
+                    console.error(err);
+                    setLoading(false);
+                });
+        }, []);
+
+        const handleToggle = (key) => {
+            const newValue = !settings[key];
+            setSettings(prev => ({ ...prev, [key]: newValue }));
+            // API'ye kaydet
+            apiFetch({ 
+                path: '/h2l/v1/user-settings', 
+                method: 'POST', 
+                data: { [key]: newValue } 
+            }).catch(err => {
+                // Hata durumunda geri al (Optimistic UI rollback)
+                setSettings(prev => ({ ...prev, [key]: !newValue }));
+                console.error("Ayar kaydedilemedi:", err);
+            });
+        };
+
         return el('div', { className: 'h2l-overlay', onClick: onClose },
             el('div', { className: 'h2l-modal medium', onClick: e => e.stopPropagation() },
                 el('div', { className: 'h2l-modal-header' }, el('h3', null, 'Ayarlar'), el(Icon, { name: 'xmark', onClick: onClose })),
                 el('div', { className: 'h2l-modal-body' },
-                    el('div', { className: 'h2l-settings-placeholder' },
-                        el(Icon, { name: 'gear', style: { fontSize: 48, color: '#ddd', marginBottom: 20 } }),
-                        el('p', null, 'Ayarlar paneli yakında eklenecek.'),
-                        el('p', { style:{fontSize:12, color:'#888'} }, 'Genel ayarlar, tema seçenekleri ve hesap yönetimi burada yer alacak.')
+                    el('div', { className: 'h2l-settings-tabs', style: { display: 'flex', borderBottom: '1px solid #eee', marginBottom: '20px' } },
+                        el('button', { 
+                            className: `h2l-tab-btn ${activeTab === 'general' ? 'active' : ''}`, 
+                            onClick: () => setActiveTab('general'),
+                            style: { marginRight: '20px', paddingBottom: '10px', borderBottom: activeTab === 'general' ? '2px solid #db4c3f' : 'none', fontWeight: 600 }
+                        }, 'Genel'),
+                        el('button', { 
+                            className: `h2l-tab-btn ${activeTab === 'notifications' ? 'active' : ''}`, 
+                            onClick: () => setActiveTab('notifications'),
+                            style: { paddingBottom: '10px', borderBottom: activeTab === 'notifications' ? '2px solid #db4c3f' : 'none', fontWeight: 600 }
+                        }, 'Bildirimler')
+                    ),
+                    
+                    activeTab === 'general' && el('div', { className: 'h2l-settings-content' },
+                        el('div', { style: { textAlign: 'center', color: '#999', padding: '40px' } }, 'Genel ayarlar yakında eklenecek.')
+                    ),
+
+                    activeTab === 'notifications' && el('div', { className: 'h2l-settings-content' },
+                        el('div', { className: 'h2l-form-group switch-row', onClick: () => handleToggle('email_notifications'), style: { cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f9f9f9' } },
+                            el('div', null,
+                                el('span', { className: 'h2l-setting-label', style: { display: 'block', fontWeight: 600 } }, 'E-posta Bildirimleri'),
+                                el('span', { style: { fontSize: '12px', color: '#888' } }, 'Önemli güncellemeleri e-posta ile al.')
+                            ),
+                            el('div', { className: 'h2l-switch' },
+                                el('input', { type: 'checkbox', checked: settings.email_notifications, onChange: () => {} }),
+                                el('span', { className: 'h2l-slider round' })
+                            )
+                        ),
+                        el('div', { className: 'h2l-form-group switch-row', onClick: () => handleToggle('in_app_notifications'), style: { cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f9f9f9' } },
+                            el('div', null,
+                                el('span', { className: 'h2l-setting-label', style: { display: 'block', fontWeight: 600 } }, 'Site İçi Bildirimler'),
+                                el('span', { style: { fontSize: '12px', color: '#888' } }, 'Uygulama içindeyken bildirim al.')
+                            ),
+                            el('div', { className: 'h2l-switch' },
+                                el('input', { type: 'checkbox', checked: settings.in_app_notifications, onChange: () => {} }),
+                                el('span', { className: 'h2l-slider round' })
+                            )
+                        )
                     )
                 ),
                 el('div', { className: 'h2l-modal-footer' }, el('button', { className: 'h2l-btn', onClick: onClose }, 'Kapat'))

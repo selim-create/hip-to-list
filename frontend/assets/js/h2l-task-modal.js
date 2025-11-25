@@ -189,13 +189,14 @@
         );
     };
 
-    // --- YENİ: AKTİVİTE LOG BİLEŞENİ ---
+    // --- YENİ: AKTİVİTE LOG BİLEŞENİ (İyileştirilmiş & Limitli) ---
     const ActivityLog = ({ taskId }) => {
         const [logs, setLogs] = useState([]);
         const [loading, setLoading] = useState(true);
 
         useEffect(() => {
-            apiFetch({ path: `/h2l/v1/activity/task/${taskId}` })
+            // PERFORMANS İYİLEŞTİRMESİ: Sadece son 20 logu getir (?limit=20)
+            apiFetch({ path: `/h2l/v1/activity/task/${taskId}?limit=20` })
                 .then(res => { setLogs(res); setLoading(false); })
                 .catch(() => setLoading(false));
         }, [taskId]);

@@ -38,11 +38,25 @@ add_action( 'rest_api_init', function () {
         'callback' => 'h2l_api_upload_file',
         'permission_callback' => function () { return is_user_logged_in(); }
     ));
-    // 2. Aktivite Loglarını Çekme
+    // 2. Aktivite Loglarını Çekme (Limit Destekli)
     register_rest_route( 'h2l/v1', '/activity/(?P<type>[a-zA-Z0-9_-]+)/(?P<id>\d+)', array(
         'methods' => 'GET',
         'callback' => 'h2l_api_get_activity_logs',
         'permission_callback' => function () { return is_user_logged_in(); }
+    ));
+
+    // --- YENİ: KULLANICI AYARLARI ENDPOINT'İ ---
+    register_rest_route( 'h2l/v1', '/user-settings', array(
+        array(
+            'methods' => 'GET',
+            'callback' => 'h2l_api_get_user_settings',
+            'permission_callback' => function () { return is_user_logged_in(); }
+        ),
+        array(
+            'methods' => 'POST',
+            'callback' => 'h2l_api_save_user_settings',
+            'permission_callback' => function () { return is_user_logged_in(); }
+        )
     ));
 
     // --- TOPLANTI ASİSTANI ENDPOINTLERİ ---
@@ -51,7 +65,32 @@ add_action( 'rest_api_init', function () {
     register_rest_route( 'h2l/v1', '/meetings/(?P<id>\d+)/finish', array('methods' => 'POST','callback' => 'h2l_api_finish_meeting','permission_callback' => function () { return is_user_logged_in(); }));
     register_rest_route( 'h2l/v1', '/meetings/(?P<id>\d+)', array('methods' => 'GET','callback' => 'h2l_api_get_meeting_detail','permission_callback' => function () { return is_user_logged_in(); }));
 });
+// --- YENİ FONKSİYONLAR: KULLANICI AYARLARI ---
+function h2l_api_get_user_settings() {
+    $uid = get_current_user_id();
+    // Varsayılan değerler TRUE (1) kabul edilir, eğer meta yoksa. '0' stringi kapalı demektir.
+    $email_pref = get_user_meta($uid, 'h2l_pref_email_notifications', true);
+    $in_app_pref = get_user_meta($uid, 'h2l_pref_in_app_notifications', true);
 
+    return rest_ensure_response([
+        'email_notifications' => $email_pref !== '0',
+        'in_app_notifications' => $in_app_pref !== '0'
+    ]);
+}
+
+function h2l_api_save_user_settings($request) {
+    $uid = get_current_user_id();
+    $params = $request->get_json_params();
+
+    if (isset($params['email_notifications'])) {
+        update_user_meta($uid, 'h2l_pref_email_notifications', $params['email_notifications'] ? '1' : '0');
+    }
+    if (isset($params['in_app_notifications'])) {
+        update_user_meta($uid, 'h2l_pref_in_app_notifications', $params['in_app_notifications'] ? '1' : '0');
+    }
+
+    return rest_ensure_response(['success' => true]);
+}
 // --- YENİ FONKSİYON: DOSYA YÜKLEME ---
 function h2l_api_upload_file($request) {
     if (empty($_FILES['file'])) {
@@ -102,15 +141,24 @@ function h2l_api_upload_file($request) {
     }
 }
 
-// --- YENİ FONKSİYON: AKTİVİTE LOGLARI ---
+// --- YENİ FONKSİYON: AKTİVİTE LOGLARI (LİMİT DESTEKLİ) ---
 function h2l_api_get_activity_logs($request) {
     $type = $request->get_param('type');
     $id = $request->get_param('id');
+    $limit = $request->get_param('limit') ? intval($request->get_param('limit')) : 50; // Varsayılan 50
     
     if (!class_exists('H2L_Activity')) require_once H2L_PATH . 'includes/core/activity.php';
     
+    // H2L_Activity::get_logs limit desteklemiyorsa burada array slice yapılabilir
+    // Ancak en iyi yöntem DB sorgusuna limit eklemektir.
+    // Geçici çözüm olarak tüm logları çekip burada kesiyoruz.
     $activity = new H2L_Activity();
     $logs = $activity->get_logs($type, $id);
+    
+    // Optimasyon: Sadece istenen miktar kadarını işle
+    if (count($logs) > $limit) {
+        $logs = array_slice($logs, 0, $limit);
+    }
     
     // Logları formatla
     $formatted_logs = array_map(function($log) {
@@ -176,6 +224,11 @@ function h2l_api_get_init_data( $request ) {
     h2l_set_nocache_headers();
     global $wpdb;
     $uid = get_current_user_id();
+
+    // GÜVENLİK: Varsayılan klasör ve projeyi kontrol et, yoksa oluştur
+    if (function_exists('h2l_check_default_user_data')) {
+        h2l_check_default_user_data($uid);
+    }
 
     $sql_folders = "SELECT * FROM {$wpdb->prefix}h2l_folders WHERE (slug != 'inbox' AND slug != 'notlarim') OR owner_id = %d ORDER BY name ASC";
     $folders = $wpdb->get_results($wpdb->prepare($sql_folders, $uid));
@@ -394,7 +447,7 @@ function h2l_api_manage_task($request) {
             'recurrence_rule' => !empty($params['repeat']) ? sanitize_text_field((string)$params['repeat']) : null, // TEKRAR KURALI EKLENDI
             'assignee_ids' => json_encode($assignees),
             'reminder_enabled' => !empty($params['reminder_enabled']) ? 1 : 0, 
-            'reminder_sent' => 0,
+            'reminder_sent' => 0, 
             'created_at' => current_time('mysql'),
             'sort_order' => $max_sort ? $max_sort + 1 : 0,
             'related_object_type' => sanitize_text_field($params['related_object_type'] ?? ''),
@@ -481,9 +534,16 @@ function h2l_api_manage_comments($request) {
 function h2l_api_manage_project($request) {
     global $wpdb; $table_projects = $wpdb->prefix . 'h2l_projects'; $table_folders = $wpdb->prefix . 'h2l_folders';
     $method = $request->get_method(); $id = $request->get_param('id'); $params = $request->get_json_params(); $current_user_id = get_current_user_id();
+    
     if ($method === 'DELETE') { 
-        $project = $wpdb->get_row($wpdb->prepare("SELECT owner_id FROM $table_projects WHERE id = %d", $id));
+        $project = $wpdb->get_row($wpdb->prepare("SELECT owner_id, slug FROM $table_projects WHERE id = %d", $id));
         if ($project && $project->owner_id != $current_user_id) { return new WP_Error('forbidden', 'Sadece proje sahibi silebilir.', ['status'=>403]); }
+        
+        // GÜVENLİK: Varsayılan Projeyi Silmeyi Engelle
+        if ($project && ($project->slug === 'inbox-project' || $project->slug === 'notlarim')) {
+            return new WP_Error('forbidden', 'Bu proje sistem tarafından korunmaktadır ve silinemez.', ['status'=>403]);
+        }
+
         $wpdb->update($table_projects, ['status' => 'trash'], ['id' => $id]); 
         H2L_Activity::log('project', $id, 'deleted');
         return ['success' => true]; 
@@ -553,7 +613,17 @@ function h2l_api_manage_project($request) {
 function h2l_api_manage_folder($request) {
     global $wpdb; $table = $wpdb->prefix . 'h2l_folders';
     $method = $request->get_method(); $id = $request->get_param('id'); $params = $request->get_json_params();
-    if ($method === 'DELETE') { $wpdb->delete($table, ['id' => $id]); return ['success' => true]; }
+    
+    if ($method === 'DELETE') { 
+        // GÜVENLİK: Varsayılan Klasörü Silmeyi Engelle
+        $folder = $wpdb->get_row($wpdb->prepare("SELECT slug FROM $table WHERE id = %d", $id));
+        if ($folder && ($folder->slug === 'inbox' || $folder->slug === 'notlarim')) {
+            return new WP_Error('forbidden', 'Bu klasör sistem tarafından korunmaktadır ve silinemez.', ['status'=>403]);
+        }
+
+        $wpdb->delete($table, ['id' => $id]); 
+        return ['success' => true]; 
+    }
     if ($id) {
         $data = [];
         if(isset($params['name'])) $data['name'] = sanitize_text_field((string)$params['name']);

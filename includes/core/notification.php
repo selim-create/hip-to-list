@@ -15,6 +15,13 @@ class H2L_Notification {
         global $wpdb;
         $table = $wpdb->prefix . 'h2l_notifications';
 
+        // YENİ: Kullanıcı site içi bildirimleri kapattıysa oluşturma
+        // Varsayılan olarak açık (değer yoksa veya '1' ise oluştur)
+        $pref = get_user_meta($user_id, 'h2l_pref_in_app_notifications', true);
+        if ( $pref === '0' ) {
+            return false;
+        }
+
         // Kendine bildirim atmayı engelle (Geliştirme aşamasında kapalı)
         // if ( $user_id == get_current_user_id() && $type !== 'reminder' ) { return; }
 
@@ -32,8 +39,6 @@ class H2L_Notification {
 
         if ( $result === false ) {
             error_log("H2L Notification Error: Bildirim veritabanına yazılamadı. Tablo: $table. Hata: " . $wpdb->last_error);
-        } else {
-            // error_log("H2L Notification Success: Bildirim eklendi. User: $user_id");
         }
 
         return $result;

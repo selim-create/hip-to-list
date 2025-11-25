@@ -190,6 +190,11 @@ class H2L_Reminder {
     }
 
     private function send_email_generic( $user, $task, $type, $extra_content = '', $custom_link = '' ) {
+        $pref = get_user_meta($user->ID, 'h2l_pref_email_notifications', true);
+        if ( $pref === '0' ) {
+            return false;
+        }
+
         $to = $user->user_email;
         $task_title = wp_strip_all_tags( $task->title );
         if ( mb_strlen($task_title) > 90 ) $task_title = mb_substr($task_title, 0, 90) . '...';
