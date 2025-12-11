@@ -17,7 +17,7 @@ function h2l_add_rewrite_rules() {
     add_rewrite_rule('^gorevler/gorev/([0-9]+)/?', 'index.php?pagename=gorevler', 'top');
     add_rewrite_rule('^gorevler/klasor/([0-9]+)/?', 'index.php?pagename=gorevler', 'top');
     add_rewrite_rule('^gorevler/etiket/([^/]+)/?', 'index.php?pagename=gorevler', 'top');
-    
+    add_rewrite_rule('^' . $slug . '/profil/?', 'index.php?pagename=' . $slug, 'top');
     // YENİ EKLENEN ROTALAR (404 Çözümü İçin)
     add_rewrite_rule('^gorevler/inbox/?', 'index.php?pagename=gorevler', 'top');
     add_rewrite_rule('^gorevler/bugun/?', 'index.php?pagename=gorevler', 'top');
@@ -91,199 +91,225 @@ function h2l_collect_post_ids( $post ) {
 }
 
 /**
- * Yazı başlıklarına ilişkili görev ikonu ekle (JS Enjeksiyonu)
+ * Yazı başlıklarına ilişkili görev ikonu ekle (Durum Bazlı Özelleştirilmiş + CSS Tooltip)
  */
 add_action('wp_footer', 'h2l_inject_task_icon_script');
 
 function h2l_inject_task_icon_script() {
-    // Admin, Feed, API vb. yerlerde çalışma
-    if ( is_admin() || is_feed() || defined('REST_REQUEST') ) {
+    // Admin, Feed veya API isteklerinde çalışma
+    if ( is_admin() || is_feed() || defined('REST_REQUEST') || ! is_user_logged_in() ) {
         return;
     }
 
-    // Sadece giriş yapmış kullanıcılar görebilir
-    if ( ! is_user_logged_in() ) {
-        return;
-    }
-
-    // Toplanan ID'leri al
-    global $wp_query, $h2l_displayed_post_ids;
+    global $wp_query, $h2l_displayed_post_ids, $wpdb;
+    $user_id = get_current_user_id();
     
+    // Sayfadaki post ID'lerini topla
     $posts_to_check = $h2l_displayed_post_ids;
-
-    // Yedek olarak ana sorgudaki ID'leri de ekle
     if ( is_singular() ) {
         $posts_to_check[] = get_the_ID();
     } elseif ( !empty( $wp_query->posts ) ) {
-        foreach ( $wp_query->posts as $p ) {
-            if ( isset( $p->ID ) ) {
-                $posts_to_check[] = $p->ID;
-            }
+        foreach ( $wp_query->posts as $p ) { 
+            if ( isset( $p->ID ) ) $posts_to_check[] = $p->ID; 
         }
     }
-
-    // ID'leri temizle
     $posts_to_check = array_unique( array_filter( $posts_to_check ) );
 
-    if ( empty( $posts_to_check ) ) {
-        return;
-    }
+    if ( empty( $posts_to_check ) ) return;
 
-    global $wpdb;
     $ids_placeholder = implode(',', array_fill(0, count($posts_to_check), '%d'));
+    $uid_str = '"' . $user_id . '"';
     
-    // Bu postlara bağlı, silinmemiş görevleri çek
-    // ORDER BY id ASC: Eskiden yeniye sıralar. Döngüde son işlenen görev (en yeni) haritada kalır.
-    $sql = "SELECT id, status, title, related_object_id FROM {$wpdb->prefix}h2l_tasks 
-            WHERE related_object_id IN ($ids_placeholder) 
-            AND status != 'trash'
-            ORDER BY id ASC";
-            
-    $tasks = $wpdb->get_results($wpdb->prepare($sql, $posts_to_check));
+    // Görevleri Çek (En yeniden eskiye doğru)
+    // YETKİ KONTROLÜ: Sadece kullanıcının yetkili olduğu projelerin görevlerini göster
+    $sql = "SELECT t.id, t.status, t.title, t.priority, t.related_object_id 
+            FROM {$wpdb->prefix}h2l_tasks t
+            LEFT JOIN {$wpdb->prefix}h2l_projects p ON t.project_id = p.id
+            WHERE t.related_object_id IN ($ids_placeholder) 
+            AND t.status != 'trash'
+            AND (
+                p.id IS NULL OR 
+                p.owner_id = %d OR 
+                p.managers LIKE %s
+            )
+            ORDER BY t.created_at DESC";
+
+    $tasks = $wpdb->get_results($wpdb->prepare($sql, array_merge($posts_to_check, [$user_id, '%' . $wpdb->esc_like($uid_str) . '%'])));
     
-    if ( empty($tasks) ) {
-        return;
+    if ( empty($tasks) ) return;
+
+    // --- DURUM AYARLARI (İkon ve Renk Haritası) ---
+    $status_config = [
+        'not_started'      => ['icon' => 'fa-circle',           'color' => '#808080', 'bg' => '#f0f0f0', 'label' => 'Başlamadı'],
+        'in_progress'      => ['icon' => 'fa-play',             'color' => '#3b82f6', 'bg' => '#dbeafe', 'label' => 'Devam Ediyor'],
+        'on_hold'          => ['icon' => 'fa-pause',            'color' => '#e67e22', 'bg' => '#fff4e6', 'label' => 'Beklemede'],
+        'in_review'        => ['icon' => 'fa-glasses',          'color' => '#8e44ad', 'bg' => '#f3e5f5', 'label' => 'Revizyonda'],
+        'pending_approval' => ['icon' => 'fa-clock',            'color' => '#f1c40f', 'bg' => '#fef9e7', 'label' => 'Onay Bekliyor'],
+        'cancelled'        => ['icon' => 'fa-ban',              'color' => '#c0392b', 'bg' => '#fadbd8', 'label' => 'İptal'],
+        'completed'        => ['icon' => 'fa-check',            'color' => '#10b981', 'bg' => '#d1fae5', 'label' => 'Tamamlandı'],
+        'default'          => ['icon' => 'fa-clipboard-check',  'color' => '#3b82f6', 'bg' => '#dbeafe', 'label' => 'Görev']
+    ];
+
+    // Görevleri Post ID'ye göre grupla
+    $grouped_tasks = [];
+    foreach ($tasks as $t) {
+        $grouped_tasks[$t->related_object_id][] = $t;
     }
 
-    // JS tarafına aktarılacak veriyi hazırla
     $tasks_map = [];
-    foreach ($tasks as $task) {
-        $is_completed = ($task->status === 'completed');
-        // Modern renk paleti
-        $color = $is_completed ? '#10b981' : '#3b82f6'; // Tailwind Green-500 / Blue-500
-        $bg_color = $is_completed ? '#d1fae5' : '#dbeafe'; // Green-100 / Blue-100
-        $icon_class = $is_completed ? 'fa-check' : 'fa-clipboard-check';
+    foreach ($grouped_tasks as $post_id => $post_tasks) {
+        $count = count($post_tasks);
         
-        $tooltip_text = 'Görev: ' . wp_strip_all_tags($task->title);
+        // İkon Durumunu Belirle
+        // Eğer tek görev varsa onun ikonunu kullan, çoksa genel ikon kullan
+        if ($count === 1) {
+            $first_task = $post_tasks[0];
+            $status = $first_task->status;
+            $conf = isset($status_config[$status]) ? $status_config[$status] : $status_config['default'];
+            
+            // P1 (Acil) ise ve tamamlanmamışsa kırmızı yap
+            if ($first_task->priority == 1 && $status !== 'completed' && $status !== 'cancelled') {
+                $conf['color'] = '#d1453b';
+                $conf['bg'] = '#ffebe9';
+            }
+            
+            $icon_class = $conf['icon'];
+            $color = $conf['color'];
+            $bg_color = $conf['bg'];
+            $main_task_id = $first_task->id;
+        } else {
+            // Çoklu görev varsa
+            $all_completed = true;
+            $has_high_priority = false;
+            $main_task_id = $post_tasks[0]->id; // En yeniye gitsin
+            
+            foreach($post_tasks as $pt) {
+                if ($pt->status !== 'completed' && $pt->status !== 'cancelled') {
+                    $all_completed = false;
+                    if ($pt->priority == 1) $has_high_priority = true;
+                }
+            }
+            
+            if ($all_completed) {
+                $icon_class = 'fa-check-double';
+                $color = '#10b981';
+                $bg_color = '#d1fae5';
+            } else {
+                $icon_class = 'fa-layer-group';
+                $color = $has_high_priority ? '#d1453b' : '#3b82f6';
+                $bg_color = $has_high_priority ? '#ffebe9' : '#dbeafe';
+            }
+        }
+
+        // Tooltip Listesini Oluştur (CSS attr() için \n ile alt satır)
+        $tooltip_text = "";
+        $limit = 5;
         
-        // MODERN İKON HTML
-        $pulse_html = !$is_completed ? '<span class="h2l-pulse-ring"></span>' : '';
+        foreach(array_slice($post_tasks, 0, $limit) as $pt) {
+            $s_conf = isset($status_config[$pt->status]) ? $status_config[$pt->status] : $status_config['default'];
+            
+            // Durum işareti (Tamamlandıysa Tik, değilse Nokta)
+            $status_mark = ($pt->status === 'completed') ? '✓' : '•';
+            
+            // Durum etiketi (Sadece özel durumlar için)
+            $status_label = ($pt->status !== 'in_progress' && $pt->status !== 'not_started' && $pt->status !== 'completed') 
+                            ? '[' . $s_conf['label'] . '] ' 
+                            : '';
+                            
+            $tooltip_text .= $status_mark . " " . $status_label . wp_strip_all_tags($pt->title) . "\n";
+        }
         
+        if ($count > $limit) {
+            $tooltip_text .= "+ " . ($count - $limit) . " görev daha...";
+        }
+        $tooltip_text = trim($tooltip_text);
+        
+        // Pulse animasyonu (Tamamlanmamış iş varsa)
+        $show_pulse = false;
+        foreach($post_tasks as $pt) {
+            if ($pt->status !== 'completed' && $pt->status !== 'cancelled') {
+                $show_pulse = true; 
+                break; 
+            }
+        }
+        $pulse_html = $show_pulse ? '<span class="h2l-pulse-ring" style="border-color:'.$color.'"></span>' : '';
+        
+        // Sayı Rozeti
+        $count_badge = $count > 1 ? '<span class="h2l-icon-count" style="background:'.$color.'">'.$count.'</span>' : '';
+
         $icon_html = sprintf(
             '<div class="h2l-icon-wrapper" data-h2l-tooltip="%s">
-                <span class="h2l-task-trigger h2l-modern-icon %s" data-task-id="%d" style="color:%s; background-color:%s;">
+                <span class="h2l-task-trigger h2l-modern-icon" data-task-id="%d" style="color:%s; background-color:%s;">
                     %s
                     <i class="fa-solid %s"></i>
+                    %s
                 </span>
             </div>',
             esc_attr($tooltip_text),
-            $is_completed ? 'completed' : 'open',
-            $task->id,
+            $main_task_id,
             $color,
             $bg_color,
             $pulse_html,
-            $icon_class
+            $icon_class,
+            $count_badge
         );
         
-        $tasks_map[$task->related_object_id] = [
+        $tasks_map[$post_id] = [
             'html' => $icon_html,
-            'url'  => get_permalink($task->related_object_id)
+            'url'  => get_permalink($post_id)
         ];
     }
 
     $tasks_json = json_encode($tasks_map);
-
     ?>
-    <!-- H2L Modern Icon & Tooltip Styles -->
     <style>
-        /* Icon Wrapper */
-        .h2l-icon-wrapper {
-            display: inline-flex;
-            align-items: center;
-            vertical-align: middle;
-            margin-left: 10px;
-            position: relative;
-            z-index: 99;
-            line-height: 1;
-        }
-
-        /* Modern Icon Base */
-        .h2l-modern-icon {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            position: relative;
-            border: 1px solid transparent;
-        }
-
-        .h2l-modern-icon:hover {
-            transform: translateY(-1px) scale(1.05);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        /* Pulse Animation for Open Tasks */
-        .h2l-pulse-ring {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            border: 2px solid #3b82f6;
-            opacity: 0;
-            animation: h2l-pulse 2s infinite;
-            top: -2px;
-            left: -2px;
-            box-sizing: content-box;
-        }
-
-        @keyframes h2l-pulse {
-            0% { transform: scale(0.95); opacity: 0.5; }
-            70% { transform: scale(1.4); opacity: 0; }
-            100% { transform: scale(0.95); opacity: 0; }
-        }
-
-        /* CSS Tooltip (SAĞ TARAF) */
+        .h2l-icon-wrapper { display: inline-flex; align-items: center; vertical-align: middle; margin-left: 10px; position: relative; z-index: 99; line-height: 1; }
+        .h2l-modern-icon { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; font-size: 12px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.05); position: relative; border: 1px solid transparent; }
+        .h2l-modern-icon:hover { transform: translateY(-1px) scale(1.05); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .h2l-pulse-ring { position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 2px solid #3b82f6; opacity: 0; animation: h2l-pulse 2s infinite; top: -2px; left: -2px; box-sizing: content-box; }
+        .h2l-icon-count { position: absolute; top: -5px; right: -5px; color: #fff; font-size: 9px; padding: 1px 4px; border-radius: 8px; font-weight: bold; border: 1px solid #fff; min-width: 14px; text-align: center; }
+        
+        /* CSS Tooltip (Geri Getirildi) */
         .h2l-icon-wrapper::before {
             content: attr(data-h2l-tooltip);
             position: absolute;
-            /* Tooltip'i ikonun sağına hizala */
             top: 50%;
             left: 100%;
             transform: translateY(-50%) translateX(10px);
-            
-            background-color: #1f2937; /* Dark Gray */
+            background-color: #1f2937;
             color: #fff;
-            padding: 6px 10px;
+            padding: 8px 12px;
             border-radius: 6px;
             font-size: 12px;
             font-weight: 500;
-            white-space: nowrap;
+            white-space: pre; /* Alt satıra geçmeyi sağlar */
             opacity: 0;
             visibility: hidden;
             transition: all 0.2s ease;
             pointer-events: none;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            z-index: 1000;
-            max-width: 250px;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            z-index: 10000;
+            min-width: 180px;
+            max-width: 300px;
+            line-height: 1.5;
+            text-align: left;
         }
 
-        /* Tooltip Arrow (Ok - Sola Bakıyor) */
         .h2l-icon-wrapper::after {
             content: '';
             position: absolute;
-            /* Ok ikonun sağında */
             top: 50%;
             left: 100%;
             transform: translateY(-50%) translateX(5px);
-            
             border-width: 5px;
             border-style: solid;
-            /* Sağ tooltip için ok sola bakmalı (rengi tooltip rengi) */
             border-color: transparent #1f2937 transparent transparent;
-            
             opacity: 0;
             visibility: hidden;
             transition: all 0.2s ease;
             pointer-events: none;
+            z-index: 10000;
         }
 
         .h2l-icon-wrapper:hover::before,
@@ -291,7 +317,8 @@ function h2l_inject_task_icon_script() {
             opacity: 1;
             visibility: visible;
         }
-        
+
+        @keyframes h2l-pulse { 0% { transform: scale(0.95); opacity: 0.5; } 70% { transform: scale(1.4); opacity: 0; } 100% { transform: scale(0.95); opacity: 0; } }
     </style>
 
     <script type="text/javascript">
@@ -301,84 +328,30 @@ function h2l_inject_task_icon_script() {
             function injectIcon(targetElement, html) {
                 if (targetElement.nextSibling && targetElement.nextSibling.classList && targetElement.nextSibling.classList.contains('h2l-icon-wrapper')) return;
                 if (targetElement.querySelector && targetElement.querySelector('.h2l-task-trigger')) return;
-
-                var tempDiv = document.createElement('div');
-                tempDiv.innerHTML = html;
-                var iconElement = tempDiv.firstChild;
-
-                if (targetElement.tagName.toLowerCase() === 'a') {
-                    targetElement.parentNode.insertBefore(iconElement, targetElement.nextSibling);
-                } else {
-                    targetElement.appendChild(iconElement);
-                }
+                var tempDiv = document.createElement('div'); tempDiv.innerHTML = html; var iconElement = tempDiv.firstChild;
+                if (targetElement.tagName.toLowerCase() === 'a') { targetElement.parentNode.insertBefore(iconElement, targetElement.nextSibling); } else { targetElement.appendChild(iconElement); }
             }
 
             <?php if ( is_singular() ): ?>
-                // --- TEKİL SAYFA ---
                 var pid = <?php echo get_the_ID(); ?>;
                 if (tasks[pid]) {
-                    var selectors = [
-                        '.entry-header h1.entry-title', 
-                        'article h1.entry-title', 
-                        '.site-main h1.post-title',
-                        '.site-main h1',
-                        'h1.page-title',
-                        'h1.entry-title',
-                        'h1'
-                    ];
-                    
-                    for (var i = 0; i < selectors.length; i++) {
-                        var el = document.querySelector(selectors[i]);
-                        if (el && el.offsetParent !== null && !el.closest('.site-header') && !el.closest('#masthead')) {
-                            injectIcon(el, tasks[pid].html);
-                            break;
-                        }
-                    }
+                    var selectors = ['.entry-header h1.entry-title', 'article h1.entry-title', '.site-main h1.post-title', '.site-main h1', 'h1.page-title', 'h1.entry-title', 'h1'];
+                    for (var i = 0; i < selectors.length; i++) { var el = document.querySelector(selectors[i]); if (el && el.offsetParent !== null && !el.closest('.site-header') && !el.closest('#masthead')) { injectIcon(el, tasks[pid].html); break; } }
                 }
-
             <?php else: ?>
-                // --- ARŞİV / TABLO / KART ---
                 for (var pid in tasks) {
                     if (tasks.hasOwnProperty(pid)) {
-                        var taskData = tasks[pid];
-                        var url = taskData.url;
-                        
-                        var urlNoSlash = url.replace(/\/$/, "");
-                        var urlSlash = urlNoSlash + "/";
-                        
-                        // Linkleri bul
+                        var taskData = tasks[pid]; var url = taskData.url; var urlNoSlash = url.replace(/\/$/, ""); var urlSlash = urlNoSlash + "/";
                         var links = document.querySelectorAll('a[href="' + urlSlash + '"], a[href="' + urlNoSlash + '"]');
-                        
                         for (var j = 0; j < links.length; j++) {
                             var link = links[j];
-                            
                             if (link.querySelector('img')) continue;
                             if (link.classList.contains('btn') || link.classList.contains('edit-icon') || link.classList.contains('btn-comment')) continue;
                             if (link.innerText.trim().length === 0) continue;
-
                             var isTarget = false;
-                            
-                            // ÖZEL SINIFLAR
-                            if (link.closest('.kampanya-title') || 
-                                link.closest('.ajans-kolonu') || 
-                                link.closest('.entry-title') || 
-                                link.closest('.post-title') ||
-                                link.closest('h2') || 
-                                link.closest('h3') ||
-                                link.closest('td.font-medium')
-                               ) {
-                                isTarget = true;
-                            }
-                            
-                            // Genel Tablo Satırı Kontrolü
-                            if (!isTarget && link.closest('td') && link.innerText.length > 3 && !link.closest('.row-actions')) {
-                                isTarget = true;
-                            }
-
-                            if (isTarget) {
-                                injectIcon(link, taskData.html);
-                                break; 
-                            }
+                            if (link.closest('.kampanya-title') || link.closest('.ajans-kolonu') || link.closest('.entry-title') || link.closest('.post-title') || link.closest('h2') || link.closest('h3') || link.closest('td.font-medium')) { isTarget = true; }
+                            if (!isTarget && link.closest('td') && link.innerText.length > 3 && !link.closest('.row-actions')) { isTarget = true; }
+                            if (isTarget) { injectIcon(link, taskData.html); break; }
                         }
                     }
                 }

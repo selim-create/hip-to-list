@@ -7,7 +7,7 @@
     const { ProjectsDashboard, ProjectModal, FolderModal } = window.H2L.Projects;
     const { ProjectDetail } = window.H2L;
     const { ListView, UpcomingView, TodayView } = window.H2L.Tasks;
-    
+    const { ProfileView } = window.H2L.Profile || { ProfileView: () => null };
     // --- YENİ: Güvenli Meeting Modülü İçe Aktarımı ---
     const { MeetingsDashboard, StartMeetingModal, LiveMeetingView, SummaryView } = window.H2L.Meetings || { 
         MeetingsDashboard: () => null, StartMeetingModal: () => null, LiveMeetingView: () => null, SummaryView: () => null 
@@ -328,6 +328,7 @@
             else if (path.includes('/toplantilar')) { setViewState({ type: 'meetings' }); }
             else if (path.includes('/etiket/')) { const parts = path.split('/etiket/'); if (parts[1]) setViewState({ type: 'label', slug: parts[1] }); }
             else if (path.includes('/filtre/')) { const parts = path.split('/filtre/'); if (parts[1]) setViewState({ type: 'filter', id: parseInt(parts[1]) }); }
+            else if (path.includes('/profil')) { setViewState({ type: 'profile' }); }
         };
 
         const getCurrentViewPath = () => {
@@ -336,6 +337,7 @@
             if (viewState.type === 'upcoming') return '/yaklasan';
             if (viewState.type === 'filters_labels') return '/filtreler-etiketler';
             // --- YENİ: Toplantı Rotası ---
+            if (viewState.type === 'profile') return '/profil';
             if (viewState.type === 'meetings' || viewState.type === 'live_meeting' || viewState.type === 'meeting_summary') return '/toplantilar';
             if (viewState.type === 'label') return `/etiket/${viewState.slug}`;
             if (viewState.type === 'filter') return `/filtre/${viewState.id}`;
@@ -375,9 +377,37 @@
             apiFetch({ path: `/h2l/v1/filters/${id}`, method: 'DELETE' })
                 .then(() => loadData());
         };
-        // --- MEVCUT CRUD FONKSİYONLARI (KORUNDU) ---
-        const handleSaveProject = (f) => apiFetch({ path: '/h2l/v1/projects'+(f.id?`/${f.id}`:''), method: 'POST', data: f }).then(() => { loadData(); setModal(null); });
-        const handleDeleteProject = (id) => apiFetch({ path: `/h2l/v1/projects/${id}`, method: 'DELETE' }).then(() => { loadData(); setModal(null); navigate(''); });
+        
+        // --- GÜNCELLENMİŞ PROJE KAYDETME VE SİLME ---
+        const handleSaveProject = (f) => {
+            apiFetch({ path: '/h2l/v1/projects'+(f.id?`/${f.id}`:''), method: 'POST', data: f })
+                .then(() => { 
+                    loadData(); 
+                    setModal(null); 
+                })
+                .catch(err => {
+                    // Hata olsa bile (JSON parse hatası vb.) işlem sunucuda yapılmış olabilir.
+                    // Kullanıcı deneyimini bozmamak için listeyi yenileyip modalı kapatıyoruz.
+                    console.warn("Proje işlemi yanıt uyarısı:", err);
+                    loadData();
+                    setModal(null);
+                });
+        };
+
+        const handleDeleteProject = (id) => {
+            apiFetch({ path: `/h2l/v1/projects/${id}`, method: 'DELETE' })
+                .then(() => { 
+                    loadData(); 
+                    setModal(null); 
+                    navigate(''); 
+                })
+                .catch(err => {
+                    console.warn("Proje silme yanıt uyarısı:", err);
+                    loadData();
+                    setModal(null);
+                    navigate('');
+                });
+        };
         const handleSaveFolder = (f) => apiFetch({ path: '/h2l/v1/folders'+(f.id?`/${f.id}`:''), method: 'POST', data: f }).then(() => { loadData(); setModal(null); });
         const handleDeleteFolder = (id) => apiFetch({ path: `/h2l/v1/folders/${id}`, method: 'DELETE' }).then(() => { loadData(); setModal(null); });
         const handleAddTask = (d) => apiFetch({ path: '/h2l/v1/tasks', method: 'POST', data: d }).then(loadData);
@@ -607,7 +637,15 @@
                 content = el(ListView, { project: virtualProject, projects: data.projects, tasks: visibleTasks, sections: [], users: data.users, navigate, onUpdateTask: handleUpdateTask, onDeleteTask: handleDeleteTask, onAddSection: () => alert('Etiket görünümünde bölüm eklenemez.'), onTaskClick: onTaskClick, showCompleted: true, highlightToday: true, onUpdateSection: ()=>{}, onDeleteSection: ()=>{}, labels: data.labels || [], onAddTask: handleAddTask });
             } else { content = el('div', {className: 'h2l-error'}, 'Etiket bulunamadı: ' + viewState.slug); }
         }
-
+        // ... diğer view'lar ...
+        else if (viewState.type === 'profile') {
+            content = el(ProfileView, { 
+                currentUser: window.h2lFrontendSettings.currentUser, 
+                tasks: data.tasks, 
+                projects: data.projects,
+                users: data.users // <-- BU SATIRIN OLDUĞUNDAN EMİN OLUN
+            });
+        }
         const activeTask = activeTaskId ? data.tasks.find(t => t.id == activeTaskId) : null;
 
         return el('div', { id: 'h2l-app-container', className: `h2l-flex-root ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}` },
@@ -616,7 +654,7 @@
                 isCollapsed: isSidebarCollapsed, toggleCollapse: () => setIsSidebarCollapsed(!isSidebarCollapsed),
                 isMobileOpen: isMobileSidebarOpen, closeMobile: () => setIsMobileSidebarOpen(false),
                 onAddProject: () => setModal({type: 'project', data: null}),
-                onOpenSettings: () => setModal({ type: 'settings' }),
+                onOpenSettings: () => navigate('/profil'),
                 onOpenHelp: () => setModal({ type: 'help' }),
                 onToggleFavorite: handleToggleFavorite 
             }),

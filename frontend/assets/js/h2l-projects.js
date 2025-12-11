@@ -5,6 +5,27 @@
     window.H2L = window.H2L || {};
     window.H2L.Projects = window.H2L.Projects || {};
 
+    // --- YENİ: SİLME ONAY MODALI ---
+    const DeleteConfirmModal = ({ title, message, onClose, onConfirm }) => {
+        return el('div', { className: 'h2l-detail-overlay', style: { zIndex: 20060 }, onClick: onClose },
+            el('div', { className: 'h2l-confirm-modal', onClick: e => e.stopPropagation() },
+                el('div', { style: { textAlign: 'center', marginBottom: 10 } }, 
+                    el(Icon, { name: 'triangle-exclamation', style: { fontSize: 40, color: '#d1453b' } })
+                ),
+                el('h3', { className: 'h2l-confirm-title', style: { textAlign: 'center' } }, title),
+                el('p', { className: 'h2l-confirm-desc', style: { textAlign: 'center' } }, message),
+                el('div', { className: 'h2l-confirm-footer', style: { justifyContent: 'center' } }, 
+                    el('button', { className: 'h2l-btn', onClick: onClose }, 'İptal'), 
+                    el('button', { 
+                        className: 'h2l-btn primary', 
+                        style: { backgroundColor: '#d1453b', color: '#fff' }, // Kırmızı buton
+                        onClick: onConfirm 
+                    }, 'Evet, Sil')
+                )
+            )
+        );
+    };
+
     // --- PROJE MODALI ---
     const ProjectModal = ({ onClose, onSave, onDelete, folders, users, initialData }) => {
         const [form, setForm] = useState({
@@ -13,14 +34,17 @@
             color: initialData?.color || '#808080',
             folderId: getFolderId(initialData || {}),
             view_type: initialData?.view_type || 'list',
-            // DÜZELTME: Hem boolean hem de 1/0 değerlerini destekle
             is_favorite: initialData ? (initialData.is_favorite === true || initialData.is_favorite == 1) : false,
             description: initialData?.description || '',
             managers: initialData?.managers || []
         });
+        const [showDeleteConfirm, setShowDeleteConfirm] = useState(false); // Silme modalı durumu
+
         const MAX_CHAR = 120;
         
-        const ownerId = initialData ? parseInt(initialData.owner_id) : (window.h2lFrontendSettings ? parseInt(window.h2lFrontendSettings.currentUser.ID) : 0);
+        // DÜZELTME: currentUser.ID yerine currentUser.id kullanıldı
+        const ownerId = initialData ? parseInt(initialData.owner_id) : (window.h2lFrontendSettings ? parseInt(window.h2lFrontendSettings.currentUser.id) : 0);
+        
         const currentManagerIds = Array.isArray(form.managers) ? form.managers.map(id => parseInt(id)) : [];
         
         const selectedFolder = folders ? folders.find(f => parseInt(f.id) === parseInt(form.folderId)) : null;
@@ -104,19 +128,27 @@
                     )
                 ),
                 el('div', { className: 'h2l-modal-footer spaced' },
-                    initialData ? el('button', { className: 'h2l-btn text-danger', onClick: () => { if(confirm('Sil?')) onDelete(form.id); } }, 'Projeyi Sil') : el('div'),
+                    initialData ? el('button', { className: 'h2l-btn text-danger', onClick: () => setShowDeleteConfirm(true) }, 'Projeyi Sil') : el('div'),
                     el('div', { className: 'h2l-footer-right' },
                         el('button', { className: 'h2l-btn', onClick: onClose }, 'İptal'),
                         el('button', { className: 'h2l-btn primary', onClick: handleSave, disabled: !form.title.trim() }, initialData ? 'Kaydet' : 'Ekle')
                     )
-                )
+                ),
+                showDeleteConfirm && el(DeleteConfirmModal, {
+                    title: 'Projeyi Sil?',
+                    message: `"${form.title}" projesini ve içindeki tüm görevleri silmek istediğinize emin misiniz?`,
+                    onClose: () => setShowDeleteConfirm(false),
+                    onConfirm: () => onDelete(form.id)
+                })
             )
         );
     };
 
     const FolderModal = ({ onClose, onSave, onDelete, initialData }) => {
         const [form, setForm] = useState({ id: initialData?.id, name: initialData?.name || '', access_type: initialData?.access_type || 'private', description: initialData?.description || '' });
+        const [showDeleteConfirm, setShowDeleteConfirm] = useState(false); 
         const MAX_CHAR = 120;
+
         return el('div', { className: 'h2l-overlay', onClick: onClose },
             el('div', { className: 'h2l-modal small', onClick: e => e.stopPropagation() },
                 el('div', { className: 'h2l-modal-header' }, el('h3', null, initialData?'Klasör Düzenle':'Klasör Ekle'), el(Icon, { name: 'xmark', onClick: onClose })),
@@ -133,9 +165,15 @@
                     el('div', { className: 'h2l-form-group' }, el('textarea', { className: 'h2l-textarea', value: form.description, onChange: e => setForm({...form, description: e.target.value}), placeholder: 'Açıklama...', rows: 2 }))
                 ),
                 el('div', { className: 'h2l-modal-footer spaced' },
-                    initialData ? el('button', { className: 'h2l-btn text-danger', onClick: () => { if(confirm('Sil?')) onDelete(initialData.id); } }, 'Sil') : el('div'),
+                    initialData ? el('button', { className: 'h2l-btn text-danger', onClick: () => setShowDeleteConfirm(true) }, 'Sil') : el('div'),
                     el('div', { className: 'h2l-footer-right' }, el('button', { className: 'h2l-btn', onClick: onClose }, 'İptal'), el('button', { className: 'h2l-btn primary', onClick: () => onSave({ name: form.name, access_type: form.access_type, description: form.description, id: form.id }), disabled: !form.name.trim() }, 'Kaydet'))
-                )
+                ),
+                showDeleteConfirm && el(DeleteConfirmModal, {
+                    title: 'Klasörü Sil?',
+                    message: `"${form.name}" klasörünü silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`,
+                    onClose: () => setShowDeleteConfirm(false),
+                    onConfirm: () => onDelete(initialData.id)
+                })
             )
         );
     };
@@ -147,6 +185,8 @@
         const [showFavorites, setShowFavorites] = useState(false); 
         const [expandedFolders, setExpandedFolders] = useState({}); 
 
+        const currentUserId = parseInt(data.uid); // Oturum açan kullanıcının ID'si
+
         useEffect(() => {
             if(data.folders && Array.isArray(data.folders)) {
                 const initial = {}; data.folders.forEach(f => initial[f.id] = true); setExpandedFolders(initial);
@@ -157,18 +197,34 @@
 
         const projects = Array.isArray(data.projects) ? data.projects : [];
         const folders = Array.isArray(data.folders) ? data.folders : [];
-        
-        // 1. İsim Arama
+        const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+
+        // --- YENİ FİLTRELEME MANTIĞI ---
         let filteredProjects = projects.filter(p => p.title.toLowerCase().includes(search.toLowerCase()));
         
-        // 2. Tab Filtreleme
-        if (filterTab === 'joined') {
-            filteredProjects = filteredProjects.filter(p => p.is_member === true);
-        } else if (filterTab === 'not_joined') {
-            filteredProjects = filteredProjects.filter(p => p.is_member === false);
-        }
+        // Kullanıcının bir projede görevi olup olmadığını kontrol eden yardımcı fonksiyon
+        const hasAssignedTask = (projectId) => {
+            return tasks.some(t => 
+                parseInt(t.project_id) === parseInt(projectId) && 
+                t.assignees && 
+                t.assignees.map(id => parseInt(id)).includes(currentUserId) &&
+                t.status !== 'trash'
+            );
+        };
 
-        // 3. Favori Filtreleme (DÜZELTİLDİ: Boolean kontrolü)
+        if (filterTab === 'assigned') {
+            // Görevlendirildiklerim: Atanmış görevi olan projeler
+            filteredProjects = filteredProjects.filter(p => hasAssignedTask(p.id));
+        } else if (filterTab === 'no_tasks') {
+            // Görevim olmayanlar: Üye/Yönetici olduğu ama atanmış görevi olmayan projeler
+            filteredProjects = filteredProjects.filter(p => !hasAssignedTask(p.id));
+        } else if (filterTab === 'created') {
+            // Benim oluşturduklarım: Sahibi olduğu projeler
+            filteredProjects = filteredProjects.filter(p => parseInt(p.owner_id) === currentUserId);
+        }
+        // 'all' tabı için ekstra bir filtre yok, tüm erişilebilir projeler gösterilir.
+
+        // 3. Favori Filtreleme
         if (showFavorites) {
             filteredProjects = filteredProjects.filter(p => p.is_favorite === true || p.is_favorite == 1);
         }
@@ -180,7 +236,6 @@
         const ProjectRow = ({ project, nested }) => {
             const total = project.total_count || 0;
             const completed = project.completed_count || 0;
-            // DÜZELTME: API'den gelen boolean değeri doğru işle
             const isFav = project.is_favorite === true || project.is_favorite == 1;
             const isMember = project.is_member === true;
             
@@ -206,19 +261,16 @@
                     )
                 ),
                 el('div', { className: 'h2l-cell-right' }, 
-                    // FAVORİ BUTONU
                     el('div', { 
                         className: `h2l-row-fav ${isFav ? 'active' : ''}`, 
                         onClick: e => { e.stopPropagation(); if(onToggleFavorite) onToggleFavorite(project); } 
                     },
                         el(Icon, { name: isFav ? 'star' : 'star', style: { color: isFav ? '#f1c40f' : '#ccc', fontSize: 13 } })
                     ),
-                    // STATS
                     el('div', { className: 'h2l-cell-stats' }, 
                         el(Icon, { name: 'check-circle', style: { marginRight: 6, color:'#ccc' } }), 
                         `${completed} / ${total}`
                     ), 
-                    // MENÜ
                     isMember && el('div', { className: 'h2l-cell-actions', onClick: e => e.stopPropagation() }, 
                         el(Icon, { name: 'ellipsis', onClick: () => onAction('edit_project', project) })
                     )
@@ -238,8 +290,9 @@
                 el('div', { className: 'h2l-filter-bar' }, 
                     el('div', { className: 'h2l-tabs' }, 
                         el('button', { className: filterTab==='all'?'active':'', onClick:()=>setFilterTab('all') }, 'Tümü'), 
-                        el('button', { className: filterTab==='joined'?'active':'', onClick:()=>setFilterTab('joined') }, 'Katıldığım projeler'), 
-                        el('button', { className: filterTab==='not_joined'?'active':'', onClick:()=>setFilterTab('not_joined') }, 'Katılmadığım projeler'),
+                        el('button', { className: filterTab==='assigned'?'active':'', onClick:()=>setFilterTab('assigned') }, 'Görevlendirildiklerim'), 
+                        el('button', { className: filterTab==='no_tasks'?'active':'', onClick:()=>setFilterTab('no_tasks') }, 'Görevim Olmayanlar'),
+                        el('button', { className: filterTab==='created'?'active':'', onClick:()=>setFilterTab('created') }, 'Benim Oluşturduklarım'),
                         el('div', { className: 'switch-row', style: { marginLeft: 15, display: 'inline-flex', marginTop: 0 }, onClick: () => setShowFavorites(!showFavorites) },
                             el('label', { className: 'h2l-switch', style: { width: 30, height: 18 }, onClick: e => e.stopPropagation() },
                                 el('input', { type: 'checkbox', checked: showFavorites, onChange: e => setShowFavorites(e.target.checked) }),

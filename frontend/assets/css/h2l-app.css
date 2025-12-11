@@ -59,3 +59,222 @@ body.page-slug-gorevler { background-color: #fff !important; }
         padding: 0 15px 20px 15px; 
     }
 }
+
+/* --- PROFILE PAGE STYLES (YENİLENMİŞ TASARIM) --- */
+.h2l-profile-page {
+    padding: 40px;
+    max-width: 1100px;
+    margin: 0 auto;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.h2l-header-area h1 {
+    font-size: 28px;
+    font-weight: 800;
+    color: #1a1a1a;
+    margin-bottom: 10px;
+}
+
+.h2l-profile-container {
+    display: flex;
+    gap: 40px;
+    margin-top: 30px;
+    align-items: flex-start;
+}
+
+/* Sidebar / User Card */
+.h2l-profile-sidebar {
+    width: 320px;
+    flex-shrink: 0;
+}
+
+.h2l-profile-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 40px 30px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+.h2l-pc-avatar {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.h2l-pc-avatar img {
+    border: 4px solid #fff;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.h2l-pc-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: #111;
+    margin: 0 0 5px 0;
+}
+
+.h2l-pc-email {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0 0 15px 0;
+}
+
+.h2l-pc-role {
+    display: inline-block;
+    background: #f3f4f6;
+    color: #4b5563;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.h2l-pc-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 30px;
+    padding-top: 25px;
+    border-top: 1px solid #f3f4f6;
+}
+
+.h2l-stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+}
+
+.h2l-stat-val {
+    font-size: 20px;
+    font-weight: 800;
+    color: #111;
+    line-height: 1;
+    margin-bottom: 5px;
+}
+
+.h2l-stat-lbl {
+    font-size: 11px;
+    color: #9ca3af;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+/* Content Area */
+.h2l-profile-content {
+    flex: 1;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 500px; /* Sayfa zıplamasını önlemek için sabit minimum yükseklik */
+}
+
+/* Modern Tabs */
+.h2l-profile-tabs {
+    display: flex;
+    gap: 10px;
+    padding: 20px 30px;
+    border-bottom: 1px solid #f3f4f6;
+    background: #fff;
+}
+
+.h2l-profile-tabs button {
+    padding: 10px 20px;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.h2l-profile-tabs button:hover {
+    background: #f9fafb;
+    color: #111;
+}
+
+.h2l-profile-tabs button.active {
+    background: #eff6ff; /* Hafif mavi arka plan */
+    color: #2563eb;      /* Mavi yazı */
+}
+
+/* Tab Content */
+.h2l-tab-content {
+    padding: 40px;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+.h2l-tab-content h3 {
+    margin: 0 0 25px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #111;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+/* Form Elements inside Profile */
+.h2l-setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0;
+    border-bottom: 1px solid #f9fafb;
+}
+.h2l-setting-row:last-child { border-bottom: none; }
+
+.h2l-setting-row strong { display: block; font-size: 14px; color: #374151; margin-bottom: 4px; }
+.h2l-setting-row p { margin: 0; font-size: 13px; color: #9ca3af; }
+
+.h2l-copy-box {
+    display: flex;
+    gap: 12px;
+    margin-top: 15px;
+    background: #f9fafb;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.h2l-copy-box input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    font-size: 13px;
+    color: #4b5563;
+    outline: none;
+}
+
+.h2l-copy-box button {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #374151;
+    transition: all 0.2s;
+}
+.h2l-copy-box button:hover { background: #f3f4f6; }
+
+/* Responsive */
+@media (max-width: 900px) {
+    .h2l-profile-container { flex-direction: column; }
+    .h2l-profile-sidebar, .h2l-profile-content { width: 100%; }
+    .h2l-profile-tabs { overflow-x: auto; }
+}

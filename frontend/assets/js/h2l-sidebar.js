@@ -61,8 +61,12 @@
         return el('aside', { className: `h2l-sidebar-container ${isCollapsed ? 'collapsed' : ''} ${isMobileOpen ? 'mobile-open' : ''}` },
             
             el('div', { className: 'h2l-sb-header' },
-                el('div', { className: 'h2l-sb-user-area' },
-                    el('div', { className: 'h2l-sb-avatar' }, 'H'),
+                el('div', { 
+                    className: 'h2l-sb-user-area', 
+                    onClick: () => navigate('/profil'), // Tıklama olayı eklendi
+                    style: { cursor: 'pointer' }        // İmleç eklendi
+                },
+                   el('div', { className: 'h2l-sb-avatar' }, 'H'),
                     !isCollapsed && el('span', { className: 'h2l-sb-username' }, 'Adbreak')
                 ),
                 el('div', { className: 'h2l-sb-header-actions' },

@@ -41,7 +41,12 @@ if ( is_admin() ) {
     if ( file_exists( H2L_PATH . 'admin/h2l-admin.php' ) ) {
         require_once H2L_PATH . 'admin/h2l-admin.php';
     }
-} else {
+    
+    // YENİ: Metabox Yükleme
+    if ( file_exists( H2L_PATH . 'includes/admin/h2l-metabox.php' ) ) {
+        require_once H2L_PATH . 'includes/admin/h2l-metabox.php';
+    }
+}else {
     if ( file_exists( H2L_PATH . 'frontend/h2l-frontend.php' ) ) {
         require_once H2L_PATH . 'frontend/h2l-frontend.php';
     }

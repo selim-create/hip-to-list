@@ -209,7 +209,13 @@ function h2l_api_get_tasks($request) {
     if (isset($params['status'])) { $where .= $wpdb->prepare(" AND status = %s", sanitize_text_field((string)$params['status'])); }
     if (isset($params['project_id'])) { $where .= $wpdb->prepare(" AND project_id = %d", intval($params['project_id'])); }
     if (isset($params['parent_task_id'])) { $where .= $wpdb->prepare(" AND parent_task_id = %d", intval($params['parent_task_id'])); }
-
+    // --- CRM FİLTRELERİ BAŞLANGIÇ ---
+    if (isset($params['related_object_id'])) {
+        $where .= $wpdb->prepare(" AND related_object_id = %d", intval($params['related_object_id']));
+    }
+    if (isset($params['related_object_type'])) {
+        $where .= $wpdb->prepare(" AND related_object_type = %s", sanitize_text_field($params['related_object_type']));
+    }
     $sql = "SELECT t.*, (SELECT title FROM {$wpdb->prefix}h2l_projects WHERE id = t.project_id) as project_name, (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_comments c WHERE c.task_id = t.id) as comment_count FROM $table t $where ORDER BY t.sort_order ASC, t.created_at DESC";
     $tasks = $wpdb->get_results($sql);
     
@@ -241,29 +247,80 @@ function h2l_api_get_init_data( $request ) {
         h2l_check_default_user_data($uid);
     }
 
-    $sql_folders = "SELECT * FROM {$wpdb->prefix}h2l_folders WHERE (slug != 'inbox' AND slug != 'notlarim') OR owner_id = %d ORDER BY name ASC";
-    $folders = $wpdb->get_results($wpdb->prepare($sql_folders, $uid));
-
-    $sql_projects = "SELECT p.*, (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_tasks WHERE project_id = p.id AND status = 'completed') as completed_count, (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_tasks WHERE project_id = p.id AND status != 'trash') as total_count FROM {$wpdb->prefix}h2l_projects p WHERE p.status != 'trash' AND ( (p.slug != 'inbox-project' AND p.slug != 'notlarim') OR p.owner_id = %d ) ORDER BY p.title ASC";
-    $all_projects = $wpdb->get_results($wpdb->prepare($sql_projects, $uid));
+    // --- 1. ADIM: PROJELERİ ÇEK ---
+    // Önce projeleri çekiyoruz çünkü klasör görünürlüğü buna bağlı.
+    // Kural: Sadece Sahibi olduğum VEYA Yöneticisi olduğum projeler.
+    
+    $uid_str = '"' . $uid . '"';
+    
+    $sql_projects = "SELECT p.*, 
+                    (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_tasks WHERE project_id = p.id AND status = 'completed') as completed_count, 
+                    (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_tasks WHERE project_id = p.id AND status != 'trash') as total_count 
+                    FROM {$wpdb->prefix}h2l_projects p 
+                    WHERE p.status != 'trash' 
+                    AND ( 
+                        p.owner_id = %d 
+                        OR p.managers LIKE %s 
+                    )
+                    ORDER BY p.title ASC";
+                    
+    $all_projects = $wpdb->get_results($wpdb->prepare($sql_projects, $uid, '%' . $wpdb->esc_like($uid_str) . '%'));
     
     $fav_ids = $wpdb->get_col($wpdb->prepare("SELECT project_id FROM {$wpdb->prefix}h2l_user_favorites WHERE user_id = %d", $uid));
     
     $visible_projects = [];
-    $member_project_ids = []; 
+    $member_project_ids = [];
+    $member_folder_ids = []; // Üyesi olduğum projelerin bulunduğu klasör ID'leri
 
     foreach ($all_projects as $p) {
         $managers = !empty($p->managers) ? json_decode((string)$p->managers, true) : [];
         if (!is_array($managers)) $managers = [];
+        
         $is_owner = ($p->owner_id == $uid);
         $is_manager = in_array((string)$uid, $managers) || in_array($uid, $managers);
-        $p->is_member = ($is_owner || $is_manager);
-        $p->managers = $managers;
-        $p->is_favorite = in_array($p->id, $fav_ids);
-        $visible_projects[] = $p;
-        if ($p->is_member) { $member_project_ids[] = $p->id; }
+        
+        // Sadece yetkili olduğum projeleri listeye al
+        if ($is_owner || $is_manager) {
+            $p->is_member = true;
+            $p->managers = $managers;
+            $p->is_favorite = in_array($p->id, $fav_ids);
+            $visible_projects[] = $p;
+            $member_project_ids[] = $p->id;
+            
+            // Eğer proje bir klasöre bağlıysa, bu klasörü görme hakkı kazanırım
+            if (intval($p->folder_id) > 0) {
+                $member_folder_ids[] = intval($p->folder_id);
+            }
+        }
     }
+    
+    // ID'leri benzersiz yap
+    $member_folder_ids = array_unique($member_folder_ids);
 
+    // --- 2. ADIM: KLASÖRLERİ ÇEK ---
+    // Kural: Sadece SAHİBİ olduğum klasörler VEYA içinde YETKİLİ PROJEM olan klasörler.
+    // Access Type (Public/Private) fark etmeksizin, alakam olmayan klasörü görmem.
+    
+    $sql_folders = "SELECT * FROM {$wpdb->prefix}h2l_folders WHERE 1=1";
+    
+    if (empty($member_folder_ids)) {
+        // Hiçbir projeye üye değilsem, sadece kendi oluşturduğum klasörleri görürüm
+        $sql_folders .= $wpdb->prepare(" AND owner_id = %d", $uid);
+    } else {
+        // Kendi klasörlerim + İçinde projem olan klasörler
+        $ids_placeholders = implode(',', array_fill(0, count($member_folder_ids), '%d'));
+        // Parametre sırası: [uid, folder_id_1, folder_id_2, ...]
+        $params = array_merge([$uid], $member_folder_ids);
+        
+        $sql_folders .= $wpdb->prepare(" AND (owner_id = %d OR id IN ($ids_placeholders))", $params);
+    }
+    
+    $sql_folders .= " ORDER BY name ASC";
+    
+    $folders = $wpdb->get_results($sql_folders);
+
+    // --- 3. ADIM: GÖREVLERİ VE DİĞERLERİNİ ÇEK ---
+    
     $tasks = [];
     if (!empty($member_project_ids)) {
         $ids_placeholder = implode(',', array_fill(0, count($member_project_ids), '%d'));
@@ -303,11 +360,10 @@ function h2l_api_get_init_data( $request ) {
         return [ 'id' => $u->ID, 'name' => $u->display_name, 'username' => $u->user_login, 'avatar' => h2l_get_user_profile_picture_url($u->ID) ]; 
     }, get_users());
 
-    // --- INIT İÇİNE FİLTRELERİ DE EKLE (YENİ) ---
     if ( ! class_exists('H2L_Filter') ) require_once H2L_PATH . 'includes/core/filter.php';
     $f = new H2L_Filter();
     $filters = $f->get_user_filters( $uid );
-    // --- INIT'E KULLANICI TERCİHLERİNİ EKLE (DÜZELTME) ---
+    
     $user_prefs = [
         'start_view' => get_user_meta($uid, 'h2l_pref_start_view', true) ?: 'projects'
     ];
@@ -321,7 +377,7 @@ function h2l_api_get_init_data( $request ) {
         'labels' => $labels, 
         'filters' => $filters, 
         'uid' => $uid,
-        'user_prefs' => $user_prefs // Ayar verisi eklendi
+        'user_prefs' => $user_prefs
     ) );
 }
 
@@ -355,6 +411,7 @@ function h2l_api_manage_task($request) {
     $method = $request->get_method(); 
     $id = $request->get_param('id'); 
     $params = $request->get_json_params();
+    $current_user_id = get_current_user_id();
     
     if (!class_exists('H2L_Activity')) require_once H2L_PATH . 'includes/core/activity.php';
     if (!class_exists('H2L_Task')) require_once H2L_PATH . 'includes/core/task.php';
@@ -365,9 +422,26 @@ function h2l_api_manage_task($request) {
         return ['success' => true]; 
     }
     
+    // --- DÜZELTME: INBOX ID BULMA (Projesiz görevleri yakala) ---
+    $target_project_id = intval($params['projectId'] ?? ($params['project_id'] ?? 0));
+    
+    // Eğer proje ID 0 ise (Metabox'tan geliyorsa), kullanıcının Inbox projesini bul
+    if ( $target_project_id === 0 ) {
+        $inbox_project = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}h2l_projects WHERE owner_id = %d AND slug = 'inbox-project'",
+            $current_user_id
+        ));
+        
+        if ( $inbox_project ) {
+            $target_project_id = intval($inbox_project->id);
+        }
+    }
+    // -------------------------------------------------------------
+
     $new_assignees_for_notify = []; 
 
     if ($id) {
+        // GÜNCELLEME İŞLEMLERİ
         $old_task = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id));
         $old_assignees = !empty($old_task->assignee_ids) ? json_decode($old_task->assignee_ids) : [];
         if(!is_array($old_assignees)) $old_assignees = [];
@@ -377,11 +451,16 @@ function h2l_api_manage_task($request) {
 
         if (isset($params['title']) && $params['title'] !== $old_task->title) { $data['title'] = wp_kses_post((string)$params['title']); $changed_fields[] = 'title'; }
         if (isset($params['content']) && $params['content'] !== $old_task->content) { $data['content'] = wp_kses_post((string)$params['content']); $changed_fields[] = 'content'; }
-        if (isset($params['projectId']) && intval($params['projectId']) !== intval($old_task->project_id)) { $data['project_id'] = intval($params['projectId']); $changed_fields[] = 'project_id'; }
+        
+        // Proje değişikliği varsa güncelle
+        if (isset($params['projectId'])) { 
+            $data['project_id'] = $target_project_id; // Inbox mantığı burada da geçerli
+            if ($target_project_id !== intval($old_task->project_id)) $changed_fields[] = 'project_id'; 
+        }
+
         if (isset($params['sectionId']) && intval($params['sectionId']) !== intval($old_task->section_id)) { $data['section_id'] = intval($params['sectionId']); $changed_fields[] = 'section_id'; }
         if (isset($params['priority']) && intval($params['priority']) !== intval($old_task->priority)) { $data['priority'] = intval($params['priority']); $changed_fields[] = 'priority'; }
         
-        // TEKRARLI GÖREV KAYDI
         if (array_key_exists('repeat', $params)) {
             $new_repeat = !empty($params['repeat']) ? sanitize_text_field((string)$params['repeat']) : null;
             if ($new_repeat !== $old_task->recurrence_rule) {
@@ -390,29 +469,20 @@ function h2l_api_manage_task($request) {
             }
         }
 
-        // STATUS GÜNCELLEME & TEKRARLI GÖREV MANTIĞI
         if (isset($params['status'])) {
             $new_status = sanitize_text_field((string)$params['status']);
-            
-            // Eğer görev tamamlandıysa ve tekrarlıysa
             if ($new_status === 'completed' && !empty($old_task->recurrence_rule)) {
                 $task_helper = new H2L_Task();
-                $next_task = $task_helper->handle_recurring_completion($old_task);
-                // handle_recurring_completion orijinal görevi tamamlar ve yenisini oluşturur
-                // Bu durumda orijinal görevi "completed" olarak güncellemeye devam edebiliriz
+                $task_helper->handle_recurring_completion($old_task);
                 $data['status'] = 'completed';
                 $data['completed_at'] = current_time('mysql');
-                $data['recurrence_rule'] = null; // Orijinal görev artık tekrar etmez (zincir bitti)
-                
-                // Yeni görevi frontend'e haber vermek için yanıtı özelleştirmek gerekebilir ama 
-                // şimdilik basitçe orijinali güncelleyelim. Frontend listeyi yenileyecektir.
+                $data['recurrence_rule'] = null;
             } else {
                 $data['status'] = $new_status;
                 if ($new_status === 'completed') {
                     $data['completed_at'] = current_time('mysql');
                 }
             }
-            
             if ($new_status !== $old_task->status) {
                 $changed_fields[] = 'status';
                 H2L_Activity::log('task', $id, $new_status === 'completed' ? 'completed' : 'updated', ['new_status' => $new_status]);
@@ -445,7 +515,6 @@ function h2l_api_manage_task($request) {
 
         if (isset($params['sortOrder'])) $data['sort_order'] = intval($params['sortOrder']);
         
-        // CRM İLİŞKİLERİ GÜNCELLEME
         if (isset($params['related_object_type'])) $data['related_object_type'] = sanitize_text_field($params['related_object_type']);
         if (isset($params['related_object_id'])) $data['related_object_id'] = intval($params['related_object_id']);
 
@@ -458,9 +527,8 @@ function h2l_api_manage_task($request) {
         $new_id = $id;
 
     } else {
-        // YENİ GÖREV
-        $project_id = intval($params['projectId'] ?? 0);
-        $max_sort = $wpdb->get_var($wpdb->prepare("SELECT MAX(sort_order) FROM $table WHERE project_id = %d", $project_id));
+        // YENİ GÖREV OLUŞTURMA
+        $max_sort = $wpdb->get_var($wpdb->prepare("SELECT MAX(sort_order) FROM $table WHERE project_id = %d", $target_project_id));
         
         $assignees = isset($params['assignees']) ? $params['assignees'] : [];
         $new_assignees_for_notify = $assignees; 
@@ -468,13 +536,13 @@ function h2l_api_manage_task($request) {
         $data = [
             'title' => wp_kses_post((string)($params['title'] ?? '')), 
             'content' => wp_kses_post((string)($params['content'] ?? '')),
-            'project_id' => $project_id, 
+            'project_id' => $target_project_id, // Düzeltilmiş (Inbox) ID
             'section_id' => intval($params['sectionId'] ?? 0),
             'parent_task_id' => intval($params['parent_task_id'] ?? 0),
             'priority' => intval($params['priority'] ?? 4), 
             'status' => sanitize_text_field((string)($params['status'] ?? 'open')),
             'due_date' => !empty($params['dueDate']) ? sanitize_text_field((string)$params['dueDate']) : null,
-            'recurrence_rule' => !empty($params['repeat']) ? sanitize_text_field((string)$params['repeat']) : null, // TEKRAR KURALI EKLENDI
+            'recurrence_rule' => !empty($params['repeat']) ? sanitize_text_field((string)$params['repeat']) : null,
             'assignee_ids' => json_encode($assignees),
             'reminder_enabled' => !empty($params['reminder_enabled']) ? 1 : 0, 
             'reminder_sent' => 0, 
@@ -495,22 +563,36 @@ function h2l_api_manage_task($request) {
         $reminder->send_assignment_notification($new_id, $new_assignees_for_notify);
     }
 
+    // Etiketler
     if (isset($params['labels']) && is_array($params['labels'])) {
         if (count($params['labels']) > 3) { $params['labels'] = array_slice($params['labels'], 0, 3); }
         $wpdb->delete($table_task_labels, ['task_id' => $new_id]);
         foreach ($params['labels'] as $label_name) {
             $label_name = sanitize_text_field((string)$label_name);
+            // Etiket var mı kontrol et, yoksa oluştur
             $label_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_labels WHERE name = %s", $label_name));
-            if (!$label_id) { $wpdb->insert($table_labels, ['name' => $label_name, 'slug' => sanitize_title($label_name), 'color' => '#808080']); $label_id = $wpdb->insert_id; }
+            if (!$label_id) { 
+                $wpdb->insert($table_labels, ['name' => $label_name, 'slug' => sanitize_title($label_name), 'color' => '#808080']); 
+                $label_id = $wpdb->insert_id; 
+            }
             $wpdb->insert($table_task_labels, ['task_id' => $new_id, 'label_id' => $label_id]);
         }
     }
 
+    // Yanıtı Hazırla
     $task = $wpdb->get_row($wpdb->prepare("SELECT t.*, (SELECT COUNT(*) FROM {$wpdb->prefix}h2l_comments c WHERE c.task_id = t.id) as comment_count FROM $table t WHERE id=%d", $new_id));
+    
+    // Etiketleri ve Atananları Hydrate Et
     $task->labels = $wpdb->get_results($wpdb->prepare("SELECT l.* FROM {$wpdb->prefix}h2l_task_labels tl JOIN {$wpdb->prefix}h2l_labels l ON tl.label_id = l.id WHERE tl.task_id = %d", $new_id));
     $task->assignees = !empty($task->assignee_ids) ? json_decode((string)$task->assignee_ids) : [];
-    if($task->due_date) { $ts = strtotime($task->due_date); $task->date_display = (date('Y-m-d') == date('Y-m-d', $ts)) ? 'Bugün' : date_i18n('j M', $ts); } else { $task->date_display = ''; }
+    if($task->due_date) { 
+        $ts = strtotime($task->due_date); 
+        $task->date_display = (date('Y-m-d') == date('Y-m-d', $ts)) ? 'Bugün' : date_i18n('j M', $ts); 
+    } else { 
+        $task->date_display = ''; 
+    }
     $task = h2l_hydrate_task_crm_data($task);
+    
     return $task;
 }
 
@@ -708,7 +790,6 @@ function h2l_api_manage_filter($request) {
         }
         
         $new_filter = $filter_cls->create($params['title'], $params['query']);
-        return rest_ensure_response($new_filter);
+    return rest_ensure_response($new_filter);
     }
 }
-?>
